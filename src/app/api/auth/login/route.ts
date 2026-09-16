@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { AuditService } from "@/server/services/audit.service";
 
 export async function POST(req: Request) {
   try {
@@ -15,23 +16,45 @@ export async function POST(req: Request) {
 
     const cleanUser = username.trim().toLowerCase();
     const cleanPass = password.trim();
+    const clientIp = AuditService.getClientIp(req);
+    const userAgent = req.headers.get("user-agent") || "Unknown Browser";
 
     // Check Admin login credentials (U: admin, P: Smartjeff2026)
     if (
       (cleanUser === "admin" || cleanUser === "admin@j2k.co.th") &&
       cleanPass === "Smartjeff2026"
     ) {
-      return NextResponse.json({
+      // Log Audit Entry
+      await AuditService.log({
+        userId: "admin-id",
+        action: "LOGIN",
+        entity: "User",
+        entityId: "admin-id",
+        metadata: { role: "ADMIN", email: "admin@j2k.co.th", userAgent },
+        req,
+      });
+
+      const response = NextResponse.json({
         success: true,
         user: {
           id: "admin-id",
           email: "admin@j2k.co.th",
           name: "ผู้ดูแลระบบ (Admin)",
           role: "ADMIN",
+          ipAddress: clientIp,
         },
         redirectTo: "/admin/dashboard",
-        message: "เข้าสู่ระบบในฐานะ Admin เรียบร้อยแล้ว",
+        message: `เข้าสู่ระบบในฐานะ Admin เรียบร้อยแล้ว (IP: ${clientIp})`,
       });
+
+      // Set Session Cookie for Middleware
+      response.cookies.set("smarto_session", "admin-session-token", {
+        httpOnly: true,
+        path: "/",
+        maxAge: 86400 * 7, // 7 days
+      });
+
+      return response;
     }
 
     // Check Employee login credentials
@@ -47,7 +70,17 @@ export async function POST(req: Request) {
       });
 
       if (employee) {
-        return NextResponse.json({
+        // Log Audit Entry
+        await AuditService.log({
+          userId: employee.id,
+          action: "LOGIN",
+          entity: "Employee",
+          entityId: employee.id,
+          metadata: { role: "EMPLOYEE", code: employee.code, name: `${employee.firstName} ${employee.lastName}`, userAgent },
+          req,
+        });
+
+        const response = NextResponse.json({
           success: true,
           user: {
             id: employee.id,
@@ -55,10 +88,20 @@ export async function POST(req: Request) {
             name: `${employee.firstName} ${employee.lastName}`,
             role: "EMPLOYEE",
             site: employee.site?.name,
+            ipAddress: clientIp,
           },
           redirectTo: "/check-in",
-          message: `ยินดีต้อนรับคุณ ${employee.firstName} ${employee.lastName}`,
+          message: `ยินดีต้อนรับคุณ ${employee.firstName} ${employee.lastName} (IP: ${clientIp})`,
         });
+
+        // Set Session Cookie for Middleware
+        response.cookies.set("smarto_session", `emp-${employee.id}-token`, {
+          httpOnly: true,
+          path: "/",
+          maxAge: 86400 * 7,
+        });
+
+        return response;
       }
     }
 

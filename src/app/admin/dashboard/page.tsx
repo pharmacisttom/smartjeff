@@ -214,6 +214,55 @@ export default function AdminDashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* IP Access Audit Logs */}
+      <div className="bg-surface-card border border-surface-border rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-surface-border pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-content-primary flex items-center space-x-2">
+              <ShieldAlert className="w-5 h-5 text-brand-600" />
+              <span>ประวัติการเข้าใช้งานระบบ & บันทึก IP Address (Audit Log)</span>
+            </h2>
+            <p className="text-xs text-content-muted">บันทึก IP Address, Browser User-Agent และเวลาทุกครั้งที่มีการเข้าใช้งานหรือลงเวลา</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-surface-border text-xs text-content-muted font-bold uppercase bg-surface-subtle">
+                <th className="py-3 px-4">เวลาปฏิบัติการ</th>
+                <th className="py-3 px-4">กิจกรรม (Action)</th>
+                <th className="py-3 px-4">ผู้ใช้งาน / บทบาท</th>
+                <th className="py-3 px-4">หมายเลข IP Address</th>
+                <th className="py-3 px-4 text-right">อุปกรณ์ (User-Agent)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border text-xs font-mono">
+              {[
+                { time: "16/09/2026 10:18:42", action: "LOGIN", user: "ผู้ดูแลระบบ (Admin)", ip: "127.0.0.1", agent: "Chrome / Windows 11" },
+                { time: "16/09/2026 07:45:12", action: "CHECK_IN", user: "EMP003 - พัดมา วงค์คำ", ip: "182.52.231.14", agent: "Mobile Safari PWA" },
+                { time: "16/09/2026 07:42:05", action: "LOGIN", user: "EMP003 - พัดมา วงค์คำ", ip: "182.52.231.14", agent: "Mobile Safari PWA" },
+                { time: "16/09/2026 07:40:00", action: "CHECK_IN", user: "EMP001 - สมศรี สุขใจ", ip: "171.96.182.90", agent: "Chrome Mobile" },
+              ].map((log, idx) => (
+                <tr key={idx} className="hover:bg-surface-subtle transition-colors">
+                  <td className="py-3 px-4 font-bold text-content-primary">{log.time}</td>
+                  <td className="py-3 px-4">
+                    <span className="bg-brand-50 text-brand-700 dark:bg-brand-950/40 px-2 py-0.5 rounded font-bold">
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 font-sans font-semibold text-content-secondary">{log.user}</td>
+                  <td className="py-3 px-4 font-bold text-emerald-600">{log.ip}</td>
+                  <td className="py-3 px-4 text-right text-content-muted text-[11px] truncate max-w-[200px]">
+                    {log.agent}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
