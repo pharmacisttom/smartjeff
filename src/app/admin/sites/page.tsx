@@ -11,9 +11,11 @@ import {
   Trash2,
   Users,
   CheckCircle,
+  QrCode,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError, showConfirm } from "@/lib/swal";
+import { SiteQRCodeModal } from "@/components/qr/SiteQRCodeModal";
 
 interface Site {
   id: string;
@@ -33,6 +35,7 @@ export default function AdminSitesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [selectedQrSite, setSelectedQrSite] = useState<Site | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
@@ -198,14 +201,22 @@ export default function AdminSitesPage() {
 
                 <div className="flex items-center space-x-1">
                   <button
+                    onClick={() => setSelectedQrSite(site)}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300 rounded-xl text-xs font-bold transition-all shadow-sm"
+                    title="สร้างป้าย QR Code พิมพ์ติดหน้างาน"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>QR Code</span>
+                  </button>
+                  <button
                     onClick={() => handleOpenModal(site)}
-                    className="p-2 hover:bg-surface-subtle text-content-secondary hover:text-brand-600 rounded-xl"
+                    className="p-1.5 hover:bg-surface-subtle text-content-secondary hover:text-brand-600 rounded-xl"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(site.id)}
-                    className="p-2 hover:bg-rose-50 text-content-secondary hover:text-rose-600 rounded-xl"
+                    className="p-1.5 hover:bg-rose-50 text-content-secondary hover:text-rose-600 rounded-xl"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -364,6 +375,14 @@ export default function AdminSitesPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Printable Site QR Code Modal */}
+      {selectedQrSite && (
+        <SiteQRCodeModal
+          site={selectedQrSite}
+          onClose={() => setSelectedQrSite(null)}
+        />
       )}
     </div>
   );

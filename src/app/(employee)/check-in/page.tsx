@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, MapPin, CheckCircle2, AlertCircle, Camera, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react";
+import { Clock, MapPin, CheckCircle2, AlertCircle, Camera, ShieldCheck, RefreshCw, AlertTriangle, QrCode } from "lucide-react";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useHaptic } from "@/hooks/useHaptic";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -190,7 +190,13 @@ export default function CheckInPage() {
               <MapPin className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-content-muted">สถานที่ลงเวลาปฏิบัติงาน</p>
+              <div className="flex items-center space-x-2">
+                <p className="text-xs text-content-muted">สถานที่ลงเวลาปฏิบัติงาน</p>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center">
+                  <QrCode className="w-3 h-3 mr-1 text-emerald-600" />
+                  สแกน QR Code หน้างานแล้ว (AAM)
+                </span>
+              </div>
               <h2 className="text-sm md:text-base font-semibold text-content-primary leading-tight">
                 {AAM_SITE.name}
               </h2>
@@ -220,13 +226,13 @@ export default function CheckInPage() {
             <span>GPS: {currentLat.toFixed(4)}, {currentLng.toFixed(4)}</span>
             {accuracy && <span className="text-[10px]"> (ความแม่นยำ ±{Math.round(accuracy)}m)</span>}
           </div>
-          <button
-            onClick={() => refetch()}
-            className="flex items-center space-x-1 text-brand-600 hover:text-brand-700 font-medium active-press"
+          <a
+            href="/scan?siteCode=AAM"
+            className="flex items-center space-x-1 text-brand-600 hover:text-brand-700 font-bold active-press bg-brand-50 px-2.5 py-1 rounded-lg"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${geoLoading ? "animate-spin" : ""}`} />
-            <span>อัปเดต</span>
-          </button>
+            <QrCode className="w-3.5 h-3.5 text-brand-600" />
+            <span>สแกน QR หน้างาน</span>
+          </a>
         </div>
       </div>
 
