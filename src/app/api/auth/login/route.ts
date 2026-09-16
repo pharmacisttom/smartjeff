@@ -39,8 +39,8 @@ export async function POST(req: Request) {
       const employee = await prisma.employee.findFirst({
         where: {
           OR: [
-            { code: { equals: username, mode: "insensitive" } },
-            { phone: { equals: username } },
+            { code: username },
+            { phone: username },
           ],
         },
         include: { site: true },

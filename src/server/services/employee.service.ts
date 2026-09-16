@@ -6,10 +6,10 @@ export class EmployeeService {
     if (options?.siteId) where.siteId = options.siteId;
     if (options?.search) {
       where.OR = [
-        { code: { contains: options.search, mode: "insensitive" } },
-        { firstName: { contains: options.search, mode: "insensitive" } },
-        { lastName: { contains: options.search, mode: "insensitive" } },
-        { position: { contains: options.search, mode: "insensitive" } },
+        { code: { contains: options.search } },
+        { firstName: { contains: options.search } },
+        { lastName: { contains: options.search } },
+        { position: { contains: options.search } },
       ];
     }
 

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Employee {
@@ -18,7 +18,7 @@ model Employee {
   site         Site     @relation(fields: [siteId], references: [id])
   startDate    DateTime?
   birthDate    DateTime?
-  gender       Gender
+  gender       String   @default("MALE")
   nationality  String   @default("ไทย")
   idCardNo     String?  @unique
   phone        String?
@@ -28,9 +28,9 @@ model Employee {
   hospital     String?
   education    String?
   hometown     String?
-  salaryType   SalaryType @default(MONTHLY)
-  baseSalary   Decimal  @default(12000) @db.Decimal(10, 2)
-  dailyRate    Decimal  @default(400) @db.Decimal(10, 2)
+  salaryType   String   @default("MONTHLY")
+  baseSalary   Float    @default(12000)
+  dailyRate    Float    @default(400)
   isActive     Boolean  @default(true)
   user         User?
   attendances  Attendance[]
@@ -66,7 +66,7 @@ model Attendance {
   employeeId       String
   employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   localId          String?  @unique       // idempotency key
-  type             AttType
+  type             String   // CHECK_IN | CHECK_OUT | OT_IN | OT_OUT
   timestamp        DateTime @default(now())
   lat              Float
   lng              Float
@@ -91,11 +91,11 @@ model Leave {
   id          String   @id @default(cuid())
   employeeId  String
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type        LeaveType
+  type        String   // SICK | PERSONAL | VACATION | OT
   startDate   DateTime
   endDate     DateTime
   reason      String?
-  status      LeaveStatus @default(PENDING)
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
   approvedBy  String?
   approvedAt  DateTime?
   createdAt   DateTime @default(now())
@@ -108,16 +108,16 @@ model Payslip {
   employeeId  String
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   period      String                       // "2026-09"
-  baseSalary  Decimal  @db.Decimal(10, 2)
+  baseSalary  Float
   otHours     Float    @default(0)
-  otAmount    Decimal  @default(0) @db.Decimal(10, 2)
-  travelAllow Decimal  @default(0) @db.Decimal(10, 2)
-  diligence   Decimal  @default(0) @db.Decimal(10, 2)
-  otherIncome Decimal  @default(0) @db.Decimal(10, 2)
-  tax         Decimal  @default(0) @db.Decimal(10, 2)
-  socialSec   Decimal  @default(0) @db.Decimal(10, 2)
-  otherDeduct Decimal  @default(0) @db.Decimal(10, 2)
-  netPay      Decimal  @db.Decimal(10, 2)
+  otAmount    Float    @default(0)
+  travelAllow Float    @default(0)
+  diligence   Float    @default(0)
+  otherIncome Float    @default(0)
+  tax         Float    @default(0)
+  socialSec   Float    @default(0)
+  otherDeduct Float    @default(0)
+  netPay      Float
   pdfUrl      String?
   createdAt   DateTime @default(now())
 
@@ -129,9 +129,9 @@ model PayrollConfig {
   id                  String   @id @default(cuid())
   siteId              String?  @unique
   site                Site?    @relation(fields: [siteId], references: [id])
-  otRate              Decimal  @default(75) @db.Decimal(10, 2)
-  travelAllowance     Decimal  @default(0) @db.Decimal(10, 2)
-  diligenceAmount     Decimal  @default(1000) @db.Decimal(10, 2)
+  otRate              Float    @default(75)
+  travelAllowance     Float    @default(0)
+  diligenceAmount     Float    @default(1000)
   diligenceMaxLate    Int      @default(3)
   workingDaysPerMonth Int      @default(26)
   workingHoursPerDay  Int      @default(8)
@@ -144,8 +144,8 @@ model ChatMessage {
   employeeId  String
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   role        String                       // user | assistant | admin
-  content     String   @db.Text
-  attachments Json?
+  content     String
+  attachments String?
   createdAt   DateTime @default(now())
 
   @@index([employeeId, createdAt])
@@ -155,7 +155,7 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   password     String?
-  role         Role     @default(EMPLOYEE)
+  role         String   @default("EMPLOYEE") // EMPLOYEE | ADMIN | HR
   lineUserId   String?  @unique
   image        String?
   employeeId   String?  @unique
@@ -169,46 +169,10 @@ model AuditLog {
   action     String
   entity     String
   entityId   String?
-  metadata   Json?
+  metadata   String?
   ipAddress  String?
   createdAt  DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([entity, entityId])
-}
-
-enum Role {
-  EMPLOYEE
-  ADMIN
-  HR
-}
-
-enum Gender {
-  MALE
-  FEMALE
-}
-
-enum SalaryType {
-  MONTHLY
-  DAILY
-}
-
-enum AttType {
-  CHECK_IN
-  CHECK_OUT
-  OT_IN
-  OT_OUT
-}
-
-enum LeaveType {
-  SICK
-  PERSONAL
-  VACATION
-  OT
-}
-
-enum LeaveStatus {
-  PENDING
-  APPROVED
-  REJECTED
 }

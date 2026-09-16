@@ -1,170 +1,298 @@
-import { PrismaClient, Gender, SalaryType, Role } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from "@prisma/client";
+import * as XLSX from "xlsx";
+import * as path from "path";
 
 const prisma = new PrismaClient();
 
-const SITES_DATA = [
-  // เหมราช / อมตะซิตี้
-  { code: 'AAM', name: 'บริษัท เอเอเอ็ม อินดัสเตรียล จำกัด', lat: 12.9236, lng: 101.1352, radius: 200 },
-  { code: 'ABPR1', name: 'โรงงาน ABPR 1 (อมตะซิตี้)', lat: 12.9250, lng: 101.1360, radius: 200 },
-  { code: 'ABPR2', name: 'โรงงาน ABPR 2 (อมตะซิตี้)', lat: 12.9260, lng: 101.1370, radius: 200 },
-  { code: 'ABPR3', name: 'โรงงาน ABPR 3 (อมตะซิตี้)', lat: 12.9270, lng: 101.1380, radius: 200 },
-  { code: 'ABPR4', name: 'โรงงาน ABPR 4 (อมตะซิตี้)', lat: 12.9280, lng: 101.1390, radius: 200 },
-  { code: 'ABPR5', name: 'โรงงาน ABPR 5 (อมตะซิตี้)', lat: 12.9290, lng: 101.1400, radius: 200 },
-  { code: 'JATH', name: 'บริษัท เจเอทีเอช เทคโนโลยี จำกัด', lat: 12.9220, lng: 101.1340, radius: 200 },
-
-  // อีสเทิร์นซีบอร์ด (ปลวกแดง)
-  { code: 'BAT', name: 'โรงงานแบตเตอรี่ อีสเทิร์นซีบอร์ด', lat: 12.6841, lng: 101.1476, radius: 250 },
-  { code: 'BW', name: 'บีดับเบิลยู ออโต้พาร์ท', lat: 12.6850, lng: 101.1480, radius: 200 },
-  { code: 'CATALER', name: 'บริษัท คาตาเลอร์ (ประเทศไทย) จำกัด', lat: 12.6860, lng: 101.1490, radius: 200 },
-  { code: 'DOWA', name: 'บริษัท โดวะ ฮีทเทรตติ้ง จำกัด', lat: 12.6870, lng: 101.1500, radius: 200 },
-  { code: 'FTS1', name: 'เอฟทีเอส เฟส 1', lat: 12.6880, lng: 101.1510, radius: 200 },
-  { code: 'FTS2', name: 'เอฟทีเอส เฟส 2', lat: 12.6890, lng: 101.1520, radius: 200 },
-
-  // แหลมฉบัง
-  { code: 'LCIT', name: 'ท่าเทียบเรือแหลมฉบัง LCIT', lat: 13.0762, lng: 100.8886, radius: 300 },
-  { code: 'TIPS', name: 'ท่าเรือ TIPS แหลมฉบัง', lat: 13.0780, lng: 100.8900, radius: 300 },
-];
-
-const INITIAL_EMPLOYEES = [
-  { code: 'EMP001', prefix: 'นาง', firstName: 'สมศรี', lastName: 'สุขใจ', position: 'หัวหน้าแม่บ้าน', siteCode: 'AAM', gender: Gender.FEMALE, dailyRate: 450, baseSalary: 13500 },
-  { code: 'EMP002', prefix: 'นาย', firstName: 'สมชาย', lastName: 'มีทรัพย์', position: 'พนักงานทำความสะอาด', siteCode: 'AAM', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP003', prefix: 'นางสาว', firstName: 'พัดมา', lastName: 'วงค์คำ', position: 'พนักงานทำความสะอาด', siteCode: 'AAM', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP004', prefix: 'นาย', firstName: 'บุญมี', lastName: 'มั่นคง', position: 'คนสวน', siteCode: 'ABPR1', gender: Gender.MALE, dailyRate: 420, baseSalary: 12600 },
-  { code: 'EMP005', prefix: 'นาง', firstName: 'พรทิพย์', lastName: 'สว่างอรุณ', position: 'แม่บ้านประจำอาคาร', siteCode: 'ABPR1', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP006', prefix: 'นาย', firstName: 'วิชัย', lastName: 'เจริญสุข', position: 'สายกวาด', siteCode: 'ABPR2', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP007', prefix: 'นางสาว', firstName: 'กัญญารัตน์', lastName: 'ดวงดี', position: 'แม่บ้าน', siteCode: 'ABPR2', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP008', prefix: 'นาย', firstName: 'สุทิน', lastName: 'ชูชัย', position: 'พนักงานกวาดพื้น', siteCode: 'ABPR3', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP009', prefix: 'นาง', firstName: 'มาลี', lastName: 'สดใส', position: 'แม่บ้าน', siteCode: 'ABPR3', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP010', prefix: 'นาย', firstName: 'อำนาจ', lastName: 'เกรียงไกร', position: 'คนสวน', siteCode: 'ABPR4', gender: Gender.MALE, dailyRate: 420, baseSalary: 12600 },
-  { code: 'EMP011', prefix: 'นางสาว', firstName: 'จินตนา', lastName: 'แก้วมณี', position: 'แม่บ้าน', siteCode: 'BAT', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP012', prefix: 'นาย', firstName: 'เกรียงไกร', lastName: 'สมบูรณ์', position: 'สายกวาด', siteCode: 'BAT', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP013', prefix: 'นาง', firstName: 'นภา', lastName: 'แจ่มใส', position: 'แม่บ้าน', siteCode: 'BW', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP014', prefix: 'นาย', firstName: 'ประเสริฐ', lastName: 'ศรีทอง', position: 'คนสวน', siteCode: 'CATALER', gender: Gender.MALE, dailyRate: 420, baseSalary: 12600 },
-  { code: 'EMP015', prefix: 'นางสาว', firstName: 'วรรณา', lastName: 'รัตนะ', position: 'แม่บ้าน', siteCode: 'CATALER', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP016', prefix: 'นาย', firstName: 'ชาญชัย', lastName: 'ยั่งยืน', position: 'สายกวาด', siteCode: 'DOWA', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP017', prefix: 'นาง', firstName: 'ดาราน้อย', lastName: 'จันทร์เพ็ญ', position: 'แม่บ้าน', siteCode: 'DOWA', gender: Gender.FEMALE, dailyRate: 400, baseSalary: 12000 },
-  { code: 'EMP018', prefix: 'นาย', firstName: 'ธนกร', lastName: 'รุ่งเรือง', position: 'หัวหน้าทีมทำความสะอาด', siteCode: 'LCIT', gender: Gender.MALE, dailyRate: 480, baseSalary: 14400 },
-  { code: 'EMP019', prefix: 'นางสาว', firstName: 'ศิริพร', lastName: 'บุญนำ', position: 'แม่บ้านประจำเรือ', siteCode: 'LCIT', gender: Gender.FEMALE, dailyRate: 420, baseSalary: 12600 },
-  { code: 'EMP020', prefix: 'นาย', firstName: 'อนุรักษ์', lastName: 'คุ้มทรัพย์', position: 'สายกวาด outdoor', siteCode: 'TIPS', gender: Gender.MALE, dailyRate: 400, baseSalary: 12000 },
-];
-
 async function main() {
-  console.log('🌱 Starting SMARTO database seeding...');
+  console.log("🌱 Starting SMARTO database seed from jeffsallary.xlsx...");
 
-  // Create Sites
-  const siteMap = new Map<string, string>();
-  for (const s of SITES_DATA) {
+  // Reset database tables
+  await prisma.user.deleteMany({});
+  await prisma.attendance.deleteMany({});
+  await prisma.payslip.deleteMany({});
+  await prisma.leave.deleteMany({});
+  await prisma.employee.deleteMany({});
+  await prisma.site.deleteMany({});
+
+  const excelPath = path.join(__dirname, "../jeffsallary.xlsx");
+  const workbook = XLSX.readFile(excelPath);
+
+  // 1. Seed Customer Sites & Work Hours
+  const customerSheet = workbook.Sheets["Customer"];
+  const customerRows: any[] = XLSX.utils.sheet_to_json(customerSheet);
+
+  const workSheet = workbook.Sheets["เวลา -เข้าออกงาน"];
+  const workRows: any[] = XLSX.utils.sheet_to_json(workSheet);
+  const workHoursMap = new Map<string, any>();
+
+  for (const w of workRows) {
+    const code = w.__EMPTY_1 || w.siteCode;
+    if (code) {
+      workHoursMap.set(String(code).trim().toUpperCase(), {
+        workStart: w["เวลาเข้าทำงาน"] ? parseFloat(w["เวลาเข้าทำงาน"]) : 7,
+        workEnd: w["เวลาออกทำงาน"] ? parseFloat(w["เวลาออกทำงาน"]) : 16,
+        otStart: w["เวลาเข้าโอที"] ? parseFloat(w["เวลาเข้าโอที"]) : 16,
+        otEnd: w["เวลาออกโอที"] ? parseFloat(w["เวลาออกโอที"]) : 17,
+      });
+    }
+  }
+
+  const siteMap = new Map<string, string>(); // Code -> ID
+
+  // Default AAM site
+  const defaultSite = await prisma.site.upsert({
+    where: { code: "AAM" },
+    update: {},
+    create: {
+      code: "AAM",
+      name: "บริษัท เอเอเอ็ม อินดัสเตรียล จำกัด",
+      location: "นิคมอุตสาหกรรมมาบตาพุด ระยอง",
+      lat: 12.6841,
+      lng: 101.1476,
+      radius: 200,
+      workStart: 7,
+      workEnd: 16,
+      otStart: 16,
+      otEnd: 17,
+    },
+  });
+  siteMap.set("AAM", defaultSite.id);
+
+  for (const c of customerRows) {
+    const siteCode = c["ตัวย่อโรงงาน"] || (c.CODE ? String(c.CODE) : null);
+    const siteName = c["ชื่อเต็มโรงงาน"] || siteCode;
+    if (!siteCode || !siteName) continue;
+
+    const cleanCode = String(siteCode).trim().toUpperCase();
+    const workInfo = workHoursMap.get(cleanCode) || { workStart: 7, workEnd: 16, otStart: 16, otEnd: 17 };
+
     const site = await prisma.site.upsert({
-      where: { code: s.code },
+      where: { code: cleanCode },
       update: {
-        name: s.name,
-        lat: s.lat,
-        lng: s.lng,
-        radius: s.radius,
+        name: String(siteName).trim(),
       },
       create: {
-        code: s.code,
-        name: s.name,
-        location: 'นิคมอุตสาหกรรมระยอง/ชลบุรี',
-        lat: s.lat,
-        lng: s.lng,
-        radius: s.radius,
-        workStart: 7.0,
-        workEnd: 16.0,
-        otStart: 16.0,
-        otEnd: 19.0,
+        code: cleanCode,
+        name: String(siteName).trim(),
+        location: "จังหวัดระยอง / ชลบุรี",
+        lat: 12.6841 + (Math.random() * 0.1 - 0.05),
+        lng: 101.1476 + (Math.random() * 0.1 - 0.05),
+        radius: 200,
+        workStart: workInfo.workStart,
+        workEnd: workInfo.workEnd,
+        otStart: workInfo.otStart,
+        otEnd: workInfo.otEnd,
       },
     });
-    siteMap.set(s.code, site.id);
 
-    // Create Payroll Config for each site
-    await prisma.payrollConfig.upsert({
-      where: { siteId: site.id },
-      update: {},
-      create: {
-        siteId: site.id,
-        otRate: 75.0,
-        travelAllowance: 50.0,
-        diligenceAmount: 1000.0,
-        diligenceMaxLate: 3,
-        workingDaysPerMonth: 26,
-        workingHoursPerDay: 8,
-      },
+    siteMap.set(cleanCode, site.id);
+  }
+
+  console.log(`✅ Upserted ${siteMap.size} Customer Sites from Excel.`);
+
+  // 2. Parse Employees from "ประวัติพนักงาน J2K"
+  const empSheet = workbook.Sheets["ประวัติพนักงาน J2K"];
+  const empRows: any[][] = XLSX.utils.sheet_to_json(empSheet, { header: 1 });
+
+  // Read Salary sheet for base salary & daily rate
+  const salarySheet = workbook.Sheets["เงินเดือน "];
+  const salaryRows: any[][] = XLSX.utils.sheet_to_json(salarySheet, { header: 1 });
+  const salaryMap = new Map<string, { baseSalary: number; dailyRate: number }>();
+
+  for (let i = 3; i < salaryRows.length; i++) {
+    const r = salaryRows[i];
+    if (!r || !r[1]) continue;
+    const code = String(r[1]).trim();
+    const monthly = r[4] ? parseFloat(r[4]) : 0;
+    const daily = r[5] ? parseFloat(r[5]) : 0;
+    salaryMap.set(code, {
+      baseSalary: monthly > 0 ? monthly : 12000,
+      dailyRate: daily > 0 ? daily : 400,
     });
   }
-  console.log(`✅ Upserted ${SITES_DATA.length} sites and payroll configurations.`);
 
-  // Create Employees
-  for (let i = 0; i < INITIAL_EMPLOYEES.length; i++) {
-    const emp = INITIAL_EMPLOYEES[i];
-    const siteId = siteMap.get(emp.siteCode) || Array.from(siteMap.values())[0];
+  let createdEmpCount = 0;
+  const processedCodes = new Set<string>();
+  const processedIdCards = new Set<string>();
+
+  for (let i = 3; i < empRows.length; i++) {
+    const row = empRows[i];
+    if (!row || !row[1] || !row[2]) continue;
+
+    const rawCode = String(row[1]).trim();
+    if (processedCodes.has(rawCode)) continue;
+    processedCodes.add(rawCode);
+
+    const rawName = String(row[2]).trim();
+    const position = row[3] ? String(row[3]).trim() : "พนักงานทำความสะอาด";
+    const rawSiteCode = row[4] ? String(row[4]).trim().toUpperCase() : "AAM";
+    const genderStr = row[8] ? String(row[8]).trim() : "หญิง";
+    const nationality = row[9] ? String(row[9]).trim() : "ไทย";
     
+    let idCardNo = row[10] ? String(row[10]).trim() : null;
+    if (idCardNo) {
+      if (processedIdCards.has(idCardNo)) {
+        idCardNo = null;
+      } else {
+        processedIdCards.add(idCardNo);
+      }
+    }
+    const phone = row[11] ? String(row[11]).trim() : null;
+    const bankAccount = row[12] ? String(row[12]).trim() : null;
+    const bankName = row[13] ? String(row[13]).trim() : null;
+    const hospital = row[15] ? String(row[15]).trim() : null;
+
+    // Split Name into prefix, firstName, lastName
+    let prefix = "นางสาว";
+    let fullName = rawName;
+
+    if (rawName.startsWith("นาย")) {
+      prefix = "นาย";
+      fullName = rawName.substring(3).trim();
+    } else if (rawName.startsWith("นางสาว")) {
+      prefix = "นางสาว";
+      fullName = rawName.substring(6).trim();
+    } else if (rawName.startsWith("น.ส.")) {
+      prefix = "นางสาว";
+      fullName = rawName.substring(4).trim();
+    } else if (rawName.startsWith("นาง")) {
+      prefix = "นาง";
+      fullName = rawName.substring(3).trim();
+    }
+
+    const nameParts = fullName.split(/\s+/);
+    const firstName = nameParts[0] || fullName;
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const targetSiteId = siteMap.get(rawSiteCode) || defaultSite.id;
+    const salInfo = salaryMap.get(rawCode) || { baseSalary: 12000, dailyRate: 400 };
+
     const employee = await prisma.employee.upsert({
-      where: { code: emp.code },
+      where: { code: rawCode },
       update: {
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-        position: emp.position,
-        siteId: siteId,
-        dailyRate: emp.dailyRate,
-        baseSalary: emp.baseSalary,
+        firstName,
+        lastName,
+        position,
+        siteId: targetSiteId,
+        phone,
+        bankAccount,
+        bankName,
+        hospital,
+        baseSalary: salInfo.baseSalary,
+        dailyRate: salInfo.dailyRate,
       },
       create: {
-        code: emp.code,
-        prefix: emp.prefix,
-        firstName: emp.firstName,
-        lastName: emp.lastName,
-        position: emp.position,
-        siteId: siteId,
-        gender: emp.gender,
-        nationality: 'ไทย',
-        salaryType: SalaryType.MONTHLY,
-        dailyRate: emp.dailyRate,
-        baseSalary: emp.baseSalary,
-        phone: `081-${1000000 + i}`,
-        bankName: 'ธนาคารกสิกรไทย',
-        bankAccount: `123-4-${50000 + i}-9`,
-        idCardNo: `1209900${100000 + i}`,
-        startDate: new Date('2024-01-15'),
+        code: rawCode,
+        prefix,
+        firstName,
+        lastName,
+        position,
+        siteId: targetSiteId,
+        gender: genderStr.includes("ชาย") ? "MALE" : "FEMALE",
+        nationality,
+        idCardNo,
+        phone,
+        bankAccount,
+        bankName,
+        hospital,
+        salaryType: salInfo.baseSalary > 0 ? "MONTHLY" : "DAILY",
+        baseSalary: salInfo.baseSalary,
+        dailyRate: salInfo.dailyRate,
       },
     });
 
-    // Create default Admin and Employee User accounts
-    if (i === 0) {
-      // HR / Admin User
+    createdEmpCount++;
+
+    // Create User accounts
+    if (i === 3) {
+      // First Admin User (admin@j2k.co.th / Smartjeff2026)
       await prisma.user.upsert({
-        where: { email: 'admin@j2k.co.th' },
-        update: { role: Role.ADMIN, employeeId: employee.id },
+        where: { email: "admin@j2k.co.th" },
+        update: { role: "ADMIN" },
         create: {
-          email: 'admin@j2k.co.th',
-          password: 'hashed_password_placeholder', // In prod, hash with bcrypt
-          role: Role.ADMIN,
-          employeeId: employee.id,
+          email: "admin@j2k.co.th",
+          password: "Smartjeff2026",
+          role: "ADMIN",
         },
       });
     }
 
     await prisma.user.upsert({
-      where: { email: `${emp.code.toLowerCase()}@j2k.co.th` },
+      where: { email: `${rawCode}@j2k.co.th` },
       update: { employeeId: employee.id },
       create: {
-        email: `${emp.code.toLowerCase()}@j2k.co.th`,
-        password: 'hashed_password_placeholder',
-        role: Role.EMPLOYEE,
+        email: `${rawCode}@j2k.co.th`,
+        password: "Smartjeff2026",
+        role: "EMPLOYEE",
         employeeId: employee.id,
+      },
+    });
+
+    // 3. Generate initial Attendance logs & Payslips for 2026-09
+    await prisma.attendance.upsert({
+      where: { localId: `seed-att-${rawCode}` },
+      update: {},
+      create: {
+        employeeId: employee.id,
+        localId: `seed-att-${rawCode}`,
+        type: "CHECK_IN",
+        timestamp: new Date("2026-09-16T07:45:00.000Z"),
+        lat: 12.6841,
+        lng: 101.1476,
+        distance: 45,
+        isWithinGeofence: true,
+        isApproved: true,
+      },
+    });
+
+    // Seed Payslip for 2026-09
+    const baseSal = salInfo.baseSalary;
+    const socialSec = Math.min(Math.round(baseSal * 0.05), 750);
+    const tax = Math.round(baseSal * 0.01);
+    const otAmount = 1500;
+    const diligence = 1000;
+    const netPay = baseSal + otAmount + diligence - socialSec - tax;
+
+    await prisma.payslip.upsert({
+      where: {
+        employeeId_period: {
+          employeeId: employee.id,
+          period: "2026-09",
+        },
+      },
+      update: {
+        baseSalary: baseSal,
+        otAmount,
+        diligence,
+        socialSec,
+        tax,
+        netPay,
+      },
+      create: {
+        employeeId: employee.id,
+        period: "2026-09",
+        baseSalary: baseSal,
+        otHours: 10,
+        otAmount,
+        travelAllow: 500,
+        diligence,
+        otherIncome: 0,
+        socialSec,
+        tax,
+        otherDeduct: 0,
+        netPay,
       },
     });
   }
 
-  console.log(`✅ Upserted ${INITIAL_EMPLOYEES.length} employees and user accounts.`);
-  console.log('🎉 Seeding completed successfully!');
+  console.log(`✅ Successfully seeded ${createdEmpCount} Employees, Users, Attendance Logs & Payslips from jeffsallary.xlsx!`);
+  console.log("🎉 Database seeding complete!");
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error seeding database:', e);
+    console.error("❌ Error seeding database:", e);
     process.exit(1);
   })
   .finally(async () => {
