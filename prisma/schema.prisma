@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  prefix       String?
+  firstName    String
+  lastName     String
+  position     String
+  siteId       String
+  site         Site     @relation(fields: [siteId], references: [id])
+  startDate    DateTime?
+  birthDate    DateTime?
+  gender       Gender
+  nationality  String   @default("ไทย")
+  idCardNo     String?  @unique
+  phone        String?
+  bankAccount  String?
+  bankName     String?
+  insurance    String?
+  hospital     String?
+  education    String?
+  hometown     String?
+  salaryType   SalaryType @default(MONTHLY)
+  baseSalary   Decimal  @default(12000) @db.Decimal(10, 2)
+  dailyRate    Decimal  @default(400) @db.Decimal(10, 2)
+  isActive     Boolean  @default(true)
+  user         User?
+  attendances  Attendance[]
+  leaves       Leave[]
+  payslips     Payslip[]
+  chats        ChatMessage[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([code])
+}
+
+model Site {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  location    String?
+  lat         Float?
+  lng         Float?
+  radius      Int     @default(200)
+  workStart   Float   @default(7)
+  workEnd     Float   @default(16)
+  otStart     Float?  @default(16)
+  otEnd       Float?  @default(17)
+  employees   Employee[]
+  config      PayrollConfig?
+  createdAt   DateTime @default(now())
+}
+
+model Attendance {
+  id               String   @id @default(cuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  localId          String?  @unique       // idempotency key
+  type             AttType
+  timestamp        DateTime @default(now())
+  lat              Float
+  lng              Float
+  distance         Float
+  accuracy         Float?
+  isWithinGeofence Boolean  @default(false)
+  photoUrl         String?
+  photoHash        String?                 // SHA-256
+  deviceInfo       String?
+  note             String?
+  isApproved       Boolean  @default(false)
+  approvedBy       String?
+  approvedAt       DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([employeeId, timestamp])
+  @@index([timestamp])
+  @@index([localId])
+}
+
+model Leave {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        LeaveType
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      LeaveStatus @default(PENDING)
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, status])
+}
+
+model Payslip {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period      String                       // "2026-09"
+  baseSalary  Decimal  @db.Decimal(10, 2)
+  otHours     Float    @default(0)
+  otAmount    Decimal  @default(0) @db.Decimal(10, 2)
+  travelAllow Decimal  @default(0) @db.Decimal(10, 2)
+  diligence   Decimal  @default(0) @db.Decimal(10, 2)
+  otherIncome Decimal  @default(0) @db.Decimal(10, 2)
+  tax         Decimal  @default(0) @db.Decimal(10, 2)
+  socialSec   Decimal  @default(0) @db.Decimal(10, 2)
+  otherDeduct Decimal  @default(0) @db.Decimal(10, 2)
+  netPay      Decimal  @db.Decimal(10, 2)
+  pdfUrl      String?
+  createdAt   DateTime @default(now())
+
+  @@unique([employeeId, period])
+  @@index([period])
+}
+
+model PayrollConfig {
+  id                  String   @id @default(cuid())
+  siteId              String?  @unique
+  site                Site?    @relation(fields: [siteId], references: [id])
+  otRate              Decimal  @default(75) @db.Decimal(10, 2)
+  travelAllowance     Decimal  @default(0) @db.Decimal(10, 2)
+  diligenceAmount     Decimal  @default(1000) @db.Decimal(10, 2)
+  diligenceMaxLate    Int      @default(3)
+  workingDaysPerMonth Int      @default(26)
+  workingHoursPerDay  Int      @default(8)
+  effectiveFrom       DateTime @default(now())
+  effectiveTo         DateTime?
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role        String                       // user | assistant | admin
+  content     String   @db.Text
+  attachments Json?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String?
+  role         Role     @default(EMPLOYEE)
+  lineUserId   String?  @unique
+  image        String?
+  employeeId   String?  @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
+
+enum Role {
+  EMPLOYEE
+  ADMIN
+  HR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum SalaryType {
+  MONTHLY
+  DAILY
+}
+
+enum AttType {
+  CHECK_IN
+  CHECK_OUT
+  OT_IN
+  OT_OUT
+}
+
+enum LeaveType {
+  SICK
+  PERSONAL
+  VACATION
+  OT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
