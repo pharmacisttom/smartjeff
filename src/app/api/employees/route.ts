@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { EmployeeService } from "@/server/services/employee.service";
 
 export async function GET(req: Request) {
   try {
@@ -7,28 +7,9 @@ export async function GET(req: Request) {
     const siteId = searchParams.get("siteId");
     const search = searchParams.get("search");
 
-    const where: any = {};
-    if (siteId) where.siteId = siteId;
-    if (search) {
-      where.OR = [
-        { code: { contains: search, mode: "insensitive" } },
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
-        { position: { contains: search, mode: "insensitive" } },
-      ];
-    }
-
-    const employees = await prisma.employee.findMany({
-      where,
-      include: {
-        site: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
+    const employees = await EmployeeService.getAll({ siteId, search });
     return NextResponse.json({ employees });
   } catch (error: any) {
-    console.error("GET /api/employees error:", error);
     return NextResponse.json(
       { message: "Failed to fetch employees", error: error.message },
       { status: 500 }
@@ -39,55 +20,32 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const {
-      code,
-      prefix,
-      firstName,
-      lastName,
-      position,
-      siteId,
-      gender,
-      idCardNo,
-      phone,
-      bankAccount,
-      bankName,
-      salaryType,
-      baseSalary,
-      dailyRate,
-    } = body;
-
-    if (!code || !firstName || !lastName || !position || !siteId) {
+    if (!body.code || !body.firstName || !body.lastName || !body.position || !body.siteId) {
       return NextResponse.json(
-        { message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รหัส, ชื่อ, นามสกุล, ตำแหน่ง, ไซต์งาน)" },
+        { message: "กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน" },
         { status: 400 }
       );
     }
 
-    const employee = await prisma.employee.create({
-      data: {
-        code,
-        prefix: prefix || null,
-        firstName,
-        lastName,
-        position,
-        siteId,
-        gender: gender || "MALE",
-        idCardNo: idCardNo || null,
-        phone: phone || null,
-        bankAccount: bankAccount || null,
-        bankName: bankName || null,
-        salaryType: salaryType || "MONTHLY",
-        baseSalary: baseSalary ? parseFloat(baseSalary) : 12000,
-        dailyRate: dailyRate ? parseFloat(dailyRate) : 400,
-      },
-      include: {
-        site: true,
-      },
+    const employee = await EmployeeService.create({
+      code: body.code,
+      prefix: body.prefix,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      position: body.position,
+      siteId: body.siteId,
+      gender: body.gender,
+      idCardNo: body.idCardNo,
+      phone: body.phone,
+      bankAccount: body.bankAccount,
+      bankName: body.bankName,
+      salaryType: body.salaryType,
+      baseSalary: body.baseSalary ? parseFloat(body.baseSalary) : undefined,
+      dailyRate: body.dailyRate ? parseFloat(body.dailyRate) : undefined,
     });
 
     return NextResponse.json({ employee, message: "สร้างข้อมูลพนักงานเรียบร้อยแล้ว" });
   } catch (error: any) {
-    console.error("POST /api/employees error:", error);
     return NextResponse.json(
       { message: "ไม่สามารถเพิ่มพนักงานได้", error: error.message },
       { status: 500 }

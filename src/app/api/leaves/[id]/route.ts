@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { LeaveService } from "@/server/services/leave.service";
 
 export async function PUT(
   req: Request,
@@ -7,25 +7,14 @@ export async function PUT(
 ) {
   try {
     const body = await req.json();
-    const { status, approvedBy } = body; // status: APPROVED | REJECTED
-
-    if (!status || !["APPROVED", "REJECTED"].includes(status)) {
+    if (!body.status || !["APPROVED", "REJECTED"].includes(body.status)) {
       return NextResponse.json({ message: "สถานะการอนุมัติไม่ถูกต้อง" }, { status: 400 });
     }
 
-    const updated = await prisma.leave.update({
-      where: { id: params.id },
-      data: {
-        status,
-        approvedBy: approvedBy || "HR Admin",
-        approvedAt: new Date(),
-      },
-      include: { employee: true },
-    });
-
+    const updated = await LeaveService.updateStatus(params.id, body.status, body.approvedBy);
     return NextResponse.json({
       leave: updated,
-      message: status === "APPROVED" ? "อนุมัติใบลาเรียบร้อยแล้ว" : "ปฏิเสธใบลาเรียบร้อยแล้ว",
+      message: body.status === "APPROVED" ? "อนุมัติใบลาเรียบร้อยแล้ว" : "ปฏิเสธใบลาเรียบร้อยแล้ว",
     });
   } catch (error: any) {
     return NextResponse.json({ message: error.message }, { status: 500 });

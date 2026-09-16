@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { LeaveService } from "@/server/services/leave.service";
 
 export async function GET(req: Request) {
   try {
@@ -7,20 +7,7 @@ export async function GET(req: Request) {
     const employeeId = searchParams.get("employeeId");
     const status = searchParams.get("status");
 
-    const where: any = {};
-    if (employeeId) where.employeeId = employeeId;
-    if (status && status !== "ALL") where.status = status;
-
-    const leaves = await prisma.leave.findMany({
-      where,
-      include: {
-        employee: {
-          include: { site: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
+    const leaves = await LeaveService.getAll({ employeeId, status });
     return NextResponse.json({ leaves });
   } catch (error: any) {
     return NextResponse.json({ message: error.message }, { status: 500 });
@@ -30,24 +17,16 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { employeeId, type, startDate, endDate, reason } = body;
-
-    if (!employeeId || !type || !startDate || !endDate) {
+    if (!body.employeeId || !body.type || !body.startDate || !body.endDate) {
       return NextResponse.json({ message: "กรุณากรอกข้อมูลการลาให้ครบถ้วน" }, { status: 400 });
     }
 
-    const leave = await prisma.leave.create({
-      data: {
-        employeeId,
-        type, // SICK, PERSONAL, VACATION, OT
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        reason: reason || null,
-        status: "PENDING",
-      },
-      include: {
-        employee: true,
-      },
+    const leave = await LeaveService.create({
+      employeeId: body.employeeId,
+      type: body.type,
+      startDate: body.startDate,
+      endDate: body.endDate,
+      reason: body.reason,
     });
 
     return NextResponse.json({ leave, message: "ยื่นใบขอลา/ทำ OT เรียบร้อยแล้ว (รอการอนุมัติ)" });
