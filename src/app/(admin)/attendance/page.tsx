@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, XCircle, MapPin, ShieldAlert, User, Search, Filter } from "lucide-react";
 import { formatThaiDate } from "@/lib/utils";
+import { showSuccess, showConfirm, showWarning } from "@/lib/swal";
 
 interface PendingApproval {
   id: string;
@@ -26,14 +27,35 @@ const INITIAL_PENDINGS: PendingApproval[] = [
 export default function AdminAttendancePage() {
   const [items, setItems] = useState(INITIAL_PENDINGS);
 
-  const handleApprove = (id: string) => {
-    alert("อนุมัติการลงเวลาเรียบร้อยแล้ว");
+  const handleApprove = async (id: string) => {
+    showSuccess("อนุมัติเรียบร้อย!", "บันทึกการอนุมัติเวลาปฏิบัติงานสำเร็จ");
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const handleReject = (id: string) => {
-    alert("ปฏิเสธการลงเวลาเรียบร้อยแล้ว");
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const handleReject = async (id: string) => {
+    const confirmed = await showConfirm(
+      "ยืนยันการปฏิเสธ",
+      "คุณต้องการปฏิเสธการลงเวลานี้ใช่หรือไม่?",
+      "ปฏิเสธ",
+      "ยกเลิก"
+    );
+    if (confirmed) {
+      showWarning("ปฏิเสธเรียบร้อย", "รายการถูกปฏิเสธแล้ว");
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    const confirmed = await showConfirm(
+      "อนุมัติทั้งหมด (Bulk Approve)",
+      `คุณต้องการอนุมัติรายการลงเวลานอกพื้นที่ทั้งหมด (${items.length} รายการ) ใช่หรือไม่?`,
+      "อนุมัติทั้งหมด",
+      "ยกเลิก"
+    );
+    if (confirmed) {
+      showSuccess("อนุมัติทั้งหมดสำเร็จ!", `อนุมัติการลงเวลาจำนวน ${items.length} รายการเรียบร้อยแล้ว`);
+      setItems([]);
+    }
   };
 
   return (
@@ -51,10 +73,7 @@ export default function AdminAttendancePage() {
             รายการรอการอนุมัติ ({items.length})
           </span>
           <button
-            onClick={() => {
-              alert("อนุมัติรายการทั้งหมดเรียบร้อยแล้ว");
-              setItems([]);
-            }}
+            onClick={handleBulkApprove}
             disabled={items.length === 0}
             className="px-3 py-1.5 rounded-xl bg-brand-500 text-white text-xs font-bold hover:bg-brand-600 disabled:opacity-50 transition-colors"
           >

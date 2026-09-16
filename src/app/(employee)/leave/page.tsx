@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { showSuccess, showError } from "@/lib/swal";
 
 interface LeaveItem {
   id: string;
@@ -90,7 +91,7 @@ export default function LeavePage() {
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(data.message || "ยื่นใบขอลาสำเร็จ");
+        showSuccess("ยื่นคำขอสำเร็จ!", data.message || "ระบบบันทึกรายการยื่นขอลา/ทำ OT เรียบร้อยแล้ว (รอการอนุมัติ)");
         setShowModal(false);
         setForm({
           type: "SICK",
@@ -100,10 +101,10 @@ export default function LeavePage() {
         });
         fetchLeaves();
       } else {
-        setMessage(data.message || "เกิดข้อผิดพลาด");
+        showError("เกิดข้อผิดพลาด", data.message || "ไม่สามารถยื่นแบบฟอร์มได้");
       }
     } catch (err: any) {
-      setMessage("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      showError("ข้อผิดพลาด", "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
     } finally {
       setSubmitting(false);
     }

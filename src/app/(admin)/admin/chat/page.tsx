@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageSquare, Send, Megaphone, Users, Bot, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { showSuccess, showConfirm } from "@/lib/swal";
 
 export default function AdminChatPage() {
   const [broadcastText, setBroadcastText] = useState("");
@@ -10,13 +11,21 @@ export default function AdminChatPage() {
 
   const [activeTab, setActiveTab] = useState<"broadcast" | "logs">("broadcast");
 
-  const handleBroadcast = (e: React.FormEvent) => {
+  const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastText.trim()) return;
 
-    setSentNotice(`ส่งประกาศข่าวสารไปยังพนักงานทุกคน (42 คน) เรียบร้อยแล้ว`);
+    const isConfirmed = await showConfirm(
+      "ยืนยันการส่งประกาศด่วน",
+      "คุณต้องการส่งข้อความแจ้งเตือนนี้ไปยังพนักงานทุกคน (42 คน) ใช่หรือไม่?",
+      "ส่งประกาศ",
+      "ยกเลิก"
+    );
+
+    if (!isConfirmed) return;
+
+    showSuccess("ส่งประกาศด่วนเรียบร้อยแล้ว!", "ข้อความสแกนส่งไปยังพนักงานทุกคนในองค์กรแล้ว");
     setBroadcastText("");
-    setTimeout(() => setSentNotice(null), 4000);
   };
 
   return (

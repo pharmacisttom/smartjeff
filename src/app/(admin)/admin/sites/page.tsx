@@ -13,6 +13,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
 
 interface Site {
   id: string;
@@ -109,22 +110,38 @@ export default function AdminSitesPage() {
 
       if (res.ok) {
         setShowModal(false);
+        showSuccess(editingSite ? "แก้ไขไซต์งานสำเร็จ!" : "เพิ่มไซต์งานใหม่สำเร็จ!", "อัปเดตพิกัดและข้อมูล Geofence เรียบร้อยแล้ว");
         fetchSites();
+      } else {
+        showError("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลไซต์งานได้");
       }
     } catch (e) {
-      console.error(e);
+      showError("เกิดข้อผิดพลาด", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบไซต์งานนี้?")) return;
+    const isConfirmed = await showConfirm(
+      "ยืนยันการลบไซต์งาน",
+      "คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลไซต์งานนี้ออกจากระบบ?",
+      "ลบไซต์งาน",
+      "ยกเลิก"
+    );
+
+    if (!isConfirmed) return;
+
     try {
-      await fetch(`/api/sites/${id}`, { method: "DELETE" });
-      fetchSites();
+      const res = await fetch(`/api/sites/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        showSuccess("ลบเรียบร้อย!", "ลบข้อมูลไซต์งานสำเร็จแล้ว");
+        fetchSites();
+      } else {
+        showError("เกิดข้อผิดพลาด", "ไม่สามารถลบไซต์งานได้");
+      }
     } catch (e) {
-      console.error(e);
+      showError("เกิดข้อผิดพลาด", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     }
   };
 

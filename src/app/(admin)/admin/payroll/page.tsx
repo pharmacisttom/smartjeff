@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
+import { showSuccess, showError, showLoading, closeSwal, showToast } from "@/lib/swal";
 
 interface Payslip {
   id: string;
@@ -66,21 +67,25 @@ export default function AdminPayrollPage() {
   const handleRunPayroll = async () => {
     try {
       setCalculating(true);
-      setMessage(null);
+      showLoading("กำลังประมวลผลคำนวณเงินเดือน...", `คำนวณยอดสุทธิ ประกันสังคม ภาษี สำหรับงวด ${period}`);
+
       const res = await fetch("/api/payroll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ period }),
       });
       const data = await res.json();
+      closeSwal();
+
       if (res.ok) {
-        setMessage(data.message || "ประมวลผลเงินเดือนสำเร็จ");
+        showSuccess("ประมวลผลเงินเดือนสำเร็จ!", data.message || `คำนวณยอดเงินเดือนประจำงวด ${period} เรียบร้อยแล้ว`);
         fetchPayroll();
       } else {
-        setMessage(data.message || "เกิดข้อผิดพลาดในการคำนวณ");
+        showError("เกิดข้อผิดพลาดในการคำนวณ", data.message || "ไม่สามารถประมวลผลได้");
       }
     } catch (e) {
-      setMessage("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      closeSwal();
+      showError("ข้อผิดพลาด", "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
     } finally {
       setCalculating(false);
     }
@@ -109,6 +114,8 @@ export default function AdminPayrollPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, `Payroll_${period}`);
     XLSX.writeFile(workbook, `SMARTO_Payroll_${period}.xlsx`);
+
+    showToast("ส่งออกไฟล์ Excel เรียบร้อยแล้ว", "success");
   };
 
   // Calculate Totals

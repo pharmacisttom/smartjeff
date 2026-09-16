@@ -10,6 +10,7 @@ import { haversineDistance, isWithinGeofence, formatDistance } from "@/lib/geo";
 import { CameraCapture } from "@/components/camera/CameraCapture";
 import { PhotoPreview } from "@/components/camera/PhotoPreview";
 import { queueCheckIn } from "@/lib/offline-db";
+import { showSuccess, showWarning, showError } from "@/lib/swal";
 
 // Mock Site Coordinates: AAM Rayong (12.9236, 101.1352)
 const AAM_SITE = {
@@ -79,7 +80,7 @@ export default function CheckInPage() {
       if (isOffline) {
         // Local-First: Queue to IndexedDB when offline
         await queueCheckIn(payload);
-        alert("📍 ออฟไลน์: บันทึกข้อมูลเข้าคิวในอุปกรณ์แล้ว ระบบจะซิงค์ให้อัตโนมัติเมื่อมีสัญญาณ");
+        showWarning("บันทึกข้อมูลออฟไลน์", "ระบบบันทึกข้อมูลเข้าคิวในอุปกรณ์แล้ว และจะซิงค์ให้อัตโนมัติเมื่อมีสัญญาณ");
       } else {
         // Online Direct API Post
         const formData = new FormData();
@@ -100,16 +101,16 @@ export default function CheckInPage() {
         });
 
         if (res.ok) {
-          alert(`✅ บันทึก [${selectedType}] สำเร็จแล้ว!`);
+          showSuccess("ลงเวลาสำเร็จ!", `บันทึกรายการ [${selectedType}] และซิงค์ข้อมูลเรียบร้อยแล้ว`);
         } else {
           // Fallback to offline queue if server fails
           await queueCheckIn(payload);
-          alert("📍 เซิร์ฟเวอร์ไม่ตอบสนอง: บันทึกลงคิวในอุปกรณ์เรียบร้อยแล้ว");
+          showWarning("เซิร์ฟเวอร์ขัดข้อง", "ระบบบันทึกข้อมูลลงคิวในอุปกรณ์เรียบร้อยแล้ว");
         }
       }
     } catch (e: any) {
       await queueCheckIn(payload);
-      alert("📍 บันทึกลงคิวในอุปกรณ์เรียบร้อยแล้ว: " + e.message);
+      showWarning("บันทึกลงคิวในอุปกรณ์แล้ว", e.message || "ระบบจัดเก็บข้อมูลไว้และจะลองใหม่อีกครั้ง");
     } finally {
       setSubmitting(false);
       setCapturedData(null);

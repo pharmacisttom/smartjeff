@@ -15,6 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
 
 interface Employee {
   id: string;
@@ -122,22 +123,38 @@ export default function AdminEmployeesPage() {
 
       if (res.ok) {
         setShowModal(false);
+        showSuccess(editingEmployee ? "แก้ไขพนักงานสำเร็จ!" : "เพิ่มพนักงานสำเร็จ!", "บันทึกข้อมูลพนักงานเรียบร้อยแล้ว");
         fetchEmployees();
+      } else {
+        showError("เกิดข้อผิดพลาด", "ไม่สามารถบันทึกข้อมูลได้");
       }
     } catch (e) {
-      console.error(e);
+      showError("เกิดข้อผิดพลาด", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลพนักงานคนนี้?")) return;
+    const isConfirmed = await showConfirm(
+      "ยืนยันการลบข้อมูลพนักงาน",
+      "คุณแน่ใจหรือไม่ว่าต้องการลบรายชื่อพนักงานคนนี้ออกจากระบบ? ข้อมูลการลงเวลาและวันลาจะถูกลบไปด้วย",
+      "ลบข้อมูล",
+      "ยกเลิก"
+    );
+
+    if (!isConfirmed) return;
+
     try {
-      await fetch(`/api/employees/${id}`, { method: "DELETE" });
-      fetchEmployees();
+      const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        showSuccess("ลบเรียบร้อย!", "ลบข้อมูลพนักงานออกจากระบบแล้ว");
+        fetchEmployees();
+      } else {
+        showError("เกิดข้อผิดพลาด", "ไม่สามารถลบข้อมูลพนักงานได้");
+      }
     } catch (e) {
-      console.error(e);
+      showError("เกิดข้อผิดพลาด", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
     }
   };
 
