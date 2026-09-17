@@ -37,6 +37,8 @@ model Employee {
   leaves       Leave[]
   payslips     Payslip[]
   chats        ChatMessage[]
+  skills       EmployeeSkill[]
+  planItems    WorkforcePlanItem[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -57,9 +59,14 @@ model Site {
   otStart     Float?  @default(16)
   otEnd       Float?  @default(17)
   minimumWorkforce Int? @default(1)
+  targetWorkforce  Int? @default(1)
+  maximumWorkforce Int?
   requiresSupervisor Boolean @default(false)
   employees   Employee[]
   config      PayrollConfig?
+  workforceRequirements SiteWorkforceRequirement[]
+  sourcePlans WorkforcePlan[] @relation("SourceSitePlans")
+  targetPlans WorkforcePlan[] @relation("TargetSitePlans")
   createdAt   DateTime @default(now())
 }
 
@@ -177,4 +184,78 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([entity, entityId])
+}
+
+model SiteWorkforceRequirement {
+  id            String    @id @default(cuid())
+  siteId        String
+  site          Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  position      String?
+  minimum       Int       @default(1)
+  target        Int       @default(1)
+  maximum       Int?
+  shift         String?   @default("DAY") // DAY | NIGHT
+  dayOfWeek     Int?      // 0-6 or null
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([siteId, position])
+}
+
+model Skill {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  category    String?         // TECHNICAL | SAFETY | OPERATION | LEADERSHIP
+  description String?
+  employees   EmployeeSkill[]
+  createdAt   DateTime        @default(now())
+}
+
+model EmployeeSkill {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skillId    String
+  skill      Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  level      Int       @default(1) // 1 - 5
+  verified   Boolean   @default(false)
+  verifiedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, skillId])
+  @@index([employeeId])
+}
+
+model WorkforcePlan {
+  id           String              @id @default(cuid())
+  planDate     DateTime
+  sourceSiteId String
+  sourceSite   Site                @relation("SourceSitePlans", fields: [sourceSiteId], references: [id])
+  targetSiteId String
+  targetSite   Site                @relation("TargetSitePlans", fields: [targetSiteId], references: [id])
+  reason       String
+  status       String              @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED | CANCELLED | COMPLETED
+  createdBy    String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  items        WorkforcePlanItem[]
+
+  @@index([planDate, status])
+}
+
+model WorkforcePlanItem {
+  id         String        @id @default(cuid())
+  planId     String
+  plan       WorkforcePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId], references: [id])
+  position   String?
+  note       String?
 }
