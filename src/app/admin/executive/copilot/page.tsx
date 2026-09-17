@@ -67,7 +67,7 @@ export default function AICopilotPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Load available sites
+  // Load available sites & check URL query params
   useEffect(() => {
     fetch("/api/sites")
       .then((res) => res.json())
@@ -77,6 +77,16 @@ export default function AICopilotPage() {
         }
       })
       .catch(() => {});
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("question");
+      const sId = params.get("siteId");
+      if (sId) setSelectedSiteId(sId);
+      if (q) {
+        handleSend(q);
+      }
+    }
   }, []);
 
   // Auto scroll to bottom

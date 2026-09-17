@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Home,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface ExecutiveKpiCardsProps {
@@ -160,8 +162,16 @@ export function ExecutiveKpiCards({ summary, className }: ExecutiveKpiCardsProps
               <span className="text-[11px] font-medium text-slate-400">{card.unit}</span>
             </div>
 
-            <div className="text-[10px] text-slate-400 font-medium truncate">
-              {card.subtext}
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium pt-1">
+              <span className="truncate">{card.subtext}</span>
+              <Link
+                href={`/admin/executive/copilot?metric=${card.id}&question=${encodeURIComponent(`อธิบายสถานการณ์ KPI ${card.title} ของวันนี้`)}`}
+                className="inline-flex items-center gap-0.5 text-[9px] text-brand-400 hover:text-white shrink-0 ml-1 font-semibold transition-colors"
+                title="วิเคราะห์ KPI นี้ด้วย AI"
+              >
+                <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                <span>Ask AI</span>
+              </Link>
             </div>
           </div>
         );

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, AlertCircle, Info, ChevronRight, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, AlertCircle, Info, ChevronRight, ShieldAlert, CheckCircle2, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { OperationAlert } from "@/server/services/executive-operations.service";
 
@@ -145,8 +146,17 @@ export function OperationsAlertPanel({
                       {alert.message}
                     </p>
 
-                    <div className="text-[10px] text-slate-400 font-medium">
-                      เวลา {formatTimeOnly(alert.timestamp)}
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium pt-1">
+                      <span>เวลา {formatTimeOnly(alert.timestamp)}</span>
+                      <Link
+                        href={`/admin/executive/copilot?siteId=${alert.siteId}&question=${encodeURIComponent(`อธิบายสาเหตุและปัจจัยของการแจ้งเตือน "${alert.message}" ที่ ${alert.siteName}`)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/40 px-2 py-0.5 rounded-md border border-amber-500/30 transition-colors"
+                        title="ให้ AI Copilot อธิบาย Alert นี้"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>อธิบาย Alert</span>
+                      </Link>
                     </div>
                   </div>
                 </div>
