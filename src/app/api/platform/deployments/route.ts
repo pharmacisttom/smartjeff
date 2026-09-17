@@ -1,0 +1,17 @@
+import { NextRequest, NextResponse } from "next/server";
+import { deploymentHealthService } from "@/server/platform/deploy/deployment-health.service";
+
+export async function GET() {
+  const deployments = await deploymentHealthService.getRecentDeployments();
+  return NextResponse.json({ deployments });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const record = await deploymentHealthService.recordDeployment(body);
+    return NextResponse.json({ success: true, deployment: record });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}

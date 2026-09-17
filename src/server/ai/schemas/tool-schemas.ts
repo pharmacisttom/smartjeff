@@ -262,3 +262,32 @@ export const SimulateRuleInputSchema = z.object({
 });
 export type SimulateRuleInput = z.infer<typeof SimulateRuleInputSchema>;
 
+// ============================================================================
+// PHASE 25: PLATFORM RELIABILITY & SRE OBSERVABILITY TOOLS
+// ============================================================================
+
+export const GetPlatformHealthInputSchema = z.object({});
+export type GetPlatformHealthInput = z.infer<typeof GetPlatformHealthInputSchema>;
+
+export const GetBackupStatusInputSchema = z.object({
+  limit: z.number().int().positive().optional(),
+});
+export type GetBackupStatusInput = z.infer<typeof GetBackupStatusInputSchema>;
+
+export const GetQueueHealthInputSchema = z.object({});
+export type GetQueueHealthInput = z.infer<typeof GetQueueHealthInputSchema>;
+
+export const GetWorkerHealthInputSchema = z.object({});
+export type GetWorkerHealthInput = z.infer<typeof GetWorkerHealthInputSchema>;
+
+export const GetRecentPlatformIncidentsInputSchema = z.object({
+  limit: z.number().int().positive().optional(),
+});
+export type GetRecentPlatformIncidentsInput = z.infer<typeof GetRecentPlatformIncidentsInputSchema>;
+
+export const GetRpoStatusInputSchema = z.object({});
+export type GetRpoStatusInput = z.infer<typeof GetRpoStatusInputSchema>;
+
+export const GetRtoStatusInputSchema = z.object({});
+export type GetRtoStatusInput = z.infer<typeof GetRtoStatusInputSchema>;
+

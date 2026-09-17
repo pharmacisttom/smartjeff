@@ -2691,4 +2691,193 @@ model EventSubscription {
   updatedAt      DateTime  @updatedAt
 }
 
+// ============================================================================
+// PHASE 25: RELIABILITY, DR, OBSERVABILITY & BUSINESS CONTINUITY MODELS
+// ============================================================================
 
+model ServiceCatalogEntry {
+  id             String    @id @default(cuid())
+  code           String    @unique // WEB, WORKER, SCHEDULER, POSTGRESQL, REDIS, OBJECT_STORAGE, ANALYTICS, EMAIL_PROVIDER, TELEGRAM, LINE, EXTERNAL_WEBHOOK
+  name           String
+  tier           String    @default("CORE") // CORE, DATA, MESSAGING, INTEGRATION
+  criticality    String    @default("CRITICAL") // CRITICAL, HIGH, MEDIUM, LOW
+  owner          String    @default("DevOps / SRE")
+  port           Int?
+  dependsOnJson  String?   // JSON array of service codes
+  status         String    @default("HEALTHY") // HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN
+  lastCheckAt    DateTime  @default(now())
+  metadataJson   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model WorkerHeartbeat {
+  id              String    @id @default(cuid())
+  workerId        String    @unique
+  processName     String    // smartjeff-worker, smartjeff-scheduler
+  hostname        String    @default("vps-primary")
+  status          String    @default("ONLINE") // ONLINE, DEGRADED, OFFLINE
+  processedJobs   Int       @default(0)
+  failedJobs      Int       @default(0)
+  activeJobs      Int       @default(0)
+  cpuUsage        Float     @default(0.0)
+  memUsageMb      Float     @default(0.0)
+  lastHeartbeatAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ApplicationError {
+  id               String    @id @default(cuid())
+  errorId          String    @unique @default(cuid())
+  service          String    @default("WEB")
+  route            String?
+  errorType        String
+  message          String
+  stackFingerprint String    // MD5/SHA256 hash of normalized stack trace
+  stackTrace       String?
+  metadataJson     String?
+  count            Int       @default(1)
+  status           String    @default("OPEN") // OPEN, ACKNOWLEDGED, RESOLVED, IGNORED
+  firstOccurredAt  DateTime  @default(now())
+  lastOccurredAt   DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model BackupRecord {
+  id             String    @id @default(cuid())
+  backupNumber   String    @unique
+  backupType     String    @default("DATABASE_FULL") // DATABASE_FULL, DATABASE_INCREMENTAL, OBJECT_STORAGE, CONFIGURATION, APPLICATION_METADATA
+  destination    String    @default("LOCAL") // LOCAL, S3_REMOTE, SECONDARY_OFFSITE
+  storagePath    String
+  sizeBytes      Int       @default(0)
+  checksumSha256 String
+  isEncrypted    Boolean   @default(true)
+  encryptionAlgo String    @default("AES-256-GCM")
+  status         String    @default("SUCCESS") // RUNNING, SUCCESS, FAILED, VERIFICATION_FAILED
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  retentionDays  Int       @default(30)
+  metadataJson   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  verifications  BackupVerificationRecord[]
+}
+
+model BackupVerificationRecord {
+  id                         String        @id @default(cuid())
+  backupRecordId             String
+  targetEnvironment          String        @default("TEMPORARY_ISOLATED") // TEMPORARY_ISOLATED, STAGING
+  schemaCheckPassed          Boolean       @default(true)
+  integrityCheckPassed       Boolean       @default(true)
+  referentialIntegrityPassed Boolean       @default(true)
+  querySmokePassed           Boolean       @default(true)
+  status                     String        @default("VERIFIED") // VERIFIED, FAILED, NOT_TESTED
+  testedAt                   DateTime      @default(now())
+  verificationDurationMs     Int           @default(0)
+  errorLog                   String?
+  detailsJson                String?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+  backupRecord               BackupRecord  @relation(fields: [backupRecordId], references: [id], onDelete: Cascade)
+}
+
+model SystemMaintenance {
+  id              String    @id @default(cuid())
+  mode            String    @default("NORMAL") // NORMAL, MAINTENANCE, READ_ONLY, DEGRADED
+  reason          String?
+  bypassRolesJson String?   // JSON array e.g. ["ADMIN", "PLATFORM_ADMIN", "SRE"]
+  startedAt       DateTime  @default(now())
+  scheduledEndAt  DateTime?
+  active          Boolean   @default(true)
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model DeploymentRecord {
+  id                String    @id @default(cuid())
+  version           String
+  gitCommit         String
+  deployedBy        String    @default("system")
+  environment       String    @default("production")
+  status            String    @default("SUCCESS") // DEPLOYING, SUCCESS, FAILED, ROLLED_BACK
+  deployedAt        DateTime  @default(now())
+  rollbackReason    String?
+  healthCheckStatus String    @default("HEALTHY")
+  releaseNotes      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model PlatformIncident {
+  id             String      @id @default(cuid())
+  incidentNumber String      @unique
+  title          String
+  service        String      @default("WEB")
+  severity       String      @default("SEV3") // SEV1, SEV2, SEV3, SEV4
+  type           String      @default("OUTAGE") // OUTAGE, PERFORMANCE, DATABASE, STORAGE, NETWORK, DEPLOYMENT, SECURITY, OTHER
+  status         String      @default("OPEN") // OPEN, INVESTIGATING, MITIGATED, RESOLVED, POSTMORTEM
+  commander      String?
+  detectedAt     DateTime    @default(now())
+  acknowledgedAt DateTime?
+  mitigatedAt    DateTime?
+  resolvedAt     DateTime?
+  rootCause      String?
+  impactSummary  String?
+  timelineJson   String?     // JSON array of event objects
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  postmortems    Postmortem[]
+}
+
+model Postmortem {
+  id              String           @id @default(cuid())
+  incidentId      String
+  title           String
+  summary         String
+  impact          String
+  timeline        String
+  rootCause       String
+  resolution      String
+  actionItemsJson String?          // JSON array of action items with owners
+  publishedAt     DateTime?
+  author          String           @default("SRE Commander")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  incident        PlatformIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+model ServiceLevelObjective {
+  id                    String    @id @default(cuid())
+  code                  String    @unique
+  name                  String
+  service               String    @default("WEB")
+  metricName            String    // AVAILABILITY, LATENCY_P95, ERROR_RATE, BACKUP_FRESHNESS
+  targetPercentage      Float     @default(99.9)
+  actualPercentage      Float     @default(100.0)
+  errorBudgetMinutes    Int       @default(43) // e.g. 43 mins for 99.9% in 30 days
+  consumedBudgetMinutes Int       @default(0)
+  periodDays            Int       @default(30)
+  status                String    @default("MET") // MET, AT_RISK, BREACHED
+  lastEvaluatedAt       DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model DisasterRecoveryExercise {
+  id               String    @id @default(cuid())
+  exerciseNumber   String    @unique
+  scenario         String    // VPS_LOSS, DATABASE_CORRUPTION, STORAGE_OUTAGE, REDIS_FAILURE
+  participants     String
+  targetRtoMinutes Int       @default(60)
+  actualRtoMinutes Int       @default(45)
+  targetRpoMinutes Int       @default(15)
+  actualRpoMinutes Int       @default(10)
+  result           String    @default("PASS") // PASS, PARTIAL, FAIL
+  notes            String?
+  executedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
