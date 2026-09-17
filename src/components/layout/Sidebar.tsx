@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ShieldCheck,
   UserCheck,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const EMPLOYEE_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
   { href: "/admin/employees", label: "จัดการพนักงาน", icon: Users },
   { href: "/admin/sites", label: "จัดการโรงงาน & นิคมฯ", icon: Building2 },
   { href: "/admin/attendance", label: "อนุมัติเวลาปฏิบัติงาน", icon: UserCheck },
