@@ -39,6 +39,12 @@ model Employee {
   chats        ChatMessage[]
   skills       EmployeeSkill[]
   planItems    WorkforcePlanItem[]
+  shiftAssignments ShiftAssignment[]
+  shiftPatterns    EmployeeShiftPattern[]
+  teamMemberships  TeamMember[]
+  requesterSwaps   ShiftSwapRequest[] @relation("RequesterSwaps")
+  targetSwaps      ShiftSwapRequest[] @relation("TargetSwaps")
+  attendanceCorrections AttendanceCorrection[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -67,6 +73,9 @@ model Site {
   workforceRequirements SiteWorkforceRequirement[]
   sourcePlans WorkforcePlan[] @relation("SourceSitePlans")
   targetPlans WorkforcePlan[] @relation("TargetSitePlans")
+  shiftAssignments ShiftAssignment[]
+  teams            Team[]
+  schedulePeriods  SchedulePeriod[]
   createdAt   DateTime @default(now())
 }
 
@@ -89,6 +98,7 @@ model Attendance {
   isApproved       Boolean  @default(false)
   approvedBy       String?
   approvedAt       DateTime?
+  corrections      AttendanceCorrection[]
   createdAt        DateTime @default(now())
 
   @@index([employeeId, timestamp])
@@ -259,3 +269,195 @@ model WorkforcePlanItem {
   position   String?
   note       String?
 }
+
+// ----------------------------------------------------
+// SMARTJEFF PHASE 9: SHIFT & SCHEDULING INTELLIGENCE
+// ----------------------------------------------------
+
+model Shift {
+  id                      String              @id @default(cuid())
+  code                    String              @unique
+  name                    String
+  startTime               String              // "07:00"
+  endTime                 String              // "16:00"
+  breakMinutes            Int                 @default(60)
+  isOvernight             Boolean             @default(false)
+  lateToleranceMinutes    Int                 @default(10)
+  earlyCheckInMinutes     Int                 @default(30)
+  allowedEarlyLeaveMinutes Int                @default(0)
+  color                   String?             @default("#3B82F6")
+  isActive                Boolean             @default(true)
+  assignments             ShiftAssignment[]
+  patternItems            ShiftPatternItem[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+}
+
+model ShiftAssignment {
+  id                      String              @id @default(cuid())
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  siteId                  String
+  site                    Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  shiftId                 String
+  shift                   Shift               @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  workDate                DateTime            // YYYY-MM-DD (Bangkok 00:00:00)
+  plannedStart            DateTime
+  plannedEnd              DateTime
+  role                    String?
+  status                  String              @default("PLANNED") // DRAFT | PLANNED | CONFIRMED | IN_PROGRESS | COMPLETED | ABSENT | CANCELLED
+  assignedBy              String?
+  assignedAt              DateTime            @default(now())
+  confirmedAt             DateTime?
+  notes                   String?
+  requesterSwaps          ShiftSwapRequest[]  @relation("RequesterAssignment")
+  targetSwaps             ShiftSwapRequest[]  @relation("TargetAssignment")
+  auditLogs               ShiftAuditLog[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([employeeId, workDate])
+  @@index([siteId, workDate])
+  @@index([shiftId, workDate])
+  @@index([status])
+}
+
+model ShiftPattern {
+  id                      String                 @id @default(cuid())
+  code                    String                 @unique
+  name                    String
+  description             String?
+  cycleDays               Int                    @default(7)
+  isActive                Boolean                @default(true)
+  items                   ShiftPatternItem[]
+  employeePatterns        EmployeeShiftPattern[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+}
+
+model ShiftPatternItem {
+  id                      String              @id @default(cuid())
+  patternId               String
+  pattern                 ShiftPattern        @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  dayNumber               Int                 // 1 .. cycleDays
+  shiftId                 String?
+  shift                   Shift?              @relation(fields: [shiftId], references: [id])
+  isDayOff                Boolean             @default(false)
+
+  @@unique([patternId, dayNumber])
+}
+
+model EmployeeShiftPattern {
+  id                      String              @id @default(cuid())
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  patternId               String
+  pattern                 ShiftPattern        @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  startDate               DateTime
+  endDate                 DateTime?
+  createdAt               DateTime            @default(now())
+
+  @@index([employeeId, startDate])
+}
+
+model Team {
+  id                      String              @id @default(cuid())
+  code                    String              @unique
+  name                    String
+  siteId                  String?
+  site                    Site?               @relation(fields: [siteId], references: [id])
+  supervisorId            String?
+  color                   String?             @default("#10B981")
+  isActive                Boolean             @default(true)
+  members                 TeamMember[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+}
+
+model TeamMember {
+  id                      String              @id @default(cuid())
+  teamId                  String
+  team                    Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role                    String?             @default("MEMBER") // SUPERVISOR | MEMBER
+  joinedAt                DateTime            @default(now())
+
+  @@unique([teamId, employeeId])
+}
+
+model ShiftSwapRequest {
+  id                      String              @id @default(cuid())
+  requesterId             String
+  requester               Employee            @relation("RequesterSwaps", fields: [requesterId], references: [id])
+  targetEmployeeId        String
+  targetEmployee          Employee            @relation("TargetSwaps", fields: [targetEmployeeId], references: [id])
+  requesterAssignmentId   String
+  requesterAssignment     ShiftAssignment     @relation("RequesterAssignment", fields: [requesterAssignmentId], references: [id])
+  targetAssignmentId      String
+  targetAssignment        ShiftAssignment     @relation("TargetAssignment", fields: [targetAssignmentId], references: [id])
+  reason                  String?
+  status                  String              @default("PENDING") // PENDING | ACCEPTED | REJECTED | APPROVED | CANCELLED
+  requestedAt             DateTime            @default(now())
+  reviewedBy              String?
+  approvedBy              String?
+  approvedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([requesterId, status])
+  @@index([targetEmployeeId, status])
+}
+
+model AttendanceCorrection {
+  id                      String              @id @default(cuid())
+  attendanceId            String?
+  attendance              Attendance?         @relation(fields: [attendanceId], references: [id])
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id])
+  workDate                DateTime
+  requestedCheckIn        DateTime?
+  requestedCheckOut       DateTime?
+  reason                  String
+  status                  String              @default("PENDING") // PENDING | APPROVED | REJECTED
+  approvedBy              String?
+  approvedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([employeeId, workDate])
+}
+
+model SchedulePeriod {
+  id                      String              @id @default(cuid())
+  siteId                  String?
+  site                    Site?               @relation(fields: [siteId], references: [id])
+  startDate               DateTime
+  endDate                 DateTime
+  version                 Int                 @default(1)
+  status                  String              @default("DRAFT") // DRAFT | MANAGER_REVIEW | HR_REVIEW | APPROVED | PUBLISHED | LOCKED
+  publishedAt             DateTime?
+  lockedBy                String?
+  lockedAt                DateTime?
+  lockReason              String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([startDate, endDate, status])
+}
+
+model ShiftAuditLog {
+  id                      String              @id @default(cuid())
+  assignmentId            String?
+  assignment              ShiftAssignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  action                  String              // CREATE | UPDATE | DELETE | SWAP | APPROVE | PUBLISH | LOCK | UNLOCK
+  oldValue                String?
+  newValue                String?
+  performedBy             String
+  reason                  String?
+  createdAt               DateTime            @default(now())
+
+  @@index([assignmentId])
+  @@index([action, createdAt])
+}
+
