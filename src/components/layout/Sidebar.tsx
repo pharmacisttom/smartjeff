@@ -20,6 +20,9 @@ import {
   Sparkles,
   Calendar,
   Bot,
+  Boxes,
+  ShoppingCart,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,12 +33,16 @@ const EMPLOYEE_NAV = [
   { href: "/leave", label: "ขอลา & ทำ OT", icon: CalendarOff },
   { href: "/payslip", label: "สลิปเงินเดือน", icon: FileText },
   { href: "/chat", label: "AI ผู้ช่วย HR", icon: MessageSquare },
+  { href: "/mobile/inventory", label: "คลังพัสดุมือถือ", icon: Boxes },
 ];
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
   { href: "/admin/executive/copilot", label: "AI Operations Copilot", icon: Bot },
   { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
+  { href: "/admin/inventory", label: "คลังสินค้าและสต็อก (Inventory)", icon: Boxes },
+  { href: "/admin/procurement", label: "บริหารงานจัดซื้อ (Procurement)", icon: ShoppingCart },
+  { href: "/admin/assets", label: "เครื่องมือและทรัพย์สิน (Assets)", icon: Wrench },
   { href: "/admin/operations/workforce-planning", label: "วางแผนกำลังคน (DSS)", icon: Sparkles },
   { href: "/admin/operations/schedule", label: "จัดตารางกะ (Scheduler)", icon: Calendar },
   { href: "/admin/operations/shifts", label: "ติดตามกะสด (Shifts)", icon: Clock },
