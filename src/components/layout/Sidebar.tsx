@@ -19,6 +19,7 @@ import {
   Radio,
   Sparkles,
   Calendar,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ const EMPLOYEE_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/executive/copilot", label: "AI Operations Copilot", icon: Bot },
   { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
   { href: "/admin/operations/workforce-planning", label: "วางแผนกำลังคน (DSS)", icon: Sparkles },
   { href: "/admin/operations/schedule", label: "จัดตารางกะ (Scheduler)", icon: Calendar },

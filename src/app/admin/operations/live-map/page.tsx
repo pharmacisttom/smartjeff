@@ -13,6 +13,7 @@ import {
   Sparkles,
   ArrowLeft,
   WifiOff,
+  Bot,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -173,6 +174,15 @@ export default function ExecutiveLiveOperationsPage() {
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>วางแผนกำลังคน (DSS) →</span>
+          </Link>
+
+          {/* Ask SmartJeff AI Copilot Link */}
+          <Link
+            href="/admin/executive/copilot"
+            className="px-3.5 py-2 rounded-2xl bg-brand-500/25 hover:bg-brand-500/40 border border-brand-500/40 text-brand-200 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Bot className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Ask SmartJeff AI →</span>
           </Link>
 
           {/* Manual Refresh Button */}
