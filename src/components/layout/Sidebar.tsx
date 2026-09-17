@@ -23,6 +23,10 @@ import {
   Boxes,
   ShoppingCart,
   Wrench,
+  Briefcase,
+  Kanban,
+  Target,
+  Compass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,10 +38,15 @@ const EMPLOYEE_NAV = [
   { href: "/payslip", label: "สลิปเงินเดือน", icon: FileText },
   { href: "/chat", label: "AI ผู้ช่วย HR", icon: MessageSquare },
   { href: "/mobile/inventory", label: "คลังพัสดุมือถือ", icon: Boxes },
+  { href: "/mobile/site-survey", label: "สำรวจพื้นที่ (Site Survey)", icon: Compass },
 ];
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/crm", label: "ภาพรวมการขาย (CRM)", icon: Briefcase },
+  { href: "/admin/crm/pipeline", label: "ไปป์ไลน์การขาย (Pipeline)", icon: Kanban },
+  { href: "/admin/crm/leads", label: "ลูกค้าเป้าหมาย (Leads)", icon: Target },
+  { href: "/admin/tenders", label: "งานประมูล (Tenders)", icon: FileText },
   { href: "/admin/executive/copilot", label: "AI Operations Copilot", icon: Bot },
   { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
   { href: "/admin/inventory", label: "คลังสินค้าและสต็อก (Inventory)", icon: Boxes },

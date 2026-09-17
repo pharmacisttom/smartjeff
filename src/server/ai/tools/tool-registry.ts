@@ -8,6 +8,12 @@ import { PurchaseRequestService } from "@/server/services/procurement/purchase-r
 import { PurchaseOrderService } from "@/server/services/procurement/purchase-order.service";
 import { SupplierService } from "@/server/services/procurement/supplier.service";
 import { AssetService } from "@/server/services/inventory/asset.service";
+import { OpportunityService } from "@/server/services/crm/opportunity.service";
+import { TenderService } from "@/server/services/crm/tender.service";
+import { EstimationService } from "@/server/services/crm/estimation.service";
+import { QuotationService } from "@/server/services/crm/quotation.service";
+import { EstimationAccuracyService } from "@/server/services/crm/estimation-accuracy.service";
+import { prisma } from "@/lib/prisma";
 import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
 import * as schemas from "../schemas/tool-schemas";
 
@@ -312,6 +318,114 @@ export class AIOperationsToolRegistry {
           if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
         }
         return AssetService.getAssets({ siteId: input.siteId, category: input.category, status: input.status });
+      },
+    });
+
+    // 21. getSalesPipelineSummary (Phase 17)
+    this.register({
+      name: "getSalesPipelineSummary",
+      description: "สรุปภาพรวม Sales Pipeline, มูลค่างานทั้งหมด และจำนวนโอกาสการขายในแต่ละ Stage",
+      inputSchema: schemas.SalesPipelineSummaryInputSchema,
+      permissionRequirement: "SALES_VIEW",
+      auditCategory: "CRM",
+      handler: async () => {
+        return OpportunityService.getPipelineSummary();
+      },
+    });
+
+    // 22. getOpportunitySummary (Phase 17)
+    this.register({
+      name: "getOpportunitySummary",
+      description: "ดึงรายละเอียดของโอกาสการขาย (Opportunity) รวมถึง Requirements, ผลสำรวจ และสถานะใบเสนอราคา",
+      inputSchema: schemas.OpportunitySummaryInputSchema,
+      permissionRequirement: "SALES_VIEW",
+      auditCategory: "CRM",
+      handler: async (input) => {
+        return OpportunityService.getOpportunityById(input.opportunityId);
+      },
+    });
+
+    // 23. getTenderDeadlines (Phase 17)
+    this.register({
+      name: "getTenderDeadlines",
+      description: "ตรวจสอบงานประมูล (Tender) ที่ใกล้ถึงกำหนดส่งข้อเสนอ (เช่น 14, 7, 3, 1 วัน)",
+      inputSchema: schemas.TenderDeadlinesInputSchema,
+      permissionRequirement: "SALES_VIEW",
+      auditCategory: "TENDER",
+      handler: async (input) => {
+        return TenderService.getTenderDeadlines(input.daysThreshold);
+      },
+    });
+
+    // 24. getEstimateBreakdown (Phase 17)
+    this.register({
+      name: "getEstimateBreakdown",
+      description: "แจกแจงรายละเอียดต้นทุนประมาณการ (แรงงาน, OT, ยานพาหนะ, วัสดุ, โสหุ้ย, สำรองความเสี่ยง)",
+      inputSchema: schemas.EstimateBreakdownInputSchema,
+      permissionRequirement: "ESTIMATE_VIEW",
+      auditCategory: "ESTIMATION",
+      handler: async (input) => {
+        return EstimationService.getEstimateById(input.estimateId);
+      },
+    });
+
+    // 25. getQuotationStatus (Phase 17)
+    this.register({
+      name: "getQuotationStatus",
+      description: "ตรวจสอบสถานะและเวอร์ชันของใบเสนอราคา (Quotation) รวมถึงยอดรวมและเงื่อนไขทางการค้า",
+      inputSchema: schemas.QuotationStatusInputSchema,
+      permissionRequirement: "SALES_VIEW",
+      auditCategory: "COMMERCIAL",
+      handler: async (input) => {
+        return QuotationService.getQuotationById(input.quotationId);
+      },
+    });
+
+    // 26. getEstimateVsActual (Phase 17)
+    this.register({
+      name: "getEstimateVsActual",
+      description: "เปรียบเทียบต้นทุนประมาณการก่อนขายกับต้นทุนจริงหลังดำเนินงานของโครงการ (Labor, Fleet, Material, Total)",
+      inputSchema: schemas.EstimateVsActualInputSchema,
+      permissionRequirement: "ESTIMATE_VIEW",
+      auditCategory: "COMMERCIAL_LEARNING",
+      handler: async (input) => {
+        return EstimationAccuracyService.getProjectEstimateVsActual(input.projectId);
+      },
+    });
+
+    // 27. getRenewalOpportunities (Phase 17)
+    this.register({
+      name: "getRenewalOpportunities",
+      description: "ค้นหาสัญญาว่าจ้าง (Contracts) ที่ใกล้หมดอายุภายใน 90, 60, 30 วันเพื่อเตรียมการต่อสัญญาใหม่",
+      inputSchema: schemas.RenewalOpportunitiesInputSchema,
+      permissionRequirement: "SALES_VIEW",
+      auditCategory: "CRM_RENEWAL",
+      handler: async (input) => {
+        const thresholdDays = input.daysThreshold || 90;
+        const now = new Date();
+        const maxDate = new Date();
+        maxDate.setDate(now.getDate() + thresholdDays);
+
+        const expiringContracts = await prisma.contract.findMany({
+          where: {
+            status: "ACTIVE",
+            endDate: { gte: now, lte: maxDate },
+          },
+          include: {
+            client: { select: { id: true, name: true, contactName: true, contactPhone: true } },
+            project: { select: { id: true, projectCode: true, name: true } },
+          },
+          orderBy: { endDate: "asc" },
+        });
+
+        return expiringContracts.map((c) => {
+          const daysLeft = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            ...c,
+            daysRemaining: daysLeft,
+            urgency: daysLeft <= 30 ? "HIGH" : daysLeft <= 60 ? "MEDIUM" : "LOW",
+          };
+        });
       },
     });
   }

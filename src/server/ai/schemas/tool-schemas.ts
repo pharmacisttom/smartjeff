@@ -100,6 +100,33 @@ export const AssetSummaryInputSchema = z.object({
   status: z.string().optional(),
 });
 
+// Phase 17: CRM, Sales & Estimation Schemas
+export const SalesPipelineSummaryInputSchema = z.object({});
+
+export const OpportunitySummaryInputSchema = z.object({
+  opportunityId: z.string().min(1, "opportunityId is required"),
+});
+
+export const TenderDeadlinesInputSchema = z.object({
+  daysThreshold: z.number().optional().default(14),
+});
+
+export const EstimateBreakdownInputSchema = z.object({
+  estimateId: z.string().min(1, "estimateId is required"),
+});
+
+export const QuotationStatusInputSchema = z.object({
+  quotationId: z.string().min(1, "quotationId is required"),
+});
+
+export const EstimateVsActualInputSchema = z.object({
+  projectId: z.string().min(1, "projectId is required"),
+});
+
+export const RenewalOpportunitiesInputSchema = z.object({
+  daysThreshold: z.number().optional().default(90),
+});
+
 export type LiveOperationsInput = z.infer<typeof LiveOperationsInputSchema>;
 export type SiteStatusInput = z.infer<typeof SiteStatusInputSchema>;
 export type SiteDetailInput = z.infer<typeof SiteDetailInputSchema>;
@@ -120,3 +147,10 @@ export type PurchaseRequestSummaryInput = z.infer<typeof PurchaseRequestSummaryI
 export type PurchaseOrderSummaryInput = z.infer<typeof PurchaseOrderSummaryInputSchema>;
 export type SupplierDeliverySummaryInput = z.infer<typeof SupplierDeliverySummaryInputSchema>;
 export type AssetSummaryInput = z.infer<typeof AssetSummaryInputSchema>;
+export type SalesPipelineSummaryInput = z.infer<typeof SalesPipelineSummaryInputSchema>;
+export type OpportunitySummaryInput = z.infer<typeof OpportunitySummaryInputSchema>;
+export type TenderDeadlinesInput = z.infer<typeof TenderDeadlinesInputSchema>;
+export type EstimateBreakdownInput = z.infer<typeof EstimateBreakdownInputSchema>;
+export type QuotationStatusInput = z.infer<typeof QuotationStatusInputSchema>;
+export type EstimateVsActualInput = z.infer<typeof EstimateVsActualInputSchema>;
+export type RenewalOpportunitiesInput = z.infer<typeof RenewalOpportunitiesInputSchema>;
