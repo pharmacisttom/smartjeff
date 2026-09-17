@@ -291,3 +291,86 @@ export type GetRpoStatusInput = z.infer<typeof GetRpoStatusInputSchema>;
 export const GetRtoStatusInputSchema = z.object({});
 export type GetRtoStatusInput = z.infer<typeof GetRtoStatusInputSchema>;
 
+// ============================================================================
+// PHASE 26: AI AGENTIC OPERATIONS & ACTION PROPOSAL SCHEMAS
+// ============================================================================
+
+export const DraftWorkforceScheduleInputSchema = z.object({
+  siteId: z.string().min(1, "siteId is required"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date (YYYY-MM-DD)"),
+  shiftId: z.string().optional(),
+  assignments: z.array(
+    z.object({
+      userId: z.string().min(1),
+      shiftId: z.string().min(1),
+      role: z.string().optional(),
+    })
+  ).optional(),
+});
+export type DraftWorkforceScheduleInput = z.infer<typeof DraftWorkforceScheduleInputSchema>;
+
+export const DraftPurchaseRequestInputSchema = z.object({
+  siteId: z.string().min(1, "siteId is required"),
+  department: z.string().optional(),
+  reason: z.string().min(1, "reason is required"),
+  items: z.array(
+    z.object({
+      itemId: z.string().min(1),
+      quantity: z.number().positive(),
+      estimatedUnitPrice: z.number().nonnegative().optional(),
+    })
+  ).min(1, "at least 1 item is required"),
+});
+export type DraftPurchaseRequestInput = z.infer<typeof DraftPurchaseRequestInputSchema>;
+
+export const DraftTripInputSchema = z.object({
+  originSiteId: z.string().min(1),
+  destination: z.string().min(1),
+  vehicleId: z.string().optional(),
+  driverId: z.string().optional(),
+  departureDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  cargoDescription: z.string().optional(),
+});
+export type DraftTripInput = z.infer<typeof DraftTripInputSchema>;
+
+export const DraftWorkOrderInputSchema = z.object({
+  projectId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  dueDate: z.string().optional(),
+  assignedUserId: z.string().optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+});
+export type DraftWorkOrderInput = z.infer<typeof DraftWorkOrderInputSchema>;
+
+export const DraftCAPAInputSchema = z.object({
+  incidentId: z.string().min(1),
+  rootCause: z.string().min(1),
+  correctiveAction: z.string().min(1),
+  preventiveAction: z.string().optional(),
+  responsibleUserId: z.string().optional(),
+  targetCompletionDate: z.string().optional(),
+});
+export type DraftCAPAInput = z.infer<typeof DraftCAPAInputSchema>;
+
+export const DraftCollectionTaskInputSchema = z.object({
+  invoiceId: z.string().min(1),
+  clientId: z.string().min(1),
+  amountDue: z.number().positive(),
+  followUpStrategy: z.string().min(1),
+  notes: z.string().optional(),
+});
+export type DraftCollectionTaskInput = z.infer<typeof DraftCollectionTaskInputSchema>;
+
+export const SimulateScenarioInputSchema = z.object({
+  scenarioType: z.enum(["WORKFORCE", "FINANCIAL", "MULTI_DOMAIN"]),
+  siteId: z.string().optional(),
+  deficitDelta: z.number().optional(),
+  surplusDelta: z.number().optional(),
+  additionalOtHours: z.number().optional(),
+  clientCollectionDelayDays: z.number().optional(),
+  supplierPaymentAdvanceDays: z.number().optional(),
+});
+export type SimulateScenarioInput = z.infer<typeof SimulateScenarioInputSchema>;
+
+

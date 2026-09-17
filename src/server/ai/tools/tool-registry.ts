@@ -42,6 +42,9 @@ export interface AIToolDefinition<T = any> {
   inputSchema: z.ZodSchema<T>;
   permissionRequirement: string;
   auditCategory: string;
+  riskClass?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  requiresApproval?: boolean;
+  category?: "READ" | "SIMULATE" | "DRAFT" | "ACTION_LOW_RISK" | "ACTION_MEDIUM_RISK" | "ACTION_HIGH_RISK";
   handler: (input: T, userContext: AIUserContext) => Promise<any>;
 }
 
@@ -885,6 +888,178 @@ export class AIOperationsToolRegistry {
         };
       },
     });
+
+    // ========================================================================
+    // PHASE 26: AI AGENTIC ACTION & DRAFT PROPOSAL TOOLS
+    // ========================================================================
+
+    // 1. draftWorkforceSchedule
+    this.register({
+      name: "draftWorkforceSchedule",
+      description: "จัดทำร่างตารางกะการทำงาน (Draft Schedule) พร้อมตรวจสอบความขัดแย้ง โดยยังไม่พับลิชจริง",
+      inputSchema: schemas.DraftWorkforceScheduleInputSchema,
+      permissionRequirement: "SCHEDULE_MANAGE",
+      auditCategory: "WORKFORCE",
+      riskClass: "MEDIUM",
+      requiresApproval: true,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        return {
+          draftId: `draft-sched-${Date.now()}`,
+          siteId: input.siteId,
+          date: input.date,
+          proposedAssignmentsCount: input.assignments?.length || 0,
+          status: "DRAFT_PENDING_CONFIRMATION",
+          message: "ร่างตารางกะสำเร็จ รอการยืนยันจากผู้จัดการไซต์งานก่อนบันทึกลงระบบจริง",
+        };
+      },
+    });
+
+    // 2. draftPurchaseRequest
+    this.register({
+      name: "draftPurchaseRequest",
+      description: "จัดทำร่างใบขอซื้อ (Draft Purchase Request) เมื่อพบสินค้าใกล้หมดหรือขาดแคลน",
+      inputSchema: schemas.DraftPurchaseRequestInputSchema,
+      permissionRequirement: "PROCUREMENT_PR_CREATE",
+      auditCategory: "PROCUREMENT",
+      riskClass: "MEDIUM",
+      requiresApproval: true,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        const estTotal = input.items.reduce((acc, i) => acc + (i.quantity * (i.estimatedUnitPrice || 0)), 0);
+        return {
+          draftPrNumber: `DRAFT-PR-${Date.now().toString().slice(-6)}`,
+          siteId: input.siteId,
+          reason: input.reason,
+          itemCount: input.items.length,
+          estimatedTotalBaht: estTotal,
+          status: "DRAFT_PENDING_REVIEW",
+          message: "สร้างร่างใบขอซื้อเรียบร้อย รอฝ่ายจัดซื้อหรือผู้จัดการไซต์อนุมัติ",
+        };
+      },
+    });
+
+    // 3. draftTrip
+    this.register({
+      name: "draftTrip",
+      description: "จัดทำร่างใบสั่งงานขนส่ง (Draft Trip) และจับคู่ยานพาหนะกับคนขับ",
+      inputSchema: schemas.DraftTripInputSchema,
+      permissionRequirement: "FLEET_DISPATCH",
+      auditCategory: "FLEET",
+      riskClass: "MEDIUM",
+      requiresApproval: true,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        return {
+          draftTripId: `draft-trip-${Date.now().toString().slice(-6)}`,
+          originSiteId: input.originSiteId,
+          destination: input.destination,
+          departureDate: input.departureDate,
+          status: "DRAFT_READY",
+          message: "ร่างแผนการเดินรถสำเร็จ ตรวจสอบความพร้อมของคนขับและยานพาหนะก่อนปล่อยรถ",
+        };
+      },
+    });
+
+    // 4. draftWorkOrder
+    this.register({
+      name: "draftWorkOrder",
+      description: "จัดทำร่างใบสั่งงานโครงการ (Draft Work Order) สำหรับงานหน้าไซต์",
+      inputSchema: schemas.DraftWorkOrderInputSchema,
+      permissionRequirement: "PROJECT_TASK_MANAGE",
+      auditCategory: "PROJECT",
+      riskClass: "MEDIUM",
+      requiresApproval: true,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        return {
+          draftWorkOrderId: `draft-wo-${Date.now().toString().slice(-6)}`,
+          projectId: input.projectId,
+          title: input.title,
+          priority: input.priority || "MEDIUM",
+          status: "DRAFT_CREATED",
+          message: "ร่างใบสั่งงานถูกสร้างสำเร็จ รอ Project Manager กดอนุมัติเปิดงาน",
+        };
+      },
+    });
+
+    // 5. draftCAPA
+    this.register({
+      name: "draftCAPA",
+      description: "จัดทำร่างมาตรการแก้ไขและป้องกัน (Draft CAPA) จากผลการวิเคราะห์อุบัติการณ์ความปลอดภัย",
+      inputSchema: schemas.DraftCAPAInputSchema,
+      permissionRequirement: "QHSE_CAPA_MANAGE",
+      auditCategory: "QHSE",
+      riskClass: "MEDIUM",
+      requiresApproval: true,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        return {
+          draftCapaId: `draft-capa-${Date.now().toString().slice(-6)}`,
+          incidentId: input.incidentId,
+          rootCause: input.rootCause,
+          correctiveAction: input.correctiveAction,
+          status: "DRAFT_PENDING_SAFETY_OFFICER",
+          message: "ร่างมาตรการ CAPA ถูกบันทึกเรียบร้อย รอ จป. หรือ Safety Committee อนุมัติ",
+        };
+      },
+    });
+
+    // 6. draftCollectionTask
+    this.register({
+      name: "draftCollectionTask",
+      description: "จัดทำร่างแผนงานติดตามทวงถามหนี้ค้างชำระ (Draft AR Collection Task) — บล็อกการจ่ายเงินโดยเด็ดขาด",
+      inputSchema: schemas.DraftCollectionTaskInputSchema,
+      permissionRequirement: "FINANCE_AR_VIEW",
+      auditCategory: "FINANCE",
+      riskClass: "LOW",
+      requiresApproval: false,
+      category: "DRAFT",
+      handler: async (input, user) => {
+        return {
+          draftTaskId: `draft-ar-task-${Date.now().toString().slice(-6)}`,
+          invoiceId: input.invoiceId,
+          clientId: input.clientId,
+          amountDue: input.amountDue,
+          strategy: input.followUpStrategy,
+          status: "TASK_PREPARED",
+          message: "ร่างงานติดตามหนี้ถูกจัดเตรียมแล้ว พร้อมให้ทีมบัญชีประสานงานต่อ",
+        };
+      },
+    });
+
+    // 7. simulateScenario
+    this.register({
+      name: "simulateScenario",
+      description: "จำลองสถานการณ์ทางธุรกิจแบบ Zero Side-Effects (กำลังคน, สต็อก, กระแสเงินสด)",
+      inputSchema: schemas.SimulateScenarioInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "SIMULATION",
+      riskClass: "LOW",
+      requiresApproval: false,
+      category: "SIMULATE",
+      handler: async (input, user) => {
+        if (input.scenarioType === "WORKFORCE" && input.siteId) {
+          return OperationsScenarioService.runScenario({
+            siteId: input.siteId,
+            deficitDelta: input.deficitDelta,
+            surplusDelta: input.surplusDelta,
+            additionalOtHours: input.additionalOtHours,
+          });
+        }
+        if (input.scenarioType === "FINANCIAL") {
+          return TreasuryScenarioService.simulateScenario({
+            clientCollectionDelayDays: input.clientCollectionDelayDays,
+            supplierPaymentAdvanceDays: input.supplierPaymentAdvanceDays,
+          });
+        }
+        return {
+          scenarioType: input.scenarioType,
+          status: "SIMULATION_COMPLETED",
+          simulatedImpact: "ไม่มีผลกระทบต่อฐานข้อมูลจริง เป็นการประมวลผลเชิงตัวเลขเท่านั้น",
+        };
+      },
+    });
   }
 
   static register<T>(tool: AIToolDefinition<T>) {
@@ -896,12 +1071,22 @@ export class AIOperationsToolRegistry {
     return this.tools.get(name);
   }
 
-  static listTools(): Array<{ name: string; description: string; auditCategory: string }> {
+  static listTools(): Array<{
+    name: string;
+    description: string;
+    auditCategory: string;
+    riskClass?: string;
+    requiresApproval?: boolean;
+    category?: string;
+  }> {
     this.initialize();
     return Array.from(this.tools.values()).map((t) => ({
       name: t.name,
       description: t.description,
       auditCategory: t.auditCategory,
+      riskClass: t.riskClass || "LOW",
+      requiresApproval: t.requiresApproval ?? false,
+      category: t.category || "READ",
     }));
   }
 
