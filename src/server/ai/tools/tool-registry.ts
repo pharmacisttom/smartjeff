@@ -25,6 +25,9 @@ import { TreasuryPositionService } from "@/server/services/finance/treasury-posi
 import { TreasuryForecastService } from "@/server/services/finance/treasury-forecast.service";
 import { BudgetPlanningService } from "@/server/services/finance/budget-planning.service";
 import { TreasuryScenarioService } from "@/server/services/finance/treasury-scenario.service";
+import { automationHealth } from "@/server/automation/health/automation-health.service";
+import { deadLetterService } from "@/server/automation/dead-letter/dead-letter.service";
+import { ruleEngine } from "@/server/automation/rules/rule-engine.service";
 import { prisma } from "@/lib/prisma";
 import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
 import * as schemas from "../schemas/tool-schemas";
@@ -650,6 +653,111 @@ export class AIOperationsToolRegistry {
       auditCategory: "FINANCE",
       handler: async (input, _user) => {
         return TreasuryScenarioService.simulateScenario(input);
+      },
+    });
+
+    // ==========================================
+    // Phase 23: Enterprise Automation Tools
+    // ==========================================
+
+    // 1. getAutomationSummary
+    this.register({
+      name: "getAutomationSummary",
+      description: "สรุปสถานะระบบ Automation, Outbox, Event Bus, Queue, DLQ และสุขภาพของ Worker",
+      inputSchema: schemas.AutomationSummaryInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (_input, _user) => {
+        return automationHealth.getHealth();
+      },
+    });
+
+    // 2. getFailedWorkflows
+    this.register({
+      name: "getFailedWorkflows",
+      description: "ดึงรายการ Workflow Instance ที่ล้มเหลว พร้อมข้อผิดพลาดและขั้นตอนที่เกิดปัญหา",
+      inputSchema: schemas.FailedWorkflowsInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (input, _user) => {
+        const instances = await prisma.workflowInstance.findMany({
+          where: { status: "FAILED" },
+          orderBy: { completedAt: "desc" },
+          take: input.limit || 10,
+        });
+        return instances;
+      },
+    });
+
+    // 3. getDeadLetterJobs
+    this.register({
+      name: "getDeadLetterJobs",
+      description: "ดึงรายการ Job ใน Dead Letter Queue (DLQ) ที่ Retry ครบกำหนดหรือเกิด Fatal Error",
+      inputSchema: schemas.DeadLetterJobsInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (input, _user) => {
+        return deadLetterService.listJobs({ status: input.status, limit: 15 });
+      },
+    });
+
+    // 4. getEventTrace
+    this.register({
+      name: "getEventTrace",
+      description: "สืบค้น Trace ลำดับเหตุการณ์ทั้งหมดตาม Correlation ID ตั้งแต่ต้นสายถึงปลายสาย",
+      inputSchema: schemas.EventTraceInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (input, _user) => {
+        const events = await prisma.businessEvent.findMany({
+          where: { correlationId: input.correlationId },
+          orderBy: { occurredAt: "asc" },
+        });
+        return events.map((e) => ({
+          eventId: e.eventId,
+          eventType: e.eventType,
+          aggregateType: e.aggregateType,
+          aggregateId: e.aggregateId,
+          occurredAt: e.occurredAt,
+          processedAt: e.processedAt,
+          causationId: e.causationId,
+        }));
+      },
+    });
+
+    // 5. explainWorkflow
+    this.register({
+      name: "explainWorkflow",
+      description: "อธิบายขั้นตอน เงื่อนไข และการทำงานของ Workflow Definition ตามข้อกำหนด",
+      inputSchema: schemas.ExplainWorkflowInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (input, _user) => {
+        const wf = await prisma.workflowDefinition.findFirst({
+          where: { OR: [{ id: input.workflowId }, { code: input.workflowId }] },
+        });
+        if (!wf) throw new Error("Workflow not found");
+        return {
+          code: wf.code,
+          name: wf.name,
+          domain: wf.domain,
+          status: wf.status,
+          triggerEvent: wf.triggerEvent,
+          criticality: wf.criticality,
+          steps: JSON.parse(wf.definitionJson),
+        };
+      },
+    });
+
+    // 6. simulateRule
+    this.register({
+      name: "simulateRule",
+      description: "ทดสอบจำลองการทำงานของ Business Rule ด้วยข้อมูลตัวอย่าง (ไม่ส่งผลต่อระบบจริง)",
+      inputSchema: schemas.SimulateRuleInputSchema,
+      permissionRequirement: "AUTOMATION_VIEW",
+      auditCategory: "AUTOMATION",
+      handler: async (input, _user) => {
+        return ruleEngine.simulateRule(input.ruleId, input.sampleData || {});
       },
     });
   }

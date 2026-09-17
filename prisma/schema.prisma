@@ -2362,4 +2362,333 @@ model FinanceControlConfig {
   updatedAt                DateTime  @updatedAt
 }
 
+// ==========================================
+// Phase 23: Enterprise Automation & Events
+// ==========================================
+
+model BusinessEvent {
+  id             String    @id @default(cuid())
+  eventId        String    @unique
+  eventType      String
+  eventVersion   Int       @default(1)
+  aggregateType  String
+  aggregateId    String
+  occurredAt     DateTime  @default(now())
+  actorId        String?
+  correlationId  String
+  causationId    String?
+  tenantId       String?
+  payloadJson    String
+  metadataJson   String?
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([aggregateType, aggregateId])
+  @@index([correlationId])
+  @@index([occurredAt])
+}
+
+model OutboxEvent {
+  id           String    @id @default(cuid())
+  eventId      String    @unique
+  eventType    String
+  payloadJson  String
+  status       String    @default("PENDING") // PENDING | PROCESSING | PROCESSED | FAILED
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(5)
+  lastError    String?
+  nextRetryAt  DateTime?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([nextRetryAt])
+}
+
+model ProcessedEvent {
+  id           String    @id @default(cuid())
+  consumerName String
+  eventId      String
+  processedAt  DateTime  @default(now())
+
+  @@unique([consumerName, eventId])
+  @@index([eventId])
+}
+
+model WorkflowDefinition {
+  id              String    @id @default(cuid())
+  code            String
+  name            String
+  domain          String    // WORKFORCE, ATTENDANCE, SCHEDULE, PAYROLL, PROJECT, CRM, PROCUREMENT, INVENTORY, FLEET, QHSE, FINANCE, TREASURY, ANALYTICS, PORTAL, SYSTEM
+  version         Int       @default(1)
+  triggerType     String    // EVENT, SCHEDULE, MANUAL
+  triggerEvent    String?
+  status          String    @default("DRAFT") // DRAFT | ACTIVE | PAUSED | DEPRECATED
+  criticality     String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  description     String?
+  businessOwner   String?
+  definitionJson  String
+  changeReason    String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([code, version])
+  @@index([triggerEvent])
+  @@index([status])
+}
+
+model WorkflowInstance {
+  id                 String    @id @default(cuid())
+  instanceNumber     String    @unique
+  workflowDefinitionId String
+  version            Int
+  businessEntityType String?
+  businessEntityId   String?
+  status             String    @default("RUNNING") // RUNNING | WAITING | COMPLETED | FAILED | CANCELLED
+  contextJson        String
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+  correlationId      String?
+  currentStepId      String?
+  error              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([workflowDefinitionId])
+  @@index([status])
+  @@index([correlationId])
+}
+
+model WorkflowExecution {
+  id                 String    @id @default(cuid())
+  workflowInstanceId String
+  stepId             String
+  stepType           String    // ACTION, CONDITION, APPROVAL, NOTIFICATION, DELAY, WEBHOOK, CREATE_TASK, UPDATE_RECORD, PARALLEL, END
+  status             String    // SUCCESS, FAILED, SKIPPED, WAITING
+  inputJson          String?
+  outputJson         String?
+  error              String?
+  durationMs         Int       @default(0)
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@index([workflowInstanceId])
+}
+
+model RuleDefinition {
+  id             String    @id @default(cuid())
+  code           String
+  name           String
+  domain         String
+  version        Int       @default(1)
+  ruleType       String    @default("THRESHOLD") // THRESHOLD | CONDITION | TIME | EVENT | STATE_CHANGE
+  description    String?
+  conditionsJson String
+  actionsJson    String
+  priority       Int       @default(100)
+  enabled        Boolean   @default(true)
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([code, version])
+  @@index([domain])
+  @@index([enabled])
+}
+
+model ApprovalWorkflowDefinition {
+  id                           String    @id @default(cuid())
+  code                         String    @unique
+  name                         String
+  domain                       String
+  entityType                   String    // PO, INVOICE, PAYMENT, CAPA, PAYROLL
+  thresholdRulesJson           String
+  strategy                     String    @default("SEQUENTIAL") // ANY, ALL, SEQUENTIAL, PARALLEL
+  separationOfDutiesRulesJson  String?
+  slaHours                     Int       @default(24)
+  escalateToRole               String?
+  active                       Boolean   @default(true)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+}
+
+model ApprovalRequest {
+  id                   String    @id @default(cuid())
+  requestNumber        String    @unique
+  approvalDefinitionId String
+  entityType           String
+  entityId             String
+  requesterId          String
+  currentTier          Int       @default(1)
+  status               String    @default("PENDING") // PENDING, APPROVED, REJECTED, RETURNED, CANCELLED
+  amount               Float?
+  metadataJson         String?
+  dueAt                DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model ApprovalDecision {
+  id                String    @id @default(cuid())
+  approvalRequestId String
+  tier              Int
+  approverId        String
+  delegatedFromId   String?
+  decision          String    // APPROVED, REJECTED, RETURNED, CANCELLED
+  comments          String?
+  decidedAt         DateTime  @default(now())
+
+  @@index([approvalRequestId])
+}
+
+model ApprovalDelegation {
+  id         String    @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  scope      String    @default("ALL")
+  startAt    DateTime
+  endAt      DateTime
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model AutomationSchedule {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  name              String
+  scheduleType      String    // ONE_TIME, DAILY, WEEKLY, MONTHLY, CRON
+  cronExpression    String?
+  timezone          String    @default("Asia/Bangkok")
+  targetAction      String
+  targetPayloadJson String?
+  lastRunAt         DateTime?
+  nextRunAt         DateTime?
+  lastStatus        String?
+  lockedUntil       DateTime?
+  lockedBy          String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model NotificationTemplate {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  name              String
+  channel           String    // IN_APP, EMAIL, WEB_PUSH, TELEGRAM, LINE
+  priority          String    @default("NORMAL") // NORMAL, IMPORTANT, CRITICAL
+  subjectTemplate   String?
+  bodyTemplateTh    String
+  bodyTemplateEn    String?
+  variablesJson     String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model WebhookEndpoint {
+  id             String    @id @default(cuid())
+  name           String
+  url            String
+  eventTypesJson String
+  secretHash     String
+  status         String    @default("ACTIVE") // ACTIVE, PAUSED, DISABLED
+  timeoutMs      Int       @default(10000)
+  maxRetries     Int       @default(5)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model WebhookDelivery {
+  id              String    @id @default(cuid())
+  eventId         String
+  endpointId      String
+  statusCode      Int?
+  attempt         Int       @default(1)
+  durationMs      Int       @default(0)
+  responseSnippet String?
+  status          String    @default("PENDING") // PENDING, SUCCESS, FAILED, RETRYING, DEAD
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([endpointId])
+  @@index([eventId])
+  @@index([status])
+}
+
+model DeadLetterJob {
+  id              String    @id @default(cuid())
+  queueName       String
+  jobName         String
+  eventId         String?
+  payloadJson     String
+  reason          String    // MAX_RETRY, VALIDATION_ERROR, HANDLER_ERROR, EXTERNAL_FAILURE
+  errorMessage    String?
+  stackTrace      String?
+  retryCount      Int       @default(0)
+  status          String    @default("OPEN") // OPEN, RETRIED, DISMISSED
+  dismissedBy     String?
+  dismissedReason String?
+  dismissedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([queueName])
+  @@index([status])
+}
+
+model IntegrationCredential {
+  id               String    @id @default(cuid())
+  name             String
+  clientId         String    @unique
+  secretHash       String
+  scopesJson       String    // JSON array of strings
+  expiresAt        DateTime?
+  rateLimitPerMin  Int       @default(120)
+  status           String    @default("ACTIVE") // ACTIVE, REVOKED, EXPIRED
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model IntegrationAuditLog {
+  id           String    @id @default(cuid())
+  credentialId String?
+  endpoint     String
+  method       String
+  action       String
+  status       String    // SUCCESS, FORBIDDEN, RATE_LIMITED, ERROR
+  ipAddress    String?
+  userAgent    String?
+  responseCode Int
+  timestamp    DateTime  @default(now())
+
+  @@index([credentialId])
+  @@index([timestamp])
+}
+
+model EventSubscription {
+  id             String    @id @default(cuid())
+  name           String
+  targetType     String    // WORKFLOW, WEBHOOK, INTERNAL_HANDLER, NOTIFICATION
+  targetId       String
+  eventTypesJson String
+  filtersJson    String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
 

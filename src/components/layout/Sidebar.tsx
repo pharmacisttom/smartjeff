@@ -34,6 +34,7 @@ import {
   Scale,
   PieChart,
   DollarSign,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,7 @@ const EMPLOYEE_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/automation", label: "ระบบอัตโนมัติ (Automation)", icon: Zap },
   { href: "/admin/executive/financial-control", label: "ศูนย์ควบคุมการเงิน (Financial Control)", icon: Landmark },
   { href: "/admin/finance/treasury", label: "การเงินและสภาพคล่อง (Treasury)", icon: DollarSign },
   { href: "/admin/finance/reconciliation", label: "กระทบยอดธนาคาร (Reconciliation)", icon: Scale },

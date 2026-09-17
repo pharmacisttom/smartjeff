@@ -229,3 +229,36 @@ export type BudgetSummaryInput = z.infer<typeof BudgetSummaryInputSchema>;
 export type BudgetVarianceInput = z.infer<typeof BudgetVarianceInputSchema>;
 export type TreasuryScenarioInput = z.infer<typeof TreasuryScenarioInputSchema>;
 
+// ==========================================
+// Phase 23: Enterprise Automation AI Schemas
+// ==========================================
+
+export const AutomationSummaryInputSchema = z.object({});
+export type AutomationSummaryInput = z.infer<typeof AutomationSummaryInputSchema>;
+
+export const FailedWorkflowsInputSchema = z.object({
+  limit: z.number().int().positive().optional(),
+});
+export type FailedWorkflowsInput = z.infer<typeof FailedWorkflowsInputSchema>;
+
+export const DeadLetterJobsInputSchema = z.object({
+  status: z.string().optional(),
+});
+export type DeadLetterJobsInput = z.infer<typeof DeadLetterJobsInputSchema>;
+
+export const EventTraceInputSchema = z.object({
+  correlationId: z.string().min(1, "correlationId is required"),
+});
+export type EventTraceInput = z.infer<typeof EventTraceInputSchema>;
+
+export const ExplainWorkflowInputSchema = z.object({
+  workflowId: z.string().min(1, "workflowId is required"),
+});
+export type ExplainWorkflowInput = z.infer<typeof ExplainWorkflowInputSchema>;
+
+export const SimulateRuleInputSchema = z.object({
+  ruleId: z.string().min(1, "ruleId is required"),
+  sampleData: z.record(z.any()).optional(),
+});
+export type SimulateRuleInput = z.infer<typeof SimulateRuleInputSchema>;
+
