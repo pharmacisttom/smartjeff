@@ -221,7 +221,7 @@ export class AttendanceReconciliationService {
           site: true,
         },
       }),
-      prisma.Attendance.findMany({
+      prisma.attendance.findMany({
         where: {
           timestamp: { gte: startOfDay, lte: endOfDay },
         },

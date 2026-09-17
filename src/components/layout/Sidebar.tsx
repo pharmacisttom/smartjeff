@@ -18,11 +18,13 @@ import {
   UserCheck,
   Radio,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const EMPLOYEE_NAV = [
   { href: "/check-in", label: "ลงเวลาปฏิบัติงาน", icon: Clock },
+  { href: "/my-schedule", label: "ตารางกะของฉัน", icon: Calendar },
   { href: "/history", label: "ประวัติลงเวลา", icon: History },
   { href: "/leave", label: "ขอลา & ทำ OT", icon: CalendarOff },
   { href: "/payslip", label: "สลิปเงินเดือน", icon: FileText },
@@ -33,6 +35,8 @@ const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
   { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
   { href: "/admin/operations/workforce-planning", label: "วางแผนกำลังคน (DSS)", icon: Sparkles },
+  { href: "/admin/operations/schedule", label: "จัดตารางกะ (Scheduler)", icon: Calendar },
+  { href: "/admin/operations/shifts", label: "ติดตามกะสด (Shifts)", icon: Clock },
   { href: "/admin/employees", label: "จัดการพนักงาน", icon: Users },
   { href: "/admin/sites", label: "จัดการโรงงาน & นิคมฯ", icon: Building2 },
   { href: "/admin/attendance", label: "อนุมัติเวลาปฏิบัติงาน", icon: UserCheck },

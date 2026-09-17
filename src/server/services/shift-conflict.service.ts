@@ -97,7 +97,7 @@ export class ShiftConflictService {
     const windowStart = new Date(dateStart.getTime() - 2 * 86400 * 1000);
     const windowEnd = new Date(dateEnd.getTime() + 2 * 86400 * 1000);
 
-    const nearbyAssignments = await prisma.shiftAssignment.findMany({
+    const nearbyAssignments = (await prisma.shiftAssignment.findMany({
       where: {
         employeeId: params.employeeId,
         status: { notIn: ["CANCELLED"] },
@@ -109,7 +109,7 @@ export class ShiftConflictService {
         shift: { select: { id: true, name: true, code: true } },
       },
       orderBy: { plannedStart: "asc" },
-    });
+    })) || [];
 
     const currentStartMs = params.plannedStart.getTime();
     const currentEndMs = params.plannedEnd.getTime();
@@ -197,14 +197,14 @@ export class ShiftConflictService {
     const weekStart = new Date(dateStart.getTime() - diffToMon * 86400 * 1000);
     const weekEnd = new Date(weekStart.getTime() + 7 * 86400 * 1000 - 1);
 
-    const weekAssignments = await prisma.shiftAssignment.findMany({
+    const weekAssignments = (await prisma.shiftAssignment.findMany({
       where: {
         employeeId: params.employeeId,
         status: { notIn: ["CANCELLED"] },
         ...(params.excludeAssignmentId ? { id: { not: params.excludeAssignmentId } } : {}),
         workDate: { gte: weekStart, lte: weekEnd },
       },
-    });
+    })) || [];
 
     const totalWeeklyHours =
       weekAssignments.reduce((sum, a) => sum + (a.plannedEnd.getTime() - a.plannedStart.getTime()) / 3600000, 0) +
@@ -221,7 +221,7 @@ export class ShiftConflictService {
 
     // Consecutive Days Check (look back 7 days)
     const past7DaysStart = new Date(dateStart.getTime() - 7 * 86400 * 1000);
-    const pastAssignments = await prisma.shiftAssignment.findMany({
+    const pastAssignments = (await prisma.shiftAssignment.findMany({
       where: {
         employeeId: params.employeeId,
         status: { notIn: ["CANCELLED"] },
@@ -229,7 +229,7 @@ export class ShiftConflictService {
         workDate: { gte: past7DaysStart, lt: dateStart },
       },
       orderBy: { workDate: "desc" },
-    });
+    })) || [];
 
     // Count consecutive days leading up to today
     let consecutiveDays = 0;
