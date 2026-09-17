@@ -166,6 +166,15 @@ export default function ExecutiveLiveOperationsPage() {
             <span>Auto Refresh (15s): <strong>{autoRefresh ? "ON" : "OFF"}</strong></span>
           </button>
 
+          {/* Workforce Planning DSS Link */}
+          <Link
+            href="/admin/operations/workforce-planning"
+            className="px-3.5 py-2 rounded-2xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>วางแผนกำลังคน (DSS) →</span>
+          </Link>
+
           {/* Manual Refresh Button */}
           <button
             onClick={() => refetch()}
