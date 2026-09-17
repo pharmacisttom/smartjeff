@@ -2109,4 +2109,257 @@ model ClientComplaint {
   @@index([status])
 }
 
+// ==========================================
+// Phase 21: Bank Reconciliation, Treasury & Budget Control
+// ==========================================
+
+model FinancialAccount {
+  id                   String    @id @default(cuid())
+  accountCode          String    @unique
+  accountName          String
+  bankCode             String    // KTB | SCB | KBANK | BBL | BAY | TTB | CASH | OTHER
+  branchName           String?
+  accountNo            String
+  maskedAccountNo      String
+  currency             String    @default("THB")
+  accountType          String    @default("CURRENT") // CURRENT | SAVINGS | FIXED | CASH | OTHER
+  ledgerBalance        Float     @default(0.0)
+  lastBankBalance      Float     @default(0.0)
+  reconciledBalance    Float     @default(0.0)
+  lastReconciledDate   DateTime?
+  status               String    @default("ACTIVE") // ACTIVE | INACTIVE | FROZEN
+  statementImportType  String    @default("CSV") // CSV | XLSX | OFX | API | MANUAL
+  reconciliationEnabled Boolean  @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([bankCode])
+  @@index([status])
+}
+
+model BankStatement {
+  id                 String    @id @default(cuid())
+  statementNo        String    @unique
+  financialAccountId String
+  statementDate      DateTime
+  periodStart        DateTime
+  periodEnd          DateTime
+  openingBalance     Float
+  closingBalance     Float
+  currency           String    @default("THB")
+  sourceType         String    @default("CSV") // CSV | XLSX | OFX | API | MANUAL
+  fileName           String
+  importedBy         String
+  importedAt         DateTime  @default(now())
+  status             String    @default("IMPORTED") // IMPORTED | PROCESSING | RECONCILING | RECONCILED | REVIEW_REQUIRED | LOCKED
+  lockedAt           DateTime?
+  lockedBy           String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([financialAccountId])
+  @@index([status])
+  @@index([statementDate])
+}
+
+model BankTransaction {
+  id                 String    @id @default(cuid())
+  statementId        String
+  financialAccountId String
+  transactionDate    DateTime
+  valueDate          DateTime?
+  description        String
+  reference          String?
+  amount             Float
+  direction          String    // CREDIT | DEBIT
+  balance            Float?
+  externalId         String?
+  hash               String    @unique
+  status             String    @default("UNMATCHED") // UNMATCHED | SUGGESTED_MATCH | MATCHED | PARTIALLY_MATCHED | EXCLUDED | REVIEW_REQUIRED
+  unmatchedCategory  String?   // UNKNOWN_RECEIPT | UNKNOWN_PAYMENT | BANK_FEE | INTEREST | TRANSFER | REFUND | OTHER
+  exclusionReason    String?
+  excludedBy         String?
+  excludedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([statementId])
+  @@index([financialAccountId])
+  @@index([status])
+  @@index([transactionDate])
+}
+
+model CashTransaction {
+  id                 String    @id @default(cuid())
+  transactionNo      String    @unique
+  financialAccountId String
+  transactionDate    DateTime
+  amount             Float
+  direction          String    // CREDIT | DEBIT
+  category           String    // RECEIPT | PAYMENT | PAYROLL | EXPENSE | TRANSFER | ADJUSTMENT | FEE | INTEREST
+  referenceType      String?   // CUSTOMER_RECEIPT | SUPPLIER_PAYMENT | PAYROLL | EXPENSE | INTERNAL_TRANSFER | FINANCE_ADJUSTMENT
+  referenceId        String?
+  description        String
+  partyType          String?   // CUSTOMER | SUPPLIER | EMPLOYEE | INTERNAL
+  partyId            String?
+  partyName          String?
+  reconciled         Boolean   @default(false)
+  reconciledAt       DateTime?
+  reconciledMatchId  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([financialAccountId])
+  @@index([transactionDate])
+  @@index([referenceType, referenceId])
+  @@index([reconciled])
+}
+
+model BankReconciliationMatch {
+  id                 String    @id @default(cuid())
+  bankTransactionId  String
+  targetType         String    // CASH_TRANSACTION | CUSTOMER_RECEIPT | SUPPLIER_PAYMENT | PAYROLL | EXPENSE | INTERNAL_TRANSFER | FINANCE_ADJUSTMENT
+  targetId           String
+  matchedAmount      Float
+  matchMethod        String    // AUTO_SUGGESTED | MANUAL | REFERENCE | AMOUNT_DATE | OTHER
+  matchScore         Float     @default(100.0)
+  matchExplanation   String?
+  confirmedBy        String
+  confirmedAt        DateTime  @default(now())
+  unmatchReason      String?
+  status             String    @default("CONFIRMED") // CONFIRMED | UNMATCHED | VOIDED
+  createdAt          DateTime  @default(now())
+
+  @@index([bankTransactionId])
+  @@index([targetType, targetId])
+  @@index([status])
+}
+
+model TreasuryDailySnapshot {
+  id                 String    @id @default(cuid())
+  snapshotDate       DateTime
+  financialAccountId String
+  openingBalance     Float
+  inflow             Float
+  outflow            Float
+  closingBalance     Float
+  reconciledBalance  Float
+  availableCash      Float     @default(0.0)
+  committedOutflow   Float     @default(0.0)
+  createdAt          DateTime  @default(now())
+
+  @@unique([snapshotDate, financialAccountId])
+  @@index([snapshotDate])
+  @@index([financialAccountId])
+}
+
+model CostCenter {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  name               String
+  type               String    // OPERATIONS | LOGISTICS | ADMINISTRATIVE | PROJECT | OVERHEAD
+  department         String
+  ownerId            String?
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([department])
+  @@index([active])
+}
+
+model BudgetPlan {
+  id                 String    @id @default(cuid())
+  planNo             String    @unique
+  name               String
+  fiscalYear         Int
+  version            Int       @default(1)
+  status             String    @default("DRAFT") // DRAFT | SUBMITTED | REVIEW | APPROVED | ACTIVE | REVISED | CLOSED
+  currency           String    @default("THB")
+  totalBudget        Float     @default(0.0)
+  createdBy          String
+  approvedBy         String?
+  approvedAt         DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([fiscalYear])
+  @@index([status])
+}
+
+model BudgetLine {
+  id                 String    @id @default(cuid())
+  budgetPlanId       String
+  costCenterId       String?
+  projectId          String?
+  siteId             String?
+  department         String?
+  category           String    // LABOR | OT | MATERIAL | FLEET | FUEL | MAINTENANCE | TRAVEL | PROCUREMENT | CAPEX | OTHER
+  period             String    // e.g. "2026-01", "2026-ANNUAL"
+  allocatedAmount    Float     @default(0.0)
+  consumedAmount     Float     @default(0.0)
+  committedAmount    Float     @default(0.0)
+  forecastAmount     Float     @default(0.0)
+  availableAmount    Float     @default(0.0)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([budgetPlanId])
+  @@index([costCenterId])
+  @@index([projectId])
+  @@index([category])
+  @@index([period])
+}
+
+model BudgetTransfer {
+  id                 String    @id @default(cuid())
+  transferNo         String    @unique
+  fromBudgetLineId   String
+  toBudgetLineId     String
+  amount             Float
+  reason             String
+  requestedBy        String
+  approvedBy         String?
+  status             String    @default("PENDING") // PENDING | APPROVED | REJECTED | APPLIED
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([fromBudgetLineId])
+  @@index([toBudgetLineId])
+  @@index([status])
+}
+
+model BudgetRevision {
+  id                 String    @id @default(cuid())
+  revisionNo         String    @unique
+  budgetPlanId       String
+  fromVersion        Int
+  toVersion          Int
+  reasonCategory     String    // SCOPE_CHANGE | CONTRACT_CHANGE | OPERATIONAL_CHANGE | MANAGEMENT_DECISION | OTHER
+  notes              String
+  requestedBy        String
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([budgetPlanId])
+}
+
+model FinanceControlConfig {
+  id                       String    @id @default(cuid())
+  key                      String    @unique @default("DEFAULT")
+  matchingThreshold        Float     @default(90.0)
+  dateToleranceDays        Int       @default(2)
+  minimumCashBuffer        Float     @default(500000.0)
+  forecastHorizonWeeks     Int       @default(13)
+  budgetControlMode        String    @default("WARNING") // OFF | WARNING | APPROVAL_REQUIRED | HARD_BLOCK
+  budgetAlertThresholdPct  Float     @default(90.0)
+  separationOfDutiesEnabled Boolean  @default(true)
+  updatedAt                DateTime  @updatedAt
+}
+
 

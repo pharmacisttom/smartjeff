@@ -30,6 +30,10 @@ import {
   ShieldAlert,
   AlertTriangle,
   FileCheck2,
+  Landmark,
+  Scale,
+  PieChart,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +51,10 @@ const EMPLOYEE_NAV = [
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/executive/financial-control", label: "ศูนย์ควบคุมการเงิน (Financial Control)", icon: Landmark },
+  { href: "/admin/finance/treasury", label: "การเงินและสภาพคล่อง (Treasury)", icon: DollarSign },
+  { href: "/admin/finance/reconciliation", label: "กระทบยอดธนาคาร (Reconciliation)", icon: Scale },
+  { href: "/admin/finance/budget", label: "งบประมาณองค์กร (Budget Plan)", icon: PieChart },
   { href: "/admin/qhse", label: "ศูนย์ความปลอดภัย (QHSE)", icon: ShieldAlert },
   { href: "/admin/risk", label: "บริหารความเสี่ยง (Risk)", icon: AlertTriangle },
   { href: "/admin/compliance", label: "การปฏิบัติตามเกณฑ์ (Compliance)", icon: FileCheck2 },

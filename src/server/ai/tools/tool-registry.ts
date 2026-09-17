@@ -20,6 +20,11 @@ import { ComplianceService } from "@/server/services/qhse/compliance.service";
 import { TrainingCertificationService } from "@/server/services/qhse/training-certification.service";
 import { AuditService } from "@/server/services/qhse/audit.service";
 import { QHSERiskIntelligenceService } from "@/server/services/qhse/qhse-risk-intelligence.service";
+import { BankReconciliationService } from "@/server/services/finance/bank-reconciliation.service";
+import { TreasuryPositionService } from "@/server/services/finance/treasury-position.service";
+import { TreasuryForecastService } from "@/server/services/finance/treasury-forecast.service";
+import { BudgetPlanningService } from "@/server/services/finance/budget-planning.service";
+import { TreasuryScenarioService } from "@/server/services/finance/treasury-scenario.service";
 import { prisma } from "@/lib/prisma";
 import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
 import * as schemas from "../schemas/tool-schemas";
@@ -537,6 +542,114 @@ export class AIOperationsToolRegistry {
       auditCategory: "AUDIT",
       handler: async (_input, _user) => {
         return AuditService.getAuditSummary();
+      },
+    });
+
+    // 34. getReconciliationSummary (Phase 21)
+    this.register({
+      name: "getReconciliationSummary",
+      description: "ดึงภาพรวมการกระทบยอดธนาคาร ยอดเงินตามระบบ เทียบกับ ธนาคาร และรายการที่ยังไม่จับคู่",
+      inputSchema: schemas.ReconciliationSummaryInputSchema,
+      permissionRequirement: "RECONCILIATION_VIEW",
+      auditCategory: "FINANCE",
+      handler: async (input, _user) => {
+        return BankReconciliationService.getReconciliationSummary(input.financialAccountId);
+      },
+    });
+
+    // 35. getUnmatchedBankTransactions (Phase 21)
+    this.register({
+      name: "getUnmatchedBankTransactions",
+      description: "ดึงรายการเคลื่อนไหวของบัญชีธนาคารที่ยังไม่สามารถกระทบยอดได้ (Unmatched Queue)",
+      inputSchema: schemas.UnmatchedBankTransactionsInputSchema,
+      permissionRequirement: "RECONCILIATION_VIEW",
+      auditCategory: "FINANCE",
+      handler: async (input, _user) => {
+        return prisma.bankTransaction.findMany({
+          where: {
+            status: { in: ["UNMATCHED", "REVIEW_REQUIRED", "SUGGESTED_MATCH"] },
+            ...(input.financialAccountId ? { financialAccountId: input.financialAccountId } : {}),
+          },
+          orderBy: { transactionDate: "desc" },
+          take: input.limit || 20,
+        });
+      },
+    });
+
+    // 36. getTreasuryPosition (Phase 21)
+    this.register({
+      name: "getTreasuryPosition",
+      description: "ดึงสถานะสภาพคล่องและตำแหน่งเงินสดคงเหลือปัจจุบัน (Total Cash, Available Cash, 7-Day Net)",
+      inputSchema: schemas.TreasuryPositionInputSchema,
+      permissionRequirement: "TREASURY_VIEW",
+      auditCategory: "FINANCE",
+      handler: async (_input, _user) => {
+        return TreasuryPositionService.getTreasuryPosition();
+      },
+    });
+
+    // 37. get13WeekCashForecast (Phase 21)
+    this.register({
+      name: "get13WeekCashForecast",
+      description: "ดึงประมาณการกระแสเงินสดล่วงหน้า 13 สัปดาห์ (13-Week Rolling Cash Forecast) หรือ 30 วัน",
+      inputSchema: schemas.CashForecast13WeekInputSchema,
+      permissionRequirement: "TREASURY_VIEW",
+      auditCategory: "FINANCE",
+      handler: async (input, _user) => {
+        if (input.mode === "30-day") {
+          return TreasuryForecastService.get30DayForecast();
+        }
+        return TreasuryForecastService.get13WeekForecast();
+      },
+    });
+
+    // 38. getBudgetSummary (Phase 21)
+    this.register({
+      name: "getBudgetSummary",
+      description: "ดึงภาพรวมแผนงบประมาณองค์กร ยอดที่จัดสรร ใช้ไปแล้ว ผูกพัน และคงเหลือ",
+      inputSchema: schemas.BudgetSummaryInputSchema,
+      permissionRequirement: "BUDGET_VIEW",
+      auditCategory: "BUDGET",
+      handler: async (input, _user) => {
+        return BudgetPlanningService.getBudgetPlans(input.fiscalYear);
+      },
+    });
+
+    // 39. getBudgetVariance (Phase 21)
+    this.register({
+      name: "getBudgetVariance",
+      description: "วิเคราะห์ผลต่างงบประมาณ (Variance Analysis) ระหว่าง Budget vs Actual vs Forecast",
+      inputSchema: schemas.BudgetVarianceInputSchema,
+      permissionRequirement: "BUDGET_VIEW",
+      auditCategory: "BUDGET",
+      handler: async (input, _user) => {
+        const lines = await prisma.budgetLine.findMany({
+          where: {
+            ...(input.category ? { category: input.category } : {}),
+          },
+        });
+        return lines.map((l) => ({
+          category: l.category,
+          allocated: l.allocatedAmount,
+          consumed: l.consumedAmount,
+          committed: l.committedAmount,
+          available: l.availableAmount,
+          forecast: l.forecastAmount,
+          variance: Math.round((l.allocatedAmount - l.forecastAmount) * 100) / 100,
+          isOverBudget: l.availableAmount < 0,
+        }));
+      },
+    });
+
+    // 40. runTreasuryScenario (Phase 21)
+    this.register({
+      name: "runTreasuryScenario",
+      description: "จำลองสถานการณ์สภาพคล่องทางการเงิน (What-If Treasury Simulation) เช่น ลูกค้าจ่ายช้า หรือ OT เพิ่มขึ้น",
+      inputSchema: schemas.TreasuryScenarioInputSchema,
+      permissionRequirement: "TREASURY_VIEW",
+      auditCategory: "FINANCE",
+      handler: async (input, _user) => {
+        return TreasuryScenarioService.simulateScenario(input);
       },
     });
   }

@@ -154,6 +154,39 @@ export const ExpiringCertificatesInputSchema = z.object({
 
 export const AuditSummaryInputSchema = z.object({});
 
+// Phase 21: Treasury, Reconciliation & Budget
+export const ReconciliationSummaryInputSchema = z.object({
+  financialAccountId: z.string().optional(),
+});
+
+export const UnmatchedBankTransactionsInputSchema = z.object({
+  financialAccountId: z.string().optional(),
+  limit: z.number().optional().default(20),
+});
+
+export const TreasuryPositionInputSchema = z.object({});
+
+export const CashForecast13WeekInputSchema = z.object({
+  mode: z.enum(["13-week", "30-day", "calendar"]).optional().default("13-week"),
+});
+
+export const BudgetSummaryInputSchema = z.object({
+  fiscalYear: z.number().optional(),
+});
+
+export const BudgetVarianceInputSchema = z.object({
+  fiscalYear: z.number().optional(),
+  category: z.string().optional(),
+});
+
+export const TreasuryScenarioInputSchema = z.object({
+  name: z.string().default("What-If AI Simulation"),
+  clientCollectionDelayDays: z.number().optional().default(0),
+  supplierPaymentAdvanceDays: z.number().optional().default(0),
+  overtimeIncreasePct: z.number().optional().default(0),
+  fuelPriceIncreasePct: z.number().optional().default(0),
+});
+
 export type LiveOperationsInput = z.infer<typeof LiveOperationsInputSchema>;
 export type SiteStatusInput = z.infer<typeof SiteStatusInputSchema>;
 export type SiteDetailInput = z.infer<typeof SiteDetailInputSchema>;
@@ -188,4 +221,11 @@ export type RiskRegisterSummaryInput = z.infer<typeof RiskRegisterSummaryInputSc
 export type ComplianceSummaryInput = z.infer<typeof ComplianceSummaryInputSchema>;
 export type ExpiringCertificatesInput = z.infer<typeof ExpiringCertificatesInputSchema>;
 export type AuditSummaryInput = z.infer<typeof AuditSummaryInputSchema>;
+export type ReconciliationSummaryInput = z.infer<typeof ReconciliationSummaryInputSchema>;
+export type UnmatchedBankTransactionsInput = z.infer<typeof UnmatchedBankTransactionsInputSchema>;
+export type TreasuryPositionInput = z.infer<typeof TreasuryPositionInputSchema>;
+export type CashForecast13WeekInput = z.infer<typeof CashForecast13WeekInputSchema>;
+export type BudgetSummaryInput = z.infer<typeof BudgetSummaryInputSchema>;
+export type BudgetVarianceInput = z.infer<typeof BudgetVarianceInputSchema>;
+export type TreasuryScenarioInput = z.infer<typeof TreasuryScenarioInputSchema>;
 
