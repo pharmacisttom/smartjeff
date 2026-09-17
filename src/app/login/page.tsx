@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, User, ShieldCheck, Sparkles, ArrowRight, KeyRound } from "lucide-react";
+import Link from "next/link";
+import { Lock, User, ShieldCheck, Sparkles, ArrowRight, KeyRound, Cpu, ArrowUpRight } from "lucide-react";
 import { showSuccess, showError, showLoading, closeSwal } from "@/lib/swal";
 
 export default function LoginPage() {
@@ -54,14 +55,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-brand-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
       {/* Dynamic Background Glow Elements */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-md relative z-10 space-y-6">
         {/* Logo Card & Title */}
-        <div className="text-center mb-8 space-y-3">
+        <div className="text-center space-y-3">
           <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white font-black text-2xl flex items-center justify-center mx-auto shadow-2xl border border-white/20">
             S
           </div>
@@ -140,6 +141,18 @@ export default function LoginPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
+
+          {/* Developer Link Footer */}
+          <div className="pt-2 text-center border-t border-white/10">
+            <Link
+              href="/tomvis"
+              className="inline-flex items-center space-x-2 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 px-4 py-2 rounded-full transition-all active:scale-95"
+            >
+              <Cpu className="w-3.5 h-3.5 text-brand-400" />
+              <span>พัฒนาโดย Tomvis (Developer Portal)</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-brand-400" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>

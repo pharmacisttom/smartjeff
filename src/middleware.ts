@@ -7,6 +7,9 @@ export function middleware(req: NextRequest) {
   // Allow static files, Next.js assets, login page, and login API
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/tomvis") ||
+    pathname.startsWith("/about-developer") ||
+    pathname.startsWith("/api/vendor/licenses") ||
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/ping") ||
     pathname.startsWith("/_next") ||

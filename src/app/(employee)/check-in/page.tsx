@@ -168,14 +168,14 @@ export default function CheckInPage() {
             <h1 className="text-xl md:text-2xl font-bold text-content-primary mt-1">
               สวัสดี, คุณพัดมา วงค์คำ
             </h1>
-            <p className="text-xs md:text-sm text-content-secondary mt-0.5">
-              {formatThaiDate(time || new Date())}
+            <p className="text-xs md:text-sm text-content-secondary mt-0.5" suppressHydrationWarning>
+              {time ? formatThaiDate(time) : formatThaiDate(new Date())}
             </p>
           </div>
           <div className="text-right">
             <div className="flex items-center space-x-1.5 text-xl md:text-2xl font-bold font-mono text-brand-600">
               <Clock className="w-5 h-5 text-brand-500 animate-pulse" />
-              <span>{formatTime(time || new Date())}</span>
+              <span suppressHydrationWarning>{time ? formatTime(time) : formatTime(new Date())}</span>
             </div>
             <span className="text-[10px] text-content-muted">เวลามาตรฐานประเทศไทย</span>
           </div>

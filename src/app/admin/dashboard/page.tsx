@@ -12,9 +12,18 @@ import {
   ArrowUpRight,
   ShieldAlert,
   FileCheck,
+  KeyRound,
+  Calendar,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { LicenseRenewalModal } from "@/components/license/LicenseRenewalModal";
+import { LicenseExpiryBanner } from "@/components/license/LicenseExpiryBanner";
+import { Footer } from "@/components/layout/Footer";
+
+import Swal from "@/lib/swal";
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -23,6 +32,95 @@ export default function AdminDashboardPage() {
     lateCount: 3,
     pendingApprovals: 4,
   });
+
+  const [license, setLicense] = useState<{
+    licenseKey: string;
+    activationDate: string;
+    expiryDate: string;
+    activeDays: number;
+    remainingDays: number;
+    status: string;
+    maxEmployees: number;
+    currentEmployees: number;
+  }>({
+    licenseKey: "SMARTO-LIC-2026-J2K-RAYONG-89A0",
+    activationDate: "2026-01-01",
+    expiryDate: "2027-09-16",
+    activeDays: 42,
+    remainingDays: 323,
+    status: "ACTIVE",
+    maxEmployees: 100,
+    currentEmployees: 40,
+  });
+
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+
+  const fetchLicense = async () => {
+    try {
+      const res = await fetch("/api/admin/license");
+      const data = await res.json();
+      if (res.ok && data.license) {
+        setLicense(data.license);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchLicense();
+
+    // SweetAlert Admin Notification system on login/load
+    const hasNotified = sessionStorage.getItem("admin_notified_today");
+    if (!hasNotified) {
+      sessionStorage.setItem("admin_notified_today", "true");
+      setTimeout(() => {
+        Swal.fire({
+          title: "🔔 การแจ้งเตือนผู้บริหาร (Admin Notification)",
+          html: `
+            <div class="text-left text-sm space-y-3 font-sans">
+              <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400">
+                <p class="font-bold flex items-center gap-1.5 text-base">
+                  ⚠️ รายการรอยืนยันเวลานอกพื้นที่ (4 รายการ)
+                </p>
+                <p class="text-xs mt-0.5 opacity-90">มีพนักงานเช็คอินนอกพิกัด Geofence รอการอนุมัติจากผู้บริหาร</p>
+              </div>
+
+              <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-600 dark:text-blue-400">
+                <p class="font-bold flex items-center gap-1.5">
+                  📊 สรุปการเข้างานวันนี้
+                </p>
+                <p class="text-xs mt-0.5 opacity-90">เข้างานแล้ว 38/42 คน (90%) | มาสาย 3 คน</p>
+              </div>
+
+              <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                <p class="font-bold flex items-center gap-1.5">
+                  ✅ ใบอนุญาตระบบ SMARTO ปกติ
+                </p>
+                <p class="text-xs mt-0.5 opacity-90">คงเหลืออายุสัญญา ${license.remainingDays} วัน (หมดอายุ ${license.expiryDate})</p>
+              </div>
+            </div>
+          `,
+          icon: "info",
+          showCancelButton: true,
+          confirmButtonText: "ดูรายการอนุมัติเวลานอกพื้นที่",
+          cancelButtonText: "ปิดหน้าต่าง",
+          confirmButtonColor: "#4f46e5",
+          cancelButtonColor: "#64748b",
+          customClass: {
+            popup: "rounded-3xl border border-slate-700 bg-slate-900 text-white shadow-2xl font-sans p-6",
+            title: "text-xl font-black text-white",
+            confirmButton: "px-5 py-2.5 rounded-2xl font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg",
+            cancelButton: "px-5 py-2.5 rounded-2xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-slate-200",
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.location.href = "/admin/attendance";
+          }
+        });
+      }, 600);
+    }
+  }, []);
 
   const [sitesSummary, setSitesSummary] = useState([
     { id: "1", name: "โรงงาน AAM นิคมฯ มาบตาพุด", total: 18, checked: 17, lat: 12.68, lng: 101.17 },
@@ -50,6 +148,58 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              Swal.fire({
+                title: "🔔 ศูนย์แจ้งเตือนผู้บริหาร (Admin Notification Center)",
+                html: `
+                  <div class="text-left text-sm space-y-3 font-sans">
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-600 dark:text-amber-400">
+                      <p class="font-bold flex items-center gap-1.5 text-base">
+                        ⚠️ รายการรอยืนยันเวลานอกพื้นที่ (4 รายการ)
+                      </p>
+                      <p class="text-xs mt-0.5 opacity-90">มีพนักงานเช็คอินนอกพิกัด Geofence รอการอนุมัติจากผู้บริหาร</p>
+                    </div>
+
+                    <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-2xl text-blue-600 dark:text-blue-400">
+                      <p class="font-bold flex items-center gap-1.5">
+                        📊 สรุปการเข้างานวันนี้
+                      </p>
+                      <p class="text-xs mt-0.5 opacity-90">เข้างานแล้ว 38/42 คน (90%) | มาสาย 3 คน</p>
+                    </div>
+
+                    <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                      <p class="font-bold flex items-center gap-1.5">
+                        ✅ ใบอนุญาตระบบ SMARTO ปกติ
+                      </p>
+                      <p class="text-xs mt-0.5 opacity-90">คงเหลืออายุสัญญา 323 วัน (หมดอายุ 2027-09-16)</p>
+                    </div>
+                  </div>
+                `,
+                icon: "info",
+                showCancelButton: true,
+                confirmButtonText: "ไปที่หน้าอนุมัติเวลา",
+                cancelButtonText: "ปิดหน้าต่าง",
+                confirmButtonColor: "#4f46e5",
+                cancelButtonColor: "#64748b",
+                customClass: {
+                  popup: "rounded-3xl border border-slate-700 bg-slate-900 text-white shadow-2xl font-sans p-6",
+                  title: "text-xl font-black text-white",
+                  confirmButton: "px-5 py-2.5 rounded-2xl font-bold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg",
+                  cancelButton: "px-5 py-2.5 rounded-2xl font-bold text-sm bg-slate-700 hover:bg-slate-600 text-slate-200",
+                },
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  window.location.href = "/admin/attendance";
+                }
+              });
+            }}
+            className="flex items-center space-x-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-sm px-4 py-2.5 rounded-2xl border border-amber-500/40 shadow-md transition-all active:scale-95"
+          >
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>แจ้งเตือนผู้บริหาร 🔔</span>
+          </button>
+
           <Link
             href="/admin/attendance"
             className="flex items-center space-x-2 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm px-4 py-2.5 rounded-2xl shadow-md transition-all"
@@ -57,6 +207,74 @@ export default function AdminDashboardPage() {
             <FileCheck className="w-4 h-4" />
             <span>อนุมัติเวลา ({stats.pendingApprovals})</span>
           </Link>
+        </div>
+      </div>
+
+      {/* Dynamic Expiry Alert Banner */}
+      <LicenseExpiryBanner
+        remainingDays={license.remainingDays}
+        activeDays={license.activeDays}
+        expiryDate={license.expiryDate}
+        status={license.status}
+        onOpenRenewal={() => setShowRenewalModal(true)}
+      />
+
+      {/* License & Subscription Expiry Control Banner */}
+      <div className="bg-surface-card border border-brand-500/20 rounded-3xl p-5 shadow-sm space-y-4 bg-gradient-to-r from-brand-500/5 via-surface-card to-transparent">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-border pb-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-600">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-bold text-content-primary text-base">ระบบใบอนุญาตใช้งาน (Software License Status)</h3>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  สถานะ: สัญญาปกติ (Active) ✅
+                </span>
+              </div>
+              <p className="text-xs text-content-muted">
+                รหัสสัญญา: <strong className="font-mono text-content-primary">{license.licenseKey}</strong> | วันหมดสัญญา: <strong className="text-brand-600">{license.expiryDate}</strong>
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowRenewalModal(true)}
+            className="flex items-center space-x-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all active:scale-95 self-start md:self-center"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>ต่อสัญญาใช้งาน / ใส่ License Key</span>
+          </button>
+        </div>
+
+        {/* License Stat Chips */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+          <div className="bg-surface-subtle p-3 rounded-2xl border border-surface-border/60">
+            <span className="text-content-muted block font-medium">เปิดใช้งานระบบแล้ว:</span>
+            <span className="text-xl font-black text-brand-600">{license.activeDays} วัน</span>
+            <span className="block text-[10px] text-content-muted">เริ่มใช้งานตั้งแต่ {license.activationDate}</span>
+          </div>
+
+          <div className="bg-surface-subtle p-3 rounded-2xl border border-surface-border/60">
+            <span className="text-content-muted block font-medium">อายุสัญญาคงเหลือ:</span>
+            <span className="text-xl font-black text-emerald-600">{license.remainingDays} วัน</span>
+            <span className="block text-[10px] text-content-muted">ครบกำหนดสัญญาปีถัดไป</span>
+          </div>
+
+          <div className="bg-surface-subtle p-3 rounded-2xl border border-surface-border/60">
+            <span className="text-content-muted block font-medium">โควต้าพนักงานสูงสุด:</span>
+            <span className="text-xl font-black text-content-primary">
+              {license.currentEmployees} / {license.maxEmployees} คน
+            </span>
+            <span className="block text-[10px] text-emerald-600 font-bold">ใช้งานไป {Math.round((license.currentEmployees / license.maxEmployees) * 100)}%</span>
+          </div>
+
+          <div className="bg-surface-subtle p-3 rounded-2xl border border-surface-border/60">
+            <span className="text-content-muted block font-medium">รูปแบบแพ็กเกจ:</span>
+            <span className="text-xs font-bold text-content-primary line-clamp-1">Enterprise Subscription</span>
+            <span className="block text-[10px] text-content-muted">ซัพพอร์ตโดยผู้พัฒนาโปรแกรม</span>
+          </div>
         </div>
       </div>
 
@@ -263,6 +481,18 @@ export default function AdminDashboardPage() {
           </table>
         </div>
       </div>
+
+      {/* License Renewal Modal */}
+      {showRenewalModal && (
+        <LicenseRenewalModal
+          currentKey={license.licenseKey}
+          expiryDate={license.expiryDate}
+          onClose={() => setShowRenewalModal(false)}
+          onRenewSuccess={fetchLicense}
+        />
+      )}
+      {/* System Footer */}
+      <Footer />
     </div>
   );
 }
