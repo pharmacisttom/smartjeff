@@ -53,8 +53,8 @@ export function LicenseRenewalModal({ currentKey, expiryDate, onClose, onRenewSu
     }
   };
 
-  const setDemoKey = () => {
-    setKeyInput("SMARTO-RENEW-2027-KEY-89A0");
+  const clearLicenseKey = () => {
+    setKeyInput("");
   };
 
   return (
@@ -95,7 +95,7 @@ export function LicenseRenewalModal({ currentKey, expiryDate, onClose, onRenewSu
               </label>
               <button
                 type="button"
-                onClick={setDemoKey}
+                onClick={clearLicenseKey}
                 className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"
               >
                 ⚡ ใส่รหัสสาธิต

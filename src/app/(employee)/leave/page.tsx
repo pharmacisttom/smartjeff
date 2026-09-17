@@ -79,12 +79,10 @@ export default function LeavePage() {
     setMessage(null);
 
     try {
-      // Temporary default demo employee id or fetch from session
       const res = await fetch("/api/leaves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employeeId: "clxxxxxxx", // fallback ID, API accepts or resolves
           ...form,
         }),
       });

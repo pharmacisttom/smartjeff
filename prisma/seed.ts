@@ -204,31 +204,6 @@ async function main() {
 
     createdEmpCount++;
 
-    // Create User accounts
-    if (i === 3) {
-      // First Admin User (admin@j2k.co.th / Smartjeff2026)
-      await prisma.user.upsert({
-        where: { email: "admin@j2k.co.th" },
-        update: { role: "ADMIN" },
-        create: {
-          email: "admin@j2k.co.th",
-          password: "Smartjeff2026",
-          role: "ADMIN",
-        },
-      });
-    }
-
-    await prisma.user.upsert({
-      where: { email: `${rawCode}@j2k.co.th` },
-      update: { employeeId: employee.id },
-      create: {
-        email: `${rawCode}@j2k.co.th`,
-        password: "Smartjeff2026",
-        role: "EMPLOYEE",
-        employeeId: employee.id,
-      },
-    });
-
     // 3. Generate initial Attendance logs & Payslips for 2026-09
     await prisma.attendance.upsert({
       where: { localId: `seed-att-${rawCode}` },

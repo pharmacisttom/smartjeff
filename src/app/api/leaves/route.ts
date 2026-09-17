@@ -1,36 +1,52 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth-jwt";
 import { LeaveService } from "@/server/services/leave.service";
 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const employeeId = searchParams.get("employeeId");
-    const status = searchParams.get("status");
+const MANAGEMENT_ROLES = new Set(["SUPERADMIN", "ADMIN", "HR"]);
 
-    const leaves = await LeaveService.getAll({ employeeId, status });
+export async function GET(req: NextRequest) {
+  try {
+    const auth = requireSession(req);
+    if ("error" in auth) return auth.error;
+    const requestedEmployee = req.nextUrl.searchParams.get("employeeId");
+    const employeeId = MANAGEMENT_ROLES.has(auth.session.role)
+      ? requestedEmployee
+      : auth.session.sub && auth.session.employeeCode
+        ? undefined
+        : null;
+    if (!MANAGEMENT_ROLES.has(auth.session.role)) {
+      const sessionEmployeeId = req.headers.get("x-session-employee-id");
+      const ownId = sessionEmployeeId || await resolveEmployeeId(auth.session.sub);
+      if (!ownId) return NextResponse.json({ error: "EMPLOYEE_PROFILE_REQUIRED" }, { status: 403 });
+      const leaves = await LeaveService.getAll({ employeeId: ownId, status: req.nextUrl.searchParams.get("status") });
+      return NextResponse.json({ leaves });
+    }
+    const leaves = await LeaveService.getAll({ employeeId, status: req.nextUrl.searchParams.get("status") });
     return NextResponse.json({ leaves });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to load leave requests" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const auth = requireSession(req);
+    if ("error" in auth) return auth.error;
+    const employeeId = await resolveEmployeeId(auth.session.sub);
+    if (!employeeId) return NextResponse.json({ error: "EMPLOYEE_PROFILE_REQUIRED" }, { status: 403 });
     const body = await req.json();
-    if (!body.employeeId || !body.type || !body.startDate || !body.endDate) {
-      return NextResponse.json({ message: "กรุณากรอกข้อมูลการลาให้ครบถ้วน" }, { status: 400 });
+    if (!body.type || !body.startDate || !body.endDate) {
+      return NextResponse.json({ message: "type, startDate and endDate are required" }, { status: 400 });
     }
-
-    const leave = await LeaveService.create({
-      employeeId: body.employeeId,
-      type: body.type,
-      startDate: body.startDate,
-      endDate: body.endDate,
-      reason: body.reason,
-    });
-
-    return NextResponse.json({ leave, message: "ยื่นใบขอลา/ทำ OT เรียบร้อยแล้ว (รอการอนุมัติ)" });
-  } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    const leave = await LeaveService.create({ employeeId, type: body.type, startDate: body.startDate, endDate: body.endDate, reason: body.reason });
+    return NextResponse.json({ leave, message: "Leave request submitted for approval" }, { status: 201 });
+  } catch (error: unknown) {
+    return NextResponse.json({ message: error instanceof Error ? error.message : "Unable to submit leave request" }, { status: 500 });
   }
+}
+
+async function resolveEmployeeId(userId: string): Promise<string | null> {
+  const { prisma } = await import("@/lib/prisma");
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { employeeId: true } });
+  return user?.employeeId ?? null;
 }

@@ -13,7 +13,7 @@ export default function EmployeeTravelExpensesPage() {
   ]);
 
   const [showForm, setShowForm] = useState(false);
-  const [routeDate, setRouteDate] = useState("2026-09-16");
+  const [routeDate, setRouteDate] = useState(() => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date()));
   const [originName, setOriginName] = useState("บ้านพนักงาน (สุขุมวิท ระยอง)");
   const [destName, setDestName] = useState("โรงงาน AAM นิคมฯ มาบตาพุด");
   const [claimedKm, setClaimedKm] = useState("12.5");

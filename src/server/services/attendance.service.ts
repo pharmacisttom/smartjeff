@@ -59,6 +59,7 @@ export class AttendanceService {
         deviceInfo: data.deviceInfo || "Web Mobile PWA",
         note: data.note || null,
         isApproved: within,
+        approvalStatus: within ? "APPROVED" : "PENDING",
       },
     });
 
@@ -71,9 +72,9 @@ export class AttendanceService {
       where.employee = { siteId: options.siteId };
     }
     if (options?.status === "pending") {
-      where.isApproved = false;
+      where.approvalStatus = "PENDING";
     } else if (options?.status === "approved") {
-      where.isApproved = true;
+      where.approvalStatus = "APPROVED";
     }
 
     if (options?.dateStr) {
@@ -99,7 +100,8 @@ export class AttendanceService {
       where: { id: { in: ids } },
       data: {
         isApproved,
-        approvedBy: approvedBy || "HR Admin",
+        approvalStatus: isApproved ? "APPROVED" : "REJECTED",
+        approvedBy: approvedBy,
         approvedAt: new Date(),
       },
     });

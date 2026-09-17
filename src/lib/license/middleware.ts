@@ -1,56 +1,14 @@
-import { NextRequest } from "next/server";
-import { getInstanceId } from "./fingerprint";
+import { LicenseService } from "@/server/services/license.service";
 
-export interface LicenseGuardResult {
-  valid: boolean;
-  status: "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED";
-  expiresAt: string;
-  daysRemaining: number;
-  activeDays: number;
-  features: Record<string, boolean>;
-  quota: {
-    maxEmployees: number;
-    currentEmployees: number;
-  };
-}
-
-export async function licenseGuard(req?: NextRequest): Promise<LicenseGuardResult> {
-  const instanceId = await getInstanceId();
-  const licenseKey = process.env.LICENSE_KEY || "SMARTO-LIC-2026-J2K-RAYONG-89A0";
-
-  // Mock license state based on application logic
-  const now = new Date();
-  const activationDate = new Date("2026-01-01");
-  const expiryDate = new Date("2027-09-16");
-
-  const diffTime = Math.abs(now.getTime() - activationDate.getTime());
-  const activeDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  const remainingDiff = expiryDate.getTime() - now.getTime();
-  const daysRemaining = Math.ceil(remainingDiff / (1000 * 60 * 60 * 24));
-
-  let status: "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" = "ACTIVE";
-  if (daysRemaining <= 0 && daysRemaining >= -7) {
-    status = "GRACE";
-  } else if (daysRemaining < -7) {
-    status = "EXPIRED";
+export async function licenseGuard() {
+  try {
+    const license = await LicenseService.getLicenseStatus();
+    return { valid: license.status !== "EXPIRED", status: license.status, expiresAt: license.expiryDate,
+      daysRemaining: license.remainingDays, activeDays: license.activeDays,
+      features: { ai_chat: process.env.FEATURE_AI_COPILOT === "true", live_map: true, pdf_export: true, qr_scan: true },
+      quota: { maxEmployees: license.maxEmployees, currentEmployees: license.currentEmployees } };
+  } catch {
+    return { valid: false, status: "SUSPENDED" as const, expiresAt: "", daysRemaining: 0, activeDays: 0,
+      features: { ai_chat: false, live_map: false, pdf_export: false, qr_scan: false }, quota: { maxEmployees: 0, currentEmployees: 0 } };
   }
-
-  return {
-    valid: status === "ACTIVE" || status === "GRACE",
-    status,
-    expiresAt: expiryDate.toISOString().split("T")[0],
-    daysRemaining,
-    activeDays,
-    features: {
-      ai_chat: true,
-      live_map: true,
-      pdf_export: true,
-      qr_scan: true,
-    },
-    quota: {
-      maxEmployees: 100,
-      currentEmployees: 40,
-    },
-  };
 }

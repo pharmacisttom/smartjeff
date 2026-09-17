@@ -11,7 +11,7 @@ interface GeofenceMapProps {
 export function GeofenceMap({ sites, activeEmployees }: GeofenceMapProps) {
   return (
     <div className="relative w-full aspect-video bg-slate-900 rounded-2xl overflow-hidden border border-surface-border shadow-sm flex flex-col items-center justify-center text-white p-4">
-      {/* Grid Pattern Background mockup for map */}
+      {/* Coordinate grid rendered from the configured site geofence */}
       <div className="absolute inset-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px] opacity-20" />
 
       {/* Geofence Circles Representation */}

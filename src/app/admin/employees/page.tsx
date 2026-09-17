@@ -48,7 +48,7 @@ export default function AdminEmployeesPage() {
     firstName: "",
     lastName: "",
     position: "พนักงานทำความสะอาด",
-    siteId: "clxxxx1", // Default site ID
+    siteId: "",
     salaryType: "MONTHLY",
     baseSalary: "12000",
     dailyRate: "400",
@@ -97,7 +97,7 @@ export default function AdminEmployeesPage() {
         firstName: "",
         lastName: "",
         position: "พนักงานทำความสะอาด",
-        siteId: "clxxxx1",
+        siteId: "",
         salaryType: "MONTHLY",
         baseSalary: "12000",
         dailyRate: "400",

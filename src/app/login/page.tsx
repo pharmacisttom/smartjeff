@@ -39,6 +39,22 @@ export default function LoginPage() {
         await showSuccess("เข้าสู่ระบบสำเร็จ!", data.message);
         router.push(data.redirectTo || "/check-in");
       } else {
+        if (data.error?.code === "MFA_REQUIRED") {
+          const otp = window.prompt("กรอกรหัส 6 หลักจาก Authenticator หรือ Recovery Code");
+          if (otp) {
+            const mfaResponse = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password, otp }),
+            });
+            const mfaData = await mfaResponse.json();
+            if (mfaResponse.ok && mfaData.success) {
+              localStorage.setItem("smarto_user", JSON.stringify(mfaData.user));
+              router.push(mfaData.redirectTo || "/check-in");
+              return;
+            }
+          }
+        }
         showError("การเข้าสู่ระบบล้มเหลว", data.message || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
       }
     } catch (err) {
@@ -49,9 +65,9 @@ export default function LoginPage() {
     }
   };
 
-  const setAdminDemo = () => {
-    setUsername("admin");
-    setPassword("Smartjeff2026");
+  const clearCredentials = () => {
+    setUsername("");
+    setPassword("");
   };
 
   return (
@@ -83,7 +99,7 @@ export default function LoginPage() {
             </h2>
             <button
               type="button"
-              onClick={setAdminDemo}
+              onClick={clearCredentials}
               className="text-[11px] font-bold text-amber-300 hover:text-amber-200 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-full transition-all flex items-center space-x-1"
             >
               <Sparkles className="w-3 h-3 text-amber-400" />
@@ -129,7 +145,7 @@ export default function LoginPage() {
             {/* Quick Helper Banner for Admin Credentials */}
             <div className="p-3 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-xs text-brand-200 flex items-center justify-between">
               <span>ผู้ดูแลระบบ: <strong>admin</strong></span>
-              <span>รหัสผ่าน: <strong>Smartjeff2026</strong></span>
+              <span>Password: <strong>not displayed</strong></span>
             </div>
 
             <button

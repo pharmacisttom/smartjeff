@@ -1,4 +1,77 @@
-node_modules
-.next
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Build artifacts
+dist/
+build/
+
+# Environment variables — NEVER commit real secrets
 .env
+.env.local
+.env.*.local
+.env.production
+
+# Database files — dev only, never production
+prisma/dev.db
+prisma/dev.db-journal
+prisma/dev.db-shm
+prisma/dev.db-wal
+*.sqlite
+*.sqlite3
+*.db
+
+# Uploads & media — use Object Storage in production
+uploads/
+public/uploads/
+public/receipts/
+public/photos/
+
+# Backups — store offsite only
+backups/
+*.backup
+*.dump
+*.sql.gz
+
+# Sensitive spreadsheets
+*.xlsx
+*.xls
+*.csv
+
+# Logs
+*.log
+logs/
+pm2-*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# TypeScript
 tsconfig.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Temporary
+tmp/
+temp/
