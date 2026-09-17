@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
 function getJwtSecret(): string {
@@ -18,6 +18,8 @@ export interface SessionPayload {
   name?: string;
   siteId?: string;
   employeeCode?: string;
+  passwordStatus?: "VALID" | "EXPIRING" | "EXPIRED" | "MUST_CHANGE";
+  daysUntilExpiry?: number | null;
   iat?: number;
   exp?: number;
 }

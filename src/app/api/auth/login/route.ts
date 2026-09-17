@@ -1,9 +1,10 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AuditService } from "@/server/services/audit.service";
 import { setAuthCookie } from "@/lib/auth-jwt";
 import argon2 from "argon2";
 import { verifyMfaCode } from "@/lib/mfa/verify";
+import { PasswordPolicyService } from "@/server/services/password-policy.service";
 
 export async function POST(req: Request) {
   try {
@@ -37,6 +38,13 @@ export async function POST(req: Request) {
         if (user.mfaEnabled && (!otp || !(await verifyMfaCode(user.id, user.mfaSecret, String(otp))))) {
           return NextResponse.json({ success: false, error: { code: "MFA_REQUIRED", message: "กรุณากรอกรหัสยืนยันหรือ Recovery Code" } }, { status: 401 });
         }
+
+        // Update last login
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
+        });
+
         await AuditService.log({
           userId: user.id,
           action: "LOGIN",
@@ -46,9 +54,16 @@ export async function POST(req: Request) {
           req,
         });
 
-        const redirectTo = ["ADMIN", "SUPER_ADMIN", "HR", "FINANCE", "EXECUTIVE", "OPERATIONS"].includes(user.role)
+        const passwordStatus = PasswordPolicyService.checkPasswordStatus(user);
+        const daysUntilExpiry = PasswordPolicyService.daysUntilExpiry(user);
+
+        let defaultRedirect = ["ADMIN", "SUPERADMIN", "HR", "FINANCE", "EXECUTIVE", "OPERATIONS", "SUPERVISOR"].includes(user.role)
           ? "/admin/dashboard"
-          : "/check-in";
+          : user.employeeId ? "/check-in" : "/pending";
+
+        if (["EXPIRED", "MUST_CHANGE"].includes(passwordStatus)) {
+          defaultRedirect = "/account/change-password";
+        }
 
         const response = NextResponse.json({
           success: true,
@@ -57,8 +72,10 @@ export async function POST(req: Request) {
             email: user.email,
             name: user.displayName || user.employee?.firstName || user.email,
             role: user.role,
+            passwordStatus,
+            daysUntilExpiry,
           },
-          redirectTo,
+          redirectTo: defaultRedirect,
         });
 
         return setAuthCookie(response, {
@@ -69,6 +86,8 @@ export async function POST(req: Request) {
           name: user.displayName || user.employee?.firstName,
           siteId: user.employee?.siteId,
           employeeCode: user.employee?.code,
+          passwordStatus,
+          daysUntilExpiry,
         });
       }
     }
@@ -89,6 +108,12 @@ export async function POST(req: Request) {
           if (employee.user.mfaEnabled && (!otp || !(await verifyMfaCode(employee.user.id, employee.user.mfaSecret, String(otp))))) {
             return NextResponse.json({ success: false, error: { code: "MFA_REQUIRED", message: "กรุณากรอกรหัสยืนยันหรือ Recovery Code" } }, { status: 401 });
           }
+
+          await prisma.user.update({
+            where: { id: employee.user.id },
+            data: { lastLoginAt: new Date(), lastLoginIp: clientIp },
+          });
+
           await AuditService.log({
             userId: employee.id,
             action: "LOGIN",
@@ -98,6 +123,14 @@ export async function POST(req: Request) {
             req,
           });
 
+          const passwordStatus = PasswordPolicyService.checkPasswordStatus(employee.user);
+          const daysUntilExpiry = PasswordPolicyService.daysUntilExpiry(employee.user);
+
+          let defaultRedirect = "/check-in";
+          if (["EXPIRED", "MUST_CHANGE"].includes(passwordStatus)) {
+            defaultRedirect = "/account/change-password";
+          }
+
           const response = NextResponse.json({
             success: true,
             user: {
@@ -106,8 +139,10 @@ export async function POST(req: Request) {
               name: `${employee.firstName} ${employee.lastName}`,
               role: "EMPLOYEE",
               site: employee.site?.name,
+              passwordStatus,
+              daysUntilExpiry,
             },
-            redirectTo: "/check-in",
+            redirectTo: defaultRedirect,
           });
 
           return setAuthCookie(response, {
@@ -117,6 +152,8 @@ export async function POST(req: Request) {
             name: `${employee.firstName} ${employee.lastName}`,
             siteId: employee.siteId,
             employeeCode: employee.code,
+            passwordStatus,
+            daysUntilExpiry,
           });
         }
       }

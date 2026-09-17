@@ -40,6 +40,7 @@ export class EmployeeService {
     position: string;
     siteId: string;
     gender?: any;
+    nationality?: string;
     idCardNo?: string | null;
     phone?: string | null;
     bankAccount?: string | null;
@@ -57,6 +58,7 @@ export class EmployeeService {
         position: data.position,
         siteId: data.siteId,
         gender: data.gender || "MALE",
+        nationality: data.nationality || "ไทย",
         idCardNo: data.idCardNo || null,
         phone: data.phone || null,
         bankAccount: data.bankAccount || null,
@@ -80,6 +82,7 @@ export class EmployeeService {
         position: data.position,
         siteId: data.siteId,
         gender: data.gender,
+        nationality: data.nationality,
         idCardNo: data.idCardNo,
         phone: data.phone,
         bankAccount: data.bankAccount,

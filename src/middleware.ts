@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { EDGE_COOKIE_NAME, verifyTokenAtEdge } from "@/lib/auth-edge";
 
@@ -42,9 +42,26 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
+  // Password expiration enforcement
+  const passwordStatus = session.passwordStatus;
+  const isPasswordChangePath = pathname.startsWith("/account/change-password") || pathname.startsWith("/api/account/change-password");
+  if (["EXPIRED", "MUST_CHANGE"].includes(String(passwordStatus)) && !isPasswordChangePath) {
+    return NextResponse.redirect(new URL("/account/change-password", req.url));
+  }
+
+  const managementRoles = ["SUPERADMIN", "ADMIN", "HR", "FINANCE", "EXECUTIVE", "OPERATIONS", "SUPERVISOR"];
+  const employeeOnlyPaths = ["/check-in", "/history", "/leave", "/payslip", "/expenses", "/sos", "/chat"];
+  if (managementRoles.includes(session.role) && employeeOnlyPaths.some((path) => pathname === path || pathname.startsWith(path + "/"))) {
+    return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+  }
+
+  if ((pathname === "/operations" || pathname.startsWith("/operations/")) && !managementRoles.includes(session.role)) {
+    return NextResponse.redirect(new URL("/check-in", req.url));
+  }
+
   // Route protection: admin paths require non-EMPLOYEE role
   if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
-      !["SUPERADMIN", "ADMIN", "HR", "FINANCE", "EXECUTIVE", "OPERATIONS"].includes(session.role)) {
+      !managementRoles.includes(session.role)) {
     return NextResponse.redirect(new URL("/check-in", req.url));
   }
 

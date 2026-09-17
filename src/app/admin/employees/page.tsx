@@ -13,6 +13,9 @@ import {
   CreditCard,
   CheckCircle,
   XCircle,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { showSuccess, showError, showConfirm } from "@/lib/swal";
@@ -30,8 +33,13 @@ interface Employee {
   baseSalary: number;
   dailyRate: number;
   phone: string | null;
+  nationality: string;
+  idCardNo: string | null;
   isActive: boolean;
 }
+
+interface SiteOption { id: string; code: string; name: string }
+interface ImportError { row: number; code?: string; message: string }
 
 export default function AdminEmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -40,6 +48,9 @@ export default function AdminEmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sites, setSites] = useState<SiteOption[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importErrors, setImportErrors] = useState<ImportError[]>([]);
 
   // Modal Form State
   const [form, setForm] = useState({
@@ -53,6 +64,8 @@ export default function AdminEmployeesPage() {
     baseSalary: "12000",
     dailyRate: "400",
     phone: "",
+    nationality: "ไทย",
+    idCardNo: "",
   });
 
   const fetchEmployees = async () => {
@@ -74,6 +87,13 @@ export default function AdminEmployeesPage() {
     fetchEmployees();
   }, [search]);
 
+  useEffect(() => {
+    fetch("/api/sites")
+      .then((response) => response.json())
+      .then((body) => setSites(body.sites || []))
+      .catch(() => setSites([]));
+  }, []);
+
   const handleOpenModal = (emp?: Employee) => {
     if (emp) {
       setEditingEmployee(emp);
@@ -88,6 +108,8 @@ export default function AdminEmployeesPage() {
         baseSalary: emp.baseSalary.toString(),
         dailyRate: emp.dailyRate.toString(),
         phone: emp.phone || "",
+        nationality: emp.nationality || "ไทย",
+        idCardNo: emp.idCardNo || "",
       });
     } else {
       setEditingEmployee(null);
@@ -97,14 +119,58 @@ export default function AdminEmployeesPage() {
         firstName: "",
         lastName: "",
         position: "พนักงานทำความสะอาด",
-        siteId: "",
+        siteId: sites[0]?.id || "",
         salaryType: "MONTHLY",
         baseSalary: "12000",
         dailyRate: "400",
         phone: "",
+        nationality: "ไทย",
+        idCardNo: "",
       });
     }
     setShowModal(true);
+  };
+
+  const handleImport = async (file?: File) => {
+    if (!file) return;
+    setImporting(true);
+    setImportErrors([]);
+    try {
+      const upload = async (url: string) => {
+        const payload = new FormData();
+        payload.append("file", file);
+        const response = await fetch(url, { method: "POST", body: payload });
+        return { response, body: await response.json() };
+      };
+
+      const validation = await upload("/api/employees/import?validateOnly=true");
+      if (!validation.response.ok) {
+        setImportErrors(validation.body.errors || []);
+        showError("ตรวจสอบไฟล์ไม่ผ่าน", validation.body.message || "กรุณาตรวจสอบข้อมูลในไฟล์");
+        return;
+      }
+
+      const confirmed = await showConfirm(
+        "ยืนยันการนำเข้าพนักงาน",
+        `ทั้งหมด ${validation.body.total} รายการ: เพิ่มใหม่ ${validation.body.created}, อัปเดต ${validation.body.updated}, สร้างไซต์ ${validation.body.sitesToCreate}`,
+        "นำเข้าข้อมูล",
+        "ยกเลิก"
+      );
+      if (!confirmed) return;
+
+      const imported = await upload("/api/employees/import");
+      if (!imported.response.ok) {
+        setImportErrors(imported.body.errors || []);
+        showError("นำเข้าไฟล์ไม่สำเร็จ", imported.body.message || "กรุณาตรวจสอบข้อมูลในไฟล์");
+        return;
+      }
+      showSuccess("นำเข้าพนักงานสำเร็จ", `เพิ่มใหม่ ${imported.body.created} รายการ และอัปเดต ${imported.body.updated} รายการ`);
+      await fetchEmployees();
+    } catch {
+      showError("นำเข้าไฟล์ไม่สำเร็จ", "ไม่สามารถอ่านหรือส่งไฟล์ไปยังเซิร์ฟเวอร์ได้");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,14 +239,48 @@ export default function AdminEmployeesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center justify-center space-x-2 bg-white text-brand-700 font-bold px-5 py-3 rounded-2xl hover:bg-brand-50 shadow-md transition-all active:scale-95"
-        >
-          <UserPlus className="w-5 h-5 text-brand-600" />
-          <span>+ เพิ่มพนักงานใหม่</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/api/employees/import"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/20"
+          >
+            <Download className="h-4 w-4" />
+            <span>แม่แบบ Excel</span>
+          </a>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-white/20">
+            <Upload className="h-4 w-4" />
+            <span>{importing ? "กำลังนำเข้า..." : "นำเข้า Excel"}</span>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              className="sr-only"
+              disabled={importing}
+              onChange={(event) => {
+                void handleImport(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center justify-center space-x-2 bg-white text-brand-700 font-bold px-5 py-3 rounded-2xl hover:bg-brand-50 shadow-md transition-all active:scale-95"
+          >
+            <UserPlus className="w-5 h-5 text-brand-600" />
+            <span>+ เพิ่มพนักงานใหม่</span>
+          </button>
+        </div>
       </div>
+
+      {importErrors.length > 0 && (
+        <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
+          <div className="mb-3 flex items-center gap-2 font-bold"><FileSpreadsheet className="h-5 w-5" />รายการที่ต้องแก้ไขในไฟล์</div>
+          <div className="max-h-48 space-y-1 overflow-y-auto text-sm">
+            {importErrors.map((error, index) => (
+              <div key={`${error.row}-${error.code || index}`}>แถว {error.row || "-"}{error.code ? ` (${error.code})` : ""}: {error.message}</div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-card border border-surface-border p-4 rounded-3xl shadow-sm">
@@ -369,6 +469,58 @@ export default function AdminEmployeesPage() {
                   />
                 </div>
                 <div>
+                  <label className="block font-bold text-content-secondary mb-1">ไซต์งาน</label>
+                  <select
+                    value={form.siteId}
+                    onChange={(e) => setForm({ ...form, siteId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-surface-border bg-surface-bg text-content-primary outline-none"
+                    required
+                  >
+                    <option value="">เลือกไซต์งาน</option>
+                    {sites.map((site) => <option key={site.id} value={site.id}>{site.code} — {site.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-content-secondary mb-1">สัญชาติ</label>
+                  <input
+                    type="text"
+                    list="nationality-options"
+                    value={form.nationality}
+                    onChange={(e) => setForm({ ...form, nationality: e.target.value, idCardNo: e.target.value.trim().toLowerCase() === "ไทย" ? form.idCardNo : form.idCardNo })}
+                    className="w-full px-3 py-2 rounded-xl border border-surface-border bg-surface-bg text-content-primary outline-none"
+                    required
+                  />
+                  <datalist id="nationality-options">
+                    <option value="ไทย" />
+                    <option value="กัมพูชา" />
+                    <option value="เมียนมา" />
+                    <option value="ลาว" />
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block font-bold text-content-secondary mb-1">
+                    เลขบัตรประชาชน {form.nationality.trim().toLowerCase() === "ไทย" && <span className="text-rose-600">* 13 หลัก</span>}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode={form.nationality.trim().toLowerCase() === "ไทย" ? "numeric" : "text"}
+                    value={form.idCardNo}
+                    onChange={(e) => setForm({ ...form, idCardNo: form.nationality.trim().toLowerCase() === "ไทย" ? e.target.value.replace(/\D/g, "").slice(0, 13) : e.target.value.slice(0, 30) })}
+                    minLength={form.nationality.trim().toLowerCase() === "ไทย" ? 13 : undefined}
+                    maxLength={form.nationality.trim().toLowerCase() === "ไทย" ? 13 : 30}
+                    pattern={form.nationality.trim().toLowerCase() === "ไทย" ? "[0-9]{13}" : undefined}
+                    required={form.nationality.trim().toLowerCase() === "ไทย"}
+                    placeholder={form.nationality.trim().toLowerCase() === "ไทย" ? "เลขบัตรประชาชน 13 หลัก" : "ไม่บังคับสำหรับต่างชาติ"}
+                    className="w-full px-3 py-2 rounded-xl border border-surface-border bg-surface-bg text-content-primary outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block font-bold text-content-secondary mb-1">รูปแบบเงินเดือน</label>
                   <select
                     value={form.salaryType}
@@ -378,6 +530,9 @@ export default function AdminEmployeesPage() {
                     <option value="MONTHLY">รายเดือน (Monthly)</option>
                     <option value="DAILY">รายวัน (Daily)</option>
                   </select>
+                </div>
+                <div className="rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-[11px] text-brand-800">
+                  คนไทยต้องระบุเลขบัตร 13 หลักและผ่านการตรวจสอบเลขควบคุม ส่วนพนักงานต่างชาติสามารถเว้นว่างหรือใช้เลขเอกสารประจำตัวได้
                 </div>
               </div>
 

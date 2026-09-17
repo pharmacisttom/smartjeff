@@ -179,15 +179,30 @@ model User {
   lastLoginAt        DateTime?
   lastLoginIp        String?
   mustChangePassword Boolean           @default(false)
+  passwordChangedAt  DateTime?
+  passwordExpiresAt  DateTime?
+  lastPasswordReminderAt DateTime?
+  authMethod         String            @default("LOCAL")
   employeeId         String?           @unique
   employee           Employee?         @relation(fields: [employeeId], references: [id])
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
   recoveryCodes      MfaRecoveryCode[]
+  passwordHistories  PasswordHistory[]
 
   @@index([email])
   @@index([isActive])
+}
+
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model MfaRecoveryCode {

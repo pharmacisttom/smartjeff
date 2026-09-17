@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { EmployeeService } from "@/server/services/employee.service";
+import { isThaiNationality, normalizeDigits, validateIdentity } from "@/lib/employee/validation";
 
 export async function GET(
   req: Request,
@@ -22,6 +23,12 @@ export async function PUT(
 ) {
   try {
     const body = await req.json();
+    const nationality = String(body.nationality || "ไทย").trim();
+    const idCardNo = (isThaiNationality(nationality) ? normalizeDigits(body.idCardNo) : String(body.idCardNo || "").trim()) || null;
+    const identityError = validateIdentity(nationality, idCardNo);
+    if (identityError) return NextResponse.json({ message: identityError }, { status: 400 });
+    body.nationality = nationality;
+    body.idCardNo = idCardNo;
     const updated = await EmployeeService.update(params.id, body);
     return NextResponse.json({ employee: updated, message: "อัปเดตข้อมูลพนักงานเรียบร้อยแล้ว" });
   } catch (error: any) {

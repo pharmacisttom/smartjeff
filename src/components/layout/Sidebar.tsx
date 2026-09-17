@@ -1,174 +1,188 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Clock,
-  History,
-  CalendarOff,
-  FileText,
-  MessageSquare,
-  LayoutDashboard,
-  Users,
-  Building2,
-  ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-  UserCheck,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu, X, Search, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { navigationForRole, type NavigationSection } from "@/config/navigation";
 
-const EMPLOYEE_NAV = [
-  { href: "/check-in", label: "ลงเวลาปฏิบัติงาน", icon: Clock },
-  { href: "/history", label: "ประวัติลงเวลา", icon: History },
-  { href: "/leave", label: "ขอลา & ทำ OT", icon: CalendarOff },
-  { href: "/payslip", label: "สลิปเงินเดือน", icon: FileText },
-  { href: "/chat", label: "AI ผู้ช่วย HR", icon: MessageSquare },
-];
-
-const ADMIN_NAV = [
-  { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
-  { href: "/admin/employees", label: "จัดการพนักงาน", icon: Users },
-  { href: "/admin/sites", label: "จัดการโรงงาน & นิคมฯ", icon: Building2 },
-  { href: "/admin/attendance", label: "อนุมัติเวลาปฏิบัติงาน", icon: UserCheck },
-  { href: "/admin/payroll", label: "ระบบคำนวณเงินเดือน", icon: ShieldCheck },
-  { href: "/admin/chat", label: "HR Admin Chat", icon: MessageSquare },
-];
+type SessionUser = { name?: string; email?: string; role?: string; employeeCode?: string };
 
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const savedState = localStorage.getItem("smarto_sidebar_collapsed");
-    if (savedState !== null) {
-      setCollapsed(savedState === "true");
-    }
+    setCollapsed(localStorage.getItem("smarto_sidebar_collapsed") === "true");
+    fetch("/api/auth/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => setUser(body?.user || null))
+      .catch(() => setUser(null));
   }, []);
 
-  const toggleSidebar = () => {
-    const nextState = !collapsed;
-    setCollapsed(nextState);
-    localStorage.setItem("smarto_sidebar_collapsed", String(nextState));
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const sections = navigationForRole(user?.role);
+
+  const toggleSection = (label: string) => {
+    setOpenSections((prev) => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const isAdminArea = pathname.startsWith("/admin");
+  const toggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("smarto_sidebar_collapsed", String(next));
+  };
+
+  // Filter sections by search query
+  const filteredSections: NavigationSection[] = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        section.label.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
-    <aside
-      aria-label="Sidebar Navigation"
-      className={cn(
-        "hidden md:flex flex-col border-r border-surface-border bg-surface-bg transition-all duration-300 relative z-30 h-screen sticky top-0",
-        collapsed ? "w-20" : "w-64"
-      )}
-    >
-      {/* Header / Logo */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-surface-border">
-        {!collapsed && (
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-500 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-              S
-            </div>
-            <div>
-              <span className="font-bold text-lg text-content-primary tracking-tight">SMARTO</span>
-              <span className="block text-[10px] text-content-muted leading-none">J2K Housekeeping</span>
-            </div>
-          </div>
-        )}
+    <>
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-3 top-3 z-40 rounded-xl border border-surface-border bg-surface-bg p-2 shadow md:hidden"
+        aria-label="เปิดเมนูหลัก"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
 
-        {collapsed && (
-          <div className="w-9 h-9 rounded-xl bg-brand-500 text-white flex items-center justify-center font-bold text-lg mx-auto">
-            S
-          </div>
-        )}
-
+      {/* Mobile Drawer Overlay */}
+      {mobileOpen && (
         <button
-          onClick={toggleSidebar}
-          aria-label={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          className="p-1.5 rounded-lg text-content-secondary hover:bg-surface-subtle transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-        </button>
-      </div>
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-label="ปิดเมนูหลัก"
+        />
+      )}
 
-      {/* Navigation List */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-        <div>
-          {!collapsed && (
-            <h2 className="px-3 text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">
-              เมนูพนักงาน
-            </h2>
-          )}
-          <nav className="space-y-1">
-            {EMPLOYEE_NAV.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center px-3 py-2.5 rounded-xl font-medium text-sm transition-colors",
-                    isActive
-                      ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 font-semibold"
-                      : "text-content-secondary hover:bg-surface-subtle hover:text-content-primary"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-brand-600")} />
-                  {!collapsed && <span className="ml-3 truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </nav>
+      {/* Main Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-surface-border bg-surface-bg transition-all duration-300 ease-in-out md:sticky md:top-0 md:z-30",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          collapsed ? "md:w-20" : "w-72 md:w-72"
+        )}
+      >
+        {/* Sidebar Header */}
+        <div className="flex h-16 items-center justify-between border-b border-surface-border px-4">
+          <Link href={user?.role === "EMPLOYEE" ? "/check-in" : "/admin/dashboard"} className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 font-black text-white shadow-md">
+              S
+            </span>
+            {!collapsed && (
+              <div>
+                <b className="text-base font-black text-content-primary">SmartJeff</b>
+                <small className="block text-[10px] text-content-muted leading-none">Enterprise Operations</small>
+              </div>
+            )}
+          </Link>
+          <button onClick={() => setMobileOpen(false)} className="md:hidden">
+            <X className="h-5 w-5 text-content-muted" />
+          </button>
+          <button
+            onClick={toggleCollapse}
+            className="hidden rounded-xl p-1.5 hover:bg-surface-subtle md:block text-content-muted transition-colors"
+            title={collapsed ? "ขยายเมนู" : "ย่อเมนู"}
+          >
+            {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </button>
         </div>
 
-        <div>
-          {!collapsed && (
-            <h2 className="px-3 text-xs font-semibold text-content-muted uppercase tracking-wider mb-2">
-              ผู้ดูแลระบบ (Admin/HR)
-            </h2>
-          )}
-          <nav className="space-y-1">
-            {ADMIN_NAV.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center px-3 py-2.5 rounded-xl font-medium text-sm transition-colors",
-                    isActive
-                      ? "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 font-semibold"
-                      : "text-content-secondary hover:bg-surface-subtle hover:text-content-primary"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-brand-600")} />
-                  {!collapsed && <span className="ml-3 truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Footer / User Profile snippet */}
-      <div className="p-3 border-t border-surface-border">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-content-primary">
-            พม
-          </div>
-          {!collapsed && (
-            <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-content-primary truncate">พัดมา วงค์คำ</p>
-              <p className="text-[10px] text-content-muted truncate">นิคมฯ AAM ระยอง</p>
+        {/* Search Input */}
+        {!collapsed && (
+          <div className="p-3 pb-1 border-b border-surface-border/50">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="ค้นหาเมนู..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface-card px-3 py-1.5 pl-8 text-xs text-content-primary placeholder-content-muted focus:border-brand-500 focus:outline-none"
+              />
+              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-content-muted" />
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Navigation Sections */}
+        <nav className="flex-1 space-y-4 overflow-y-auto p-3 scrollbar-thin">
+          {filteredSections.map((section) => {
+            const isOpen = openSections[section.label] !== false; // open by default
+            return (
+              <div key={section.label} className="space-y-1">
+                {!collapsed && (
+                  <button
+                    onClick={() => toggleSection(section.label)}
+                    className="flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-content-muted hover:text-content-primary transition-colors"
+                  >
+                    <span>{section.label}</span>
+                    <ChevronDown
+                      className={cn("h-3.5 w-3.5 transition-transform duration-200", isOpen ? "" : "-rotate-90")}
+                    />
+                  </button>
+                )}
+
+                {(isOpen || collapsed || searchQuery.length > 0) && (
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = pathname === item.href || (item.href !== "/admin/dashboard" && pathname.startsWith(item.href + "/"));
+                      return (
+                        <Link
+                          key={item.href + item.label}
+                          href={item.href}
+                          title={collapsed ? `${section.label}: ${item.label}` : undefined}
+                          className={cn(
+                            "group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150",
+                            active
+                              ? "bg-brand-600 text-white shadow-sm font-semibold"
+                              : "text-content-secondary hover:bg-surface-subtle hover:text-content-primary"
+                          )}
+                        >
+                          <Icon className={cn("h-5 w-5 shrink-0 transition-transform group-hover:scale-105", active ? "text-white" : "text-content-muted group-hover:text-brand-600")} />
+                          {!collapsed && <span className="ml-3 truncate">{item.label}</span>}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* User Footer */}
+        <div className="border-t border-surface-border p-3 bg-surface-bg">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/50 font-bold text-brand-700 dark:text-brand-300 text-xs">
+              {(user?.name || user?.email || "U").slice(0, 2).toUpperCase()}
+            </span>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-content-primary">{user?.name || user?.email || "กำลังโหลด..."}</p>
+                <p className="text-[10px] font-semibold text-content-muted">{user?.role || ""}</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
