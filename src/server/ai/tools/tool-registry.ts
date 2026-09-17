@@ -1,0 +1,267 @@
+import { z } from "zod";
+import { OperationsIntelligenceService } from "@/server/services/operations-intelligence.service";
+import { OperationsScenarioService } from "@/server/services/operations-scenario.service";
+import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
+import * as schemas from "../schemas/tool-schemas";
+
+export interface AIToolDefinition<T = any> {
+  name: string;
+  description: string;
+  inputSchema: z.ZodSchema<T>;
+  permissionRequirement: string;
+  auditCategory: string;
+  handler: (input: T, userContext: AIUserContext) => Promise<any>;
+}
+
+export class AIOperationsToolRegistry {
+  private static tools: Map<string, AIToolDefinition> = new Map();
+
+  static initialize() {
+    if (this.tools.size > 0) return;
+
+    // 1. getLiveOperations
+    this.register({
+      name: "getLiveOperations",
+      description: "ดึงข้อมูลสถานะการปฏิบัติงานสดทุกไซต์งาน (จำนวนคนทำงาน, ขาด, ลา, มาสาย, OT, Alert)",
+      inputSchema: schemas.LiveOperationsInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "LIVE_OPERATIONS",
+      handler: async (input, user) => {
+        return OperationsIntelligenceService.getLiveOperations(user.siteScope);
+      },
+    });
+
+    // 2. getSiteStatus
+    this.register({
+      name: "getSiteStatus",
+      description: "ดึงสถานะสรุปของไซต์งานเฉพาะเจาะจง หรือสถานะรวม",
+      inputSchema: schemas.SiteStatusInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "LIVE_OPERATIONS",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getSiteStatus(input.siteId, user.siteScope);
+      },
+    });
+
+    // 3. getSiteDetail
+    this.register({
+      name: "getSiteDetail",
+      description: "ดึงข้อมูลเชิงลึกของไซต์งานพร้อมรายชื่อพนักงานที่ลงเวลา (ข้อมูลผ่านการ Masking)",
+      inputSchema: schemas.SiteDetailInputSchema,
+      permissionRequirement: "SITE_DETAIL_VIEW",
+      auditCategory: "WORKFORCE",
+      handler: async (input, user) => {
+        const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+        if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        return OperationsIntelligenceService.getSiteDetail(input.siteId, input.date);
+      },
+    });
+
+    // 4. getWorkforceForecast
+    this.register({
+      name: "getWorkforceForecast",
+      description: "ดึงข้อมูลคาดการณ์ความต้องการกำลังพลและการขาดแคลนกำลังคนตามไซต์งาน",
+      inputSchema: schemas.WorkforceForecastInputSchema,
+      permissionRequirement: "FORECAST_VIEW",
+      auditCategory: "FORECAST",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getWorkforceForecast(input.date, input.siteId, user.siteScope);
+      },
+    });
+
+    // 5. getAttendanceSummary
+    this.register({
+      name: "getAttendanceSummary",
+      description: "ดึงข้อมูลสรุปการลงเวลาเข้า-ออกงานและอัตราการลงเวลา",
+      inputSchema: schemas.AttendanceSummaryInputSchema,
+      permissionRequirement: "ATTENDANCE_VIEW",
+      auditCategory: "ATTENDANCE",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getAttendanceSummary(input.date, input.siteId, user.siteScope);
+      },
+    });
+
+    // 6. getAttendanceExceptions
+    this.register({
+      name: "getAttendanceExceptions",
+      description: "ดึงรายการข้อยกเว้นและข้อผิดปกติการลงเวลา เช่น ลงเวลานอก Geofence",
+      inputSchema: schemas.AttendanceExceptionsInputSchema,
+      permissionRequirement: "ATTENDANCE_VIEW",
+      auditCategory: "ATTENDANCE",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getAttendanceExceptions(input.date, input.siteId, user.siteScope);
+      },
+    });
+
+    // 7. getOTSummary
+    this.register({
+      name: "getOTSummary",
+      description: "ดึงข้อมูลสรุปชั่วโมงและมูลค่าการทำงานล่วงเวลา (OT) แยกตามงวดและไซต์",
+      inputSchema: schemas.OTSummaryInputSchema,
+      permissionRequirement: "OT_VIEW",
+      auditCategory: "OT",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getOTSummary(input.period, input.siteId, user.siteScope);
+      },
+    });
+
+    // 8. getLaborCostSummary
+    this.register({
+      name: "getLaborCostSummary",
+      description: "ดึงข้อมูลสรุปต้นทุนค่าแรงภาพรวมองค์กรหรือไซต์งาน (ไม่เปิดเผยข้อมูลเงินเดือนส่วนบุคคล)",
+      inputSchema: schemas.LaborCostSummaryInputSchema,
+      permissionRequirement: "COST_VIEW",
+      auditCategory: "LABOR_COST",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getLaborCostSummary(input.period, input.siteId, user.siteScope);
+      },
+    });
+
+    // 9. getSiteRisk
+    this.register({
+      name: "getSiteRisk",
+      description: "ดึงรายงานประเมินระดับความเสี่ยงของไซต์งาน (กำลังคนไม่พอ, ขาดหัวหน้างาน)",
+      inputSchema: schemas.SiteRiskInputSchema,
+      permissionRequirement: "RISK_VIEW",
+      auditCategory: "RISK",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getSiteRisk(input.siteId, user.siteScope);
+      },
+    });
+
+    // 10. getOperationsAlerts
+    this.register({
+      name: "getOperationsAlerts",
+      description: "ดึงรายการแจ้งเตือนปฏิบัติการที่ยัง Active หรือตามระดับความรุนแรง",
+      inputSchema: schemas.OperationsAlertsInputSchema,
+      permissionRequirement: "ALERT_VIEW",
+      auditCategory: "ALERTS",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return OperationsIntelligenceService.getOperationsAlerts(
+          input.severity,
+          input.status,
+          input.siteId,
+          user.siteScope
+        );
+      },
+    });
+
+    // 11. getExecutiveDailyBrief
+    this.register({
+      name: "getExecutiveDailyBrief",
+      description: "ดึงข้อมูลสรุปผู้บริหารประจำวัน (Executive Morning/Daily Operations Brief)",
+      inputSchema: schemas.ExecutiveDailyBriefInputSchema,
+      permissionRequirement: "EXECUTIVE_BRIEF_VIEW",
+      auditCategory: "EXECUTIVE_BRIEF",
+      handler: async (input) => {
+        return OperationsIntelligenceService.getExecutiveDailyBrief(input.date);
+      },
+    });
+
+    // 12. compareSites
+    this.register({
+      name: "compareSites",
+      description: "เปรียบเทียบข้อมูลปฏิบัติการและกำลังพลระหว่าง 2 ไซต์งาน",
+      inputSchema: schemas.CompareSitesInputSchema,
+      permissionRequirement: "SITE_COMPARE_VIEW",
+      auditCategory: "SITE_COMPARISON",
+      handler: async (input, user) => {
+        const scopeA = AIAuthorizationService.checkSiteScope(user, input.siteIdA);
+        const scopeB = AIAuthorizationService.checkSiteScope(user, input.siteIdB);
+        if (!scopeA.allowed) throw new Error(scopeA.reason);
+        if (!scopeB.allowed) throw new Error(scopeB.reason);
+        return OperationsIntelligenceService.compareSites(input.siteIdA, input.siteIdB, input.period);
+      },
+    });
+
+    // 13. runOperationsScenario
+    this.register({
+      name: "runOperationsScenario",
+      description: "จำลองสถานการณ์ What-if เช่น หากไซต์ขาดคนเพิ่ม 5 คน จะส่งผลต่อความเสี่ยงและ OT อย่างไร (Read-only simulation)",
+      inputSchema: schemas.OperationsScenarioInputSchema,
+      permissionRequirement: "SCENARIO_SIMULATE",
+      auditCategory: "SCENARIO",
+      handler: async (input, user) => {
+        const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+        if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        return OperationsScenarioService.runScenario(input);
+      },
+    });
+  }
+
+  static register<T>(tool: AIToolDefinition<T>) {
+    this.tools.set(tool.name, tool);
+  }
+
+  static getTool(name: string): AIToolDefinition | undefined {
+    this.initialize();
+    return this.tools.get(name);
+  }
+
+  static listTools(): Array<{ name: string; description: string; auditCategory: string }> {
+    this.initialize();
+    return Array.from(this.tools.values()).map((t) => ({
+      name: t.name,
+      description: t.description,
+      auditCategory: t.auditCategory,
+    }));
+  }
+
+  /**
+   * Execute tool safely with Zod validation, RBAC check, and output sanitization
+   */
+  static async executeTool(toolName: string, rawInput: any, user: AIUserContext): Promise<any> {
+    this.initialize();
+    const tool = this.tools.get(toolName);
+    if (!tool) {
+      throw new Error(`ไม่อนุญาตให้เรียกใช้เครื่องมือ: "${toolName}" (ไม่พบใน Approved Tool Registry)`);
+    }
+
+    // 1. RBAC Check
+    const permCheck = AIAuthorizationService.checkToolPermission(user, toolName);
+    if (!permCheck.allowed) {
+      throw new Error(permCheck.reason || "คุณไม่มีสิทธิ์เรียกใช้เครื่องมือนี้");
+    }
+
+    // 2. Zod Validation
+    const validatedInput = tool.inputSchema.parse(rawInput || {});
+
+    // 3. Execution
+    const rawResult = await tool.handler(validatedInput, user);
+
+    // 4. Output Sanitization & PII Masking
+    return AIAuthorizationService.sanitizeToolOutput(rawResult);
+  }
+}
