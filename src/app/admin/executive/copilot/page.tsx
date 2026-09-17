@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   Bot,
   User,
@@ -9,8 +10,6 @@ import {
   ShieldAlert,
   CheckCircle2,
   RefreshCw,
-  ThumbsUp,
-  ThumbsDown,
   Clock,
   Layers,
   FileText,
@@ -21,7 +20,14 @@ import {
   Calendar,
   Eye,
   Info,
+  Play,
+  XCircle,
+  ShieldCheck,
+  Check,
+  Lock,
+  ArrowRight,
 } from "lucide-react";
+import Swal from "@/lib/swal";
 
 interface EvidenceItem {
   metric: string;
@@ -31,65 +37,66 @@ interface EvidenceItem {
   freshness: string;
 }
 
+interface ProposalData {
+  id: string;
+  proposalNumber: string;
+  agentCode: string;
+  actionType: string;
+  resourceType: string;
+  riskLevel: string;
+  confirmationMode: string;
+  status: string;
+  previewJson: string;
+  expiresAt: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   toolsUsed?: string[];
   evidence?: EvidenceItem[];
+  proposal?: ProposalData;
   generatedAt?: string;
   dataFreshness?: string;
   confidence?: string;
-  feedbackGiven?: number; // 1 or -1
 }
 
-const SUGGESTED_QUESTIONS = [
-  "สรุปเรื่องที่ผู้บริหารต้องจัดการเช้านี้",
-  "วันนี้มี Site ไหนคนไม่ครบ",
-  "ตอนนี้มีพนักงานทำงานอยู่กี่คน",
-  "พรุ่งนี้ Site ไหนมีความเสี่ยงขาดคน",
-  "ทำไม OT สัปดาห์นี้เพิ่มขึ้น",
-  "มี Attendance Exception อะไรที่ HR ต้องตรวจ",
-  "ค่าแรงเดือนนี้เพิ่มขึ้นจากเดือนที่แล้วเท่าไร",
-  "ถ้าพรุ่งนี้ Site ขาดพนักงาน 5 คนจะเกิดผลอะไร",
+const ACTION_SUGGESTIONS = [
+  "ช่วยจัดคน Site A สัปดาห์หน้า",
+  "ช่วยเตรียม PR วัสดุอุปกรณ์ PPE ที่ขาด",
+  "จัดรถไป Site ระยองพรุ่งนี้",
+  "สร้าง Work Order ติดตั้งกล้องวงจรปิด",
+  "ช่วยร่าง CAPA จากอุบัติการณ์ล่าสุด",
+  "เตรียม Collection Task สำหรับลูกหนี้เกินกำหนด",
+  "สรุปสถานะสุขภาพระบบ SRE ล่าสุด",
 ];
 
 export default function AICopilotPage() {
+  const [activeTab, setActiveTab] = useState<"ASK" | "PROPOSALS" | "CATALOG">("ASK");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputQuery, setInputQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const [selectedSiteId, setSelectedSiteId] = useState<string>("ALL");
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("TODAY");
-  const [sites, setSites] = useState<Array<{ id: string; name: string; code: string }>>([]);
-  const [activeEvidence, setActiveEvidence] = useState<EvidenceItem[] | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [proposals, setProposals] = useState<ProposalData[]>([]);
+  const [processingProposalId, setProcessingProposalId] = useState<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Load available sites & check URL query params
-  useEffect(() => {
-    fetch("/api/sites")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.sites)) {
-          setSites(data.sites);
-        }
-      })
-      .catch(() => {});
-
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const q = params.get("question");
-      const sId = params.get("siteId");
-      if (sId) setSelectedSiteId(sId);
-      if (q) {
-        handleSend(q);
-      }
+  const fetchProposals = async () => {
+    try {
+      const res = await fetch("/api/ai/proposals");
+      const data = await res.json();
+      setProposals(data.proposals || []);
+    } catch {
+      // Ignore
     }
+  };
+
+  useEffect(() => {
+    fetchProposals();
   }, []);
 
-  // Auto scroll to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -112,44 +119,43 @@ export default function AICopilotPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/ai/copilot", {
+      // Call Phase 26 Agent Runtime endpoint
+      const res = await fetch("/api/ai/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: q,
+          userGoal: q,
           conversationId,
-          context: {
-            currentSiteId: selectedSiteId !== "ALL" ? selectedSiteId : undefined,
-            defaultDate: selectedPeriod === "TOMORROW" ? new Date(Date.now() + 86400000).toISOString().split("T")[0] : undefined,
-          },
+          role: "EXECUTIVE",
         }),
       });
-
       const data = await res.json();
+
       if (data.success) {
-        if (!conversationId && data.conversationId) {
-          setConversationId(data.conversationId);
-        }
         setMessages([
           ...newMessages,
           {
-            id: data.messageId || `res-${Date.now()}`,
+            id: `asst-${Date.now()}`,
             role: "assistant",
-            content: data.answer,
-            toolsUsed: data.toolsUsed,
-            evidence: data.evidence,
-            generatedAt: data.generatedAt,
-            dataFreshness: data.dataFreshness,
-            confidence: data.confidence,
+            content: data.explanation,
+            toolsUsed: data.plan?.steps?.map((s: any) => s.toolName) || [],
+            proposal: data.proposal,
+            generatedAt: new Date().toLocaleTimeString("th-TH"),
+            confidence: "HIGH",
           },
         ]);
+        if (data.proposal) {
+          fetchProposals();
+        }
       } else {
         setMessages([
           ...newMessages,
           {
-            id: `err-${Date.now()}`,
+            id: `asst-${Date.now()}`,
             role: "assistant",
-            content: `⚠️ เกิดข้อผิดพลาด: ${data.error || "ไม่สามารถดึงข้อมูลได้ในขณะนี้"}`,
+            content: data.error || data.explanation || "ไม่สามารถดำเนินการได้ในขณะนี้",
+            generatedAt: new Date().toLocaleTimeString("th-TH"),
+            confidence: "LOW",
           },
         ]);
       }
@@ -157,9 +163,11 @@ export default function AICopilotPage() {
       setMessages([
         ...newMessages,
         {
-          id: `err-${Date.now()}`,
+          id: `asst-${Date.now()}`,
           role: "assistant",
-          content: "⚠️ ไม่สามารถเชื่อมต่อระบบ AI Copilot ได้ กรุณาลองใหม่อีกครั้ง",
+          content: `เกิดข้อผิดพลาดในการติดต่อระบบ: ${err.message}`,
+          generatedAt: new Date().toLocaleTimeString("th-TH"),
+          confidence: "LOW",
         },
       ]);
     } finally {
@@ -167,306 +175,460 @@ export default function AICopilotPage() {
     }
   };
 
-  const handleFeedback = async (messageId: string, rating: number) => {
+  const handleApproveProposal = async (proposalId: string) => {
+    const confirm = await Swal.fire({
+      title: "ยืนยันการอนุมัติ Action Proposal?",
+      text: "ระบบจะทำ Revalidation ตรวจสอบสถานะทรัพยากรล่าสุด และดำเนินการตาม Action ที่กำหนด",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "อนุมัติและดำเนินการ (Approve & Execute)",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#10b981",
+    });
+
+    if (!confirm.isConfirmed) return;
+
     try {
-      await fetch("/api/ai/feedback", {
+      setProcessingProposalId(proposalId);
+      // 1. Approve
+      const appRes = await fetch(`/api/ai/proposals/${proposalId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId, rating }),
+        body: JSON.stringify({ userId: "usr_executive" }),
       });
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, feedbackGiven: rating } : m))
-      );
-    } catch (err) {}
+      const appData = await appRes.json();
+      if (!appData.success) throw new Error(appData.error);
+
+      // 2. Execute
+      const execRes = await fetch(`/api/ai/proposals/${proposalId}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "usr_executive" }),
+      });
+      const execData = await execRes.json();
+      if (!execData.success) throw new Error(execData.error);
+
+      await Swal.fire({
+        icon: "success",
+        title: "ดำเนินการสำเร็จ!",
+        text: execData.outcome?.details?.message || "ระบบได้บันทึกและประมวลผลการกระทำเรียบร้อยแล้ว (Source: AI_ASSISTED)",
+      });
+      fetchProposals();
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "การดำเนินการล้มเหลว",
+        text: err.message,
+      });
+    } finally {
+      setProcessingProposalId(null);
+    }
   };
 
-  const handleNewChat = () => {
-    setMessages([]);
-    setConversationId(undefined);
+  const handleRejectProposal = async (proposalId: string) => {
+    const { value: reason } = await Swal.fire({
+      title: "ระบุเหตุผลในการปฏิเสธ",
+      input: "text",
+      inputPlaceholder: "เช่น ข้อมูลกำลังพลไม่สอดคล้องกับงบประมาณ...",
+      showCancelButton: true,
+      confirmButtonText: "ปฏิเสธข้อเสนอ",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#e11d48",
+    });
+
+    if (reason === undefined) return;
+
+    try {
+      setProcessingProposalId(proposalId);
+      const res = await fetch(`/api/ai/proposals/${proposalId}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        Swal.fire({ icon: "info", title: "ปฏิเสธข้อเสนอเรียบร้อย" });
+        fetchProposals();
+      }
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "ข้อผิดพลาด", text: err.message });
+    } finally {
+      setProcessingProposalId(null);
+    }
   };
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-surface-border">
-        <div>
-          <div className="flex items-center space-x-2">
-            <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 border border-brand-500/20">
-              <Bot className="w-6 h-6" />
+  const renderProposalCard = (p: ProposalData) => {
+    let preview: any = {};
+    try {
+      preview = JSON.parse(p.previewJson);
+    } catch {}
+
+    const isPending = p.status === "READY_FOR_REVIEW" || p.status === "DRAFT";
+
+    return (
+      <div
+        key={p.id}
+        className="mt-3 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3 shadow-lg text-left"
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                {p.proposalNumber}
+              </span>
+              <span className="text-xs text-slate-400 font-mono">Agent: {p.agentCode}</span>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-content-primary flex items-center gap-2">
-                SmartJeff AI Operations Copilot
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Data Grounded
-                </span>
-              </h1>
-              <p className="text-xs text-content-secondary">
-                ผู้ช่วยอัจฉริยะวิเคราะห์การปฏิบัติการภาคสนามและสนับสนุนการตัดสินใจผู้บริหาร (Thai-First & Read-Only)
-              </p>
-            </div>
+            <h4 className="text-sm font-bold text-white tracking-tight">{preview.title || p.actionType}</h4>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleNewChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-border bg-surface-bg hover:bg-surface-subtle text-xs font-medium text-content-secondary transition-colors"
+          <span
+            className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+              p.riskLevel === "CRITICAL"
+                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                : p.riskLevel === "HIGH"
+                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+            }`}
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            เริ่มการสนทนาใหม่
-          </button>
+            {p.riskLevel} RISK
+          </span>
         </div>
-      </div>
 
-      {/* Operational Context Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-surface-subtle p-3 rounded-xl border border-surface-border text-xs">
-        <div className="flex items-center gap-1.5 text-content-muted font-medium">
-          <Building2 className="w-4 h-4 text-brand-600" />
-          ไซต์ที่สนใจ:
-        </div>
-        <select
-          value={selectedSiteId}
-          onChange={(e) => setSelectedSiteId(e.target.value)}
-          className="px-2.5 py-1 rounded-lg border border-surface-border bg-surface-bg text-content-primary focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="ALL">ทุกไซต์งาน (All Sites)</option>
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.code})
-            </option>
-          ))}
-        </select>
+        <p className="text-xs text-slate-300 leading-relaxed">{preview.summary}</p>
 
-        <div className="flex items-center gap-1.5 text-content-muted font-medium ml-2">
-          <Calendar className="w-4 h-4 text-brand-600" />
-          ช่วงเวลา:
-        </div>
-        <select
-          value={selectedPeriod}
-          onChange={(e) => setSelectedPeriod(e.target.value)}
-          className="px-2.5 py-1 rounded-lg border border-surface-border bg-surface-bg text-content-primary focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="TODAY">วันนี้ (Today)</option>
-          <option value="TOMORROW">พรุ่งนี้ (Tomorrow)</option>
-          <option value="THIS_WEEK">สัปดาห์นี้</option>
-          <option value="THIS_MONTH">เดือนนี้</option>
-        </select>
-
-        <span className="text-[11px] text-content-muted ml-auto flex items-center gap-1">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-          ตอบจากฐานข้อมูลจริง SmartJeff เท่านั้น · ปราศจากการเดา
-        </span>
-      </div>
-
-      {/* Chat Messages Container */}
-      <div className="flex-1 overflow-y-auto space-y-4 p-4 rounded-2xl bg-surface-subtle/50 border border-surface-border min-h-[350px]">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center max-w-lg mx-auto py-8 space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-brand-500/10 text-brand-600 flex items-center justify-center border border-brand-500/20">
-              <Sparkles className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-content-primary text-base">
-                ยินดีต้อนรับสู่ AI Operations Copilot
-              </h3>
-              <p className="text-xs text-content-secondary mt-1">
-                สอบถามข้อมูลปฏิบัติการ ตรวจสอบความพร้อมกำลังคน วิเคราะห์ OT หรือจำลองสถานการณ์ความเสี่ยงได้ด้วยภาษาธรรมชาติ
-              </p>
-            </div>
-
-            {/* Suggested Question Chips */}
-            <div className="flex flex-wrap gap-2 justify-center pt-2">
-              {SUGGESTED_QUESTIONS.map((q, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(q)}
-                  className="px-3 py-1.5 rounded-full border border-surface-border bg-surface-bg hover:border-brand-500 hover:text-brand-600 text-xs text-content-secondary transition-all shadow-2xs"
-                >
-                  {q}
-                </button>
+        {preview.affectedRecords && preview.affectedRecords.length > 0 && (
+          <div className="text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+            <span className="text-slate-400 font-medium block">รายการที่เกี่ยวข้อง ({preview.affectedRecords.length}):</span>
+            <div className="space-y-0.5">
+              {preview.affectedRecords.map((r: any, idx: number) => (
+                <div key={idx} className="text-slate-200 text-[11px] flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                  {r.name || r.id}
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {msg.role === "assistant" && (
-              <div className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                <Bot className="w-4 h-4" />
-              </div>
-            )}
-
-            <div
-              className={`max-w-[82%] rounded-2xl p-4 text-sm shadow-xs ${
-                msg.role === "user"
-                  ? "bg-brand-600 text-white rounded-br-none"
-                  : "bg-surface-bg border border-surface-border text-content-primary rounded-bl-none"
+        <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between">
+          <div className="text-[11px] text-slate-400 flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            สถานะ:{" "}
+            <span
+              className={`font-semibold ${
+                p.status === "COMPLETED"
+                  ? "text-emerald-400"
+                  : p.status === "REJECTED"
+                  ? "text-rose-400"
+                  : "text-amber-400"
               }`}
             >
-              {/* Message Content */}
-              <div className="whitespace-pre-line leading-relaxed">{msg.content}</div>
+              {p.status}
+            </span>
+          </div>
 
-              {/* Tools & Evidence Footnote for Assistant */}
-              {msg.role === "assistant" && msg.evidence && msg.evidence.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-surface-border/60 flex flex-wrap items-center justify-between gap-2 text-xs text-content-muted">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setActiveEvidence(msg.evidence || []);
-                        setDrawerOpen(true);
-                      }}
-                      className="inline-flex items-center gap-1 font-medium text-brand-600 hover:underline"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                      ดูหลักฐานประกอบ ({msg.evidence.length} รายการ)
-                    </button>
+          {isPending ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleRejectProposal(p.id)}
+                disabled={processingProposalId === p.id}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 text-xs font-semibold border border-slate-700 transition"
+              >
+                ปฏิเสธ
+              </button>
+              <button
+                onClick={() => handleApproveProposal(p.id)}
+                disabled={processingProposalId === p.id}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                อนุมัติและทำ Action
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-500 font-medium">บันทึกเรียบร้อยแล้ว</span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-                    {msg.confidence && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {msg.confidence} Confidence
-                      </span>
+  const pendingProposalsCount = proposals.filter((p) => p.status === "READY_FOR_REVIEW" || p.status === "DRAFT").length;
+
+  return (
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400">
+            <Bot className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+              SmartJeff Enterprise Action Copilot
+              <span className="px-2 py-0.5 rounded text-xs bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                Phase 26
+              </span>
+            </h1>
+            <p className="text-sm text-slate-400">
+              ระบบ AI ผู้ช่วยวางแผน ร่างงาน และเตรียมข้อเสนอ (AI Proposes — Human Decides)
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/admin/ai/governance"
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-xl border border-slate-700 transition"
+        >
+          <ShieldAlert className="w-4 h-4 text-purple-400" />
+          ศูนย์กำกับดูแล AI (Governance)
+        </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-800 gap-6 text-sm font-semibold">
+        <button
+          onClick={() => setActiveTab("ASK")}
+          className={`pb-3 border-b-2 transition flex items-center gap-2 ${
+            activeTab === "ASK" ? "border-blue-500 text-blue-400" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" /> ถาม-ตอบ & สั่งงานอัจฉริยะ
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("PROPOSALS");
+            fetchProposals();
+          }}
+          className={`pb-3 border-b-2 transition flex items-center gap-2 ${
+            activeTab === "PROPOSALS" ? "border-blue-500 text-blue-400" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Layers className="w-4 h-4" /> แผนงานและข้อเสนอรออนุมัติ
+          {pendingProposalsCount > 0 && (
+            <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold inline-flex items-center justify-center">
+              {pendingProposalsCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("CATALOG")}
+          className={`pb-3 border-b-2 transition flex items-center gap-2 ${
+            activeTab === "CATALOG" ? "border-blue-500 text-blue-400" : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <FileText className="w-4 h-4" /> คลังงานที่ AI ช่วยเตรียมได้
+        </button>
+      </div>
+
+      {/* TAB 1: ASK & CHAT */}
+      {activeTab === "ASK" && (
+        <div className="space-y-4">
+          {/* Quick Action Chips */}
+          <div className="flex flex-wrap gap-2">
+            {ACTION_SUGGESTIONS.map((s, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(s)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs text-slate-300 transition hover:text-white flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3 h-3 text-blue-400" />
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat Stream Window */}
+          <div className="min-h-[420px] max-h-[580px] overflow-y-auto p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-4">
+            {messages.length === 0 ? (
+              <div className="h-96 flex flex-col items-center justify-center text-center p-6 text-slate-400 space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center">
+                  <Bot className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-white">SmartJeff Action Copilot พร้อมปฏิบัติงาน</h3>
+                <p className="text-xs max-w-md text-slate-400">
+                  พิมพ์คำสั่งภาษาธรรมชาติเพื่อขอให้ AI ช่วยวิเคราะห์ข้อมูล ร่างตารางกะ ร่างใบขอซื้อ ร่าง Work Order หรือร่าง CAPA โดยทุก Action ต้องผ่านการตรวจทานและยืนยันจากท่านก่อนเสมอ
+                </p>
+              </div>
+            ) : (
+              messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  {m.role === "assistant" && (
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                  )}
+
+                  <div
+                    className={`max-w-2xl rounded-2xl p-4 text-sm leading-relaxed ${
+                      m.role === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-800/90 border border-slate-700/60 text-slate-100 shadow-md"
+                    }`}
+                  >
+                    <p className="whitespace-pre-line">{m.content}</p>
+
+                    {m.proposal && renderProposalCard(m.proposal)}
+
+                    {m.toolsUsed && m.toolsUsed.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                        <span>Tools:</span>
+                        {m.toolsUsed.map((t) => (
+                          <span key={t} className="px-1.5 py-0.5 rounded bg-slate-900/60 font-mono text-[10px] text-slate-300">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {/* Feedback Thumb Up / Down */}
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <span className="text-[11px]">คำตอบนี้มีประโยชน์ไหม?</span>
-                    <button
-                      onClick={() => handleFeedback(msg.id, 1)}
-                      className={`p-1 rounded hover:bg-surface-subtle transition-colors ${
-                        msg.feedbackGiven === 1 ? "text-emerald-600 font-bold" : "text-content-muted"
-                      }`}
-                      title="มีประโยชน์"
-                    >
-                      <ThumbsUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleFeedback(msg.id, -1)}
-                      className={`p-1 rounded hover:bg-surface-subtle transition-colors ${
-                        msg.feedbackGiven === -1 ? "text-rose-600 font-bold" : "text-content-muted"
-                      }`}
-                      title="ต้องปรับปรุง"
-                    >
-                      <ThumbsDown className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {m.role === "user" && (
+                    <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              ))
+            )}
 
-            {msg.role === "user" && (
-              <div className="w-8 h-8 rounded-xl bg-surface-subtle border border-surface-border text-content-primary flex items-center justify-center shrink-0 mt-1">
-                <User className="w-4 h-4" />
+            {loading && (
+              <div className="flex gap-3 items-center text-xs text-slate-400 p-2">
+                <Bot className="w-5 h-5 text-blue-400 animate-spin" />
+                <span>AI กำลังวางแผน ประเมินความเสี่ยง และเตรียม Action Proposal...</span>
               </div>
             )}
+            <div ref={chatEndRef} />
           </div>
-        ))}
 
-        {loading && (
-          <div className="flex gap-3 justify-start items-center">
-            <div className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0">
-              <Bot className="w-4 h-4" />
-            </div>
-            <div className="bg-surface-bg border border-surface-border rounded-2xl rounded-bl-none p-3.5 flex items-center space-x-2 text-xs text-content-secondary shadow-xs">
-              <div className="w-2 h-2 rounded-full bg-brand-600 animate-bounce" />
-              <div className="w-2 h-2 rounded-full bg-brand-600 animate-bounce [animation-delay:-.3s]" />
-              <div className="w-2 h-2 rounded-full bg-brand-600 animate-bounce [animation-delay:-.5s]" />
-              <span className="ml-1 font-medium">กำลังตรวจสอบหลักฐานและสังเคราะห์คำตอบ...</span>
-            </div>
-          </div>
-        )}
-
-        <div ref={chatEndRef} />
-      </div>
-
-      {/* Suggested Questions Pills when chatting */}
-      {messages.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 text-xs text-content-secondary scrollbar-none">
-          {SUGGESTED_QUESTIONS.slice(0, 4).map((q, idx) => (
+          {/* Input Bar */}
+          <div className="relative">
+            <input
+              type="text"
+              value={inputQuery}
+              onChange={(e) => setInputQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="พิมพ์คำสั่งหรือถามงาน เช่น ช่วยจัดคน Site A สัปดาห์หน้า หรือ ขอซื้อหมวก PPE 50 ใบ..."
+              className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl py-3.5 pl-4 pr-14 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 shadow-lg"
+            />
             <button
-              key={idx}
-              onClick={() => handleSend(q)}
-              className="whitespace-nowrap px-3 py-1 rounded-full border border-surface-border bg-surface-bg hover:bg-surface-subtle transition-colors"
+              onClick={() => handleSend()}
+              disabled={loading || !inputQuery.trim()}
+              className="absolute right-2 top-2 p-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 transition"
             >
-              {q}
+              <Send className="w-4 h-4" />
             </button>
-          ))}
+          </div>
         </div>
       )}
 
-      {/* Input Box */}
-      <div className="relative">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="flex items-center gap-2"
-        >
-          <input
-            type="text"
-            value={inputQuery}
-            onChange={(e) => setInputQuery(e.target.value)}
-            placeholder="พิมพ์คำถามเกี่ยวกับสถานะไซต์งาน, กำลังคน, OT, หรือจำลองสถานการณ์..."
-            className="flex-1 px-4 py-3 rounded-xl border border-surface-border bg-surface-bg text-content-primary text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-2xs"
-            disabled={loading}
-          />
-          <button
-            type="submit"
-            disabled={!inputQuery.trim() || loading}
-            className="px-5 py-3 rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 shadow-sm transition-colors"
-          >
-            <Send className="w-4 h-4" />
-            <span>ส่ง</span>
-          </button>
-        </form>
-      </div>
+      {/* TAB 2: PROPOSALS INBOX */}
+      {activeTab === "PROPOSALS" && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Action Proposals Inbox</h2>
+              <p className="text-xs text-slate-400">รายการข้อเสนอการกระทำที่ AI เตรียมไว้รอการตรวจสอบและอนุมัติจากผู้มีอำนาจ</p>
+            </div>
+            <button
+              onClick={fetchProposals}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> รีเฟรช
+            </button>
+          </div>
 
-      {/* Evidence Drawer Modal */}
-      {drawerOpen && activeEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="bg-surface-bg border border-surface-border rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-surface-border">
-              <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-brand-600" />
-                <h3 className="font-bold text-content-primary text-base">
-                  ข้อมูลหลักฐานประกอบการวิเคราะห์ (Evidence Grounding)
-                </h3>
+          {proposals.length === 0 ? (
+            <div className="py-12 text-center text-slate-500 text-sm">
+              ยังไม่มี Action Proposals ที่สร้างขึ้นในขณะนี้
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {proposals.map((p) => renderProposalCard(p))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: ACTION CATALOG */}
+      {activeTab === "CATALOG" && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">ขอบเขตงานที่ Specialized Agents รองรับ (Capabilities)</h2>
+            <p className="text-xs text-slate-400">ตัวอย่างคำสั่งและระดับความเสี่ยงของแต่ละด้าน</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white">1. Workforce & Scheduling Agent</h4>
+                <span className="text-xs font-semibold text-amber-400">MEDIUM / HIGH RISK</span>
               </div>
+              <p className="text-xs text-slate-400">จัดตารางกะ, ตรวจสอบวันลา, คำนวณชั่วโมง OT, ตรวจสอบพักผ่อน 11 ชม.</p>
               <button
-                onClick={() => setDrawerOpen(false)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-surface-border hover:bg-surface-subtle"
+                onClick={() => {
+                  setActiveTab("ASK");
+                  handleSend("ช่วยจัดคน Site A สัปดาห์หน้า");
+                }}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
               >
-                ปิด
+                ทดลองสั่งงาน: "ช่วยจัดคน Site A สัปดาห์หน้า" <ArrowRight className="w-3 h-3" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {activeEvidence.map((ev, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl border border-surface-border bg-surface-subtle/60 space-y-1">
-                  <div className="text-[11px] text-content-muted font-medium">{ev.sourceModule}</div>
-                  <div className="text-sm font-semibold text-content-primary">{ev.metric}</div>
-                  <div className="text-lg font-bold text-brand-600">
-                    {typeof ev.value === "object" ? JSON.stringify(ev.value) : String(ev.value)}
-                  </div>
-                  <div className="text-[10px] text-content-muted pt-1 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    งวด: {ev.period} · สดใหม่ ณ {new Date(ev.freshness).toLocaleTimeString("th-TH")}
-                  </div>
-                </div>
-              ))}
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white">2. Procurement Agent</h4>
+                <span className="text-xs font-semibold text-amber-400">MEDIUM RISK</span>
+              </div>
+              <p className="text-xs text-slate-400">คำนวณวัสดุขาดแคลน, ตรวจสอบสต็อก PPE, ร่างใบขอซื้อ (Draft PR)</p>
+              <button
+                onClick={() => {
+                  setActiveTab("ASK");
+                  handleSend("ช่วยเตรียม PR วัสดุอุปกรณ์ PPE ที่ขาด");
+                }}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
+              >
+                ทดลองสั่งงาน: "ช่วยเตรียม PR วัสดุ PPE ที่ขาด" <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
-              <span>
-                ทุกตัวเลขถูกคำนวณและดึงตรงจาก Service Layer ของ SmartJeff โดยไม่มีการคาดเดาหรือสร้างตัวเลขขึ้นเอง
-              </span>
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white">3. Fleet & Logistics Agent</h4>
+                <span className="text-xs font-semibold text-blue-400">LOW / MEDIUM RISK</span>
+              </div>
+              <p className="text-xs text-slate-400">จับคู่รถตู้และคนขับ, ตรวจสอบรอบซ่อมบำรุง, วางเส้นทางเดินทาง</p>
+              <button
+                onClick={() => {
+                  setActiveTab("ASK");
+                  handleSend("จัดรถไป Site ระยองพรุ่งนี้");
+                }}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
+              >
+                ทดลองสั่งงาน: "จัดรถไป Site ระยองพรุ่งนี้" <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-white">4. QHSE Safety Agent</h4>
+                <span className="text-xs font-semibold text-amber-400">MEDIUM RISK</span>
+              </div>
+              <p className="text-xs text-slate-400">วิเคราะห์สาเหตุเชิงลึกของอุบัติการณ์, ร่างแผนปฏิบัติการแก้ไข (CAPA)</p>
+              <button
+                onClick={() => {
+                  setActiveTab("ASK");
+                  handleSend("ช่วยร่าง CAPA จากอุบัติการณ์ล่าสุด");
+                }}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
+              >
+                ทดลองสั่งงาน: "ช่วยร่าง CAPA จากอุบัติการณ์ล่าสุด" <ArrowRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </div>

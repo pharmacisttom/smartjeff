@@ -67,6 +67,7 @@ const ADMIN_NAV = [
   { href: "/admin/crm/leads", label: "ลูกค้าเป้าหมาย (Leads)", icon: Target },
   { href: "/admin/tenders", label: "งานประมูล (Tenders)", icon: FileText },
   { href: "/admin/executive/copilot", label: "AI Operations Copilot", icon: Bot },
+  { href: "/admin/ai/governance", label: "กำกับดูแล AI (AI Governance)", icon: ShieldAlert },
   { href: "/admin/operations/live-map", label: "ศูนย์บัญชาการสด (Live Map)", icon: Radio },
   { href: "/admin/inventory", label: "คลังสินค้าและสต็อก (Inventory)", icon: Boxes },
   { href: "/admin/procurement", label: "บริหารงานจัดซื้อ (Procurement)", icon: ShoppingCart },

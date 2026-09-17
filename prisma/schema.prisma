@@ -2881,3 +2881,107 @@ model DisasterRecoveryExercise {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 }
+
+// ============================================================================
+// PHASE 26: AI AGENTIC OPERATIONS, HUMAN APPROVAL & GOVERNANCE MODELS
+// ============================================================================
+
+model AgentDefinition {
+  id               String    @id @default(cuid())
+  code             String    @unique // WORKFORCE_AGENT, PROCUREMENT_AGENT, FLEET_AGENT, PROJECT_AGENT, CRM_AGENT, QHSE_AGENT, FINANCE_AGENT, PLATFORM_AGENT
+  name             String
+  domain           String    // WORKFORCE, PROCUREMENT, FLEET, PROJECT, CRM, QHSE, FINANCE, PLATFORM
+  description      String
+  allowedToolsJson String    // JSON array of tool names
+  maxRiskLevel     String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status           String    @default("ACTIVE") // ACTIVE, DISABLED, DEPRECATED
+  version          String    @default("1.0.0")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model AgentPrompt {
+  id            String    @id @default(cuid())
+  agentCode     String
+  version       String
+  systemPrompt  String
+  effectiveFrom DateTime  @default(now())
+  status        String    @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([agentCode, version])
+}
+
+model AIActionProposal {
+  id                  String    @id @default(cuid())
+  proposalNumber      String    @unique
+  conversationId      String?
+  userId              String
+  agentCode           String
+  actionType          String    // CREATE_DRAFT_SCHEDULE, CREATE_DRAFT_PR, CREATE_DRAFT_WORK_ORDER, CREATE_DRAFT_CAPA, CREATE_COLLECTION_TASK, CREATE_DRAFT_TRIP, SIMULATE_SCENARIO
+  resourceType        String    // SCHEDULE, PURCHASE_REQUEST, WORK_ORDER, CAPA, INVOICE_COLLECTION, FLEET_TRIP, SCENARIO
+  resourceId          String?
+  inputJson           String    // Initial input payload from model/user
+  previewJson         String    // Structured preview (diff, affected records, warnings)
+  impactJson          String?   // Impact analysis (workforce, budget, schedule, compliance)
+  riskLevel           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  confirmationMode    String    @default("CONFIRM") // NONE, CONFIRM, APPROVAL_WORKFLOW, FORBIDDEN
+  permissionRequired  String
+  status              String    @default("DRAFT") // DRAFT, READY_FOR_REVIEW, APPROVED, REJECTED, EXPIRED, EXECUTING, COMPLETED, FAILED
+  idempotencyKey      String    @unique
+  expiresAt           DateTime
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectionReason     String?
+  executedAt          DateTime?
+  executionResultJson String?
+  source              String    @default("AI_ASSISTED")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model AgentDecisionLog {
+  id               String    @id @default(cuid())
+  agentCode        String
+  requestId        String?
+  conversationId   String?
+  userId           String?
+  userGoal         String
+  planJson         String    // Steps, tools, dependencies
+  toolsUsedJson    String    // Array of tool executions
+  proposalId       String?
+  riskLevel        String    @default("LOW")
+  confirmationMode String    @default("NONE")
+  outcome          String    @default("SUCCESS") // SUCCESS, REJECTED, FAILED, FORBIDDEN
+  executionMs      Int       @default(0)
+  createdAt        DateTime  @default(now())
+}
+
+model AIAgentJob {
+  id              String    @id @default(cuid())
+  agentCode       String
+  userId          String
+  status          String    @default("QUEUED") // QUEUED, RUNNING, WAITING_APPROVAL, COMPLETED, FAILED, CANCELLED
+  inputJson       String
+  resultJson      String?
+  progressPercent Int       @default(0)
+  error           String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AIPolicy {
+  id               String    @id @default(cuid())
+  domain           String
+  actionType       String    @unique
+  riskLevel        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  confirmationMode String    @default("CONFIRM") // NONE, CONFIRM, APPROVAL_WORKFLOW, FORBIDDEN
+  allowedRolesJson String    // Array of allowed roles
+  enabled          Boolean   @default(true)
+  version          String    @default("1.0.0")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
