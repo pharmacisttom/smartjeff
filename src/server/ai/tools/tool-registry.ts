@@ -13,6 +13,13 @@ import { TenderService } from "@/server/services/crm/tender.service";
 import { EstimationService } from "@/server/services/crm/estimation.service";
 import { QuotationService } from "@/server/services/crm/quotation.service";
 import { EstimationAccuracyService } from "@/server/services/crm/estimation-accuracy.service";
+import { IncidentService } from "@/server/services/qhse/incident.service";
+import { CAPAService } from "@/server/services/qhse/capa.service";
+import { RiskManagementService } from "@/server/services/qhse/risk-management.service";
+import { ComplianceService } from "@/server/services/qhse/compliance.service";
+import { TrainingCertificationService } from "@/server/services/qhse/training-certification.service";
+import { AuditService } from "@/server/services/qhse/audit.service";
+import { QHSERiskIntelligenceService } from "@/server/services/qhse/qhse-risk-intelligence.service";
 import { prisma } from "@/lib/prisma";
 import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
 import * as schemas from "../schemas/tool-schemas";
@@ -426,6 +433,110 @@ export class AIOperationsToolRegistry {
             urgency: daysLeft <= 30 ? "HIGH" : daysLeft <= 60 ? "MEDIUM" : "LOW",
           };
         });
+      },
+    });
+
+    // 27. getQHSESummary
+    this.register({
+      name: "getQHSESummary",
+      description: "ดึงภาพรวมสถิติและความเสี่ยง QHSE (อุบัติการณ์, Near Miss, CAPA เกินกำหนด, Risk ระดับสูง, Gap มาตรฐาน)",
+      inputSchema: schemas.QHSESummaryInputSchema,
+      permissionRequirement: "QHSE_VIEW",
+      auditCategory: "QHSE",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return QHSERiskIntelligenceService.getExecutiveMetrics(input.siteId);
+      },
+    });
+
+    // 28. getOpenIncidents
+    this.register({
+      name: "getOpenIncidents",
+      description: "ดึงรายการอุบัติการณ์และเหตุการณ์ด้านความปลอดภัยที่ยังเปิดอยู่",
+      inputSchema: schemas.OpenIncidentsInputSchema,
+      permissionRequirement: "QHSE_VIEW",
+      auditCategory: "QHSE",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return IncidentService.getIncidents({
+          siteId: input.siteId,
+          severity: input.severity,
+          status: "REPORTED",
+          take: 20,
+        });
+      },
+    });
+
+    // 29. getCAPAStatus
+    this.register({
+      name: "getCAPAStatus",
+      description: "ดึงสถานะมาตรการแก้ไขและป้องกัน (CAPA) รวมถึงรายการที่เกินกำหนดเวลา (Overdue)",
+      inputSchema: schemas.CAPAStatusInputSchema,
+      permissionRequirement: "QHSE_VIEW",
+      auditCategory: "QHSE",
+      handler: async (input, _user) => {
+        return CAPAService.getCAPAs({
+          isOverdueOnly: input.isOverdueOnly,
+          take: 25,
+        });
+      },
+    });
+
+    // 30. getRiskRegisterSummary
+    this.register({
+      name: "getRiskRegisterSummary",
+      description: "ดึงสรุปทะเบียนความเสี่ยงองค์กรและระดับไซต์งาน พร้อม Inherent vs Residual Risk",
+      inputSchema: schemas.RiskRegisterSummaryInputSchema,
+      permissionRequirement: "RISK_VIEW",
+      auditCategory: "RISK",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return RiskManagementService.getRiskSummary(input.siteId, input.projectId);
+      },
+    });
+
+    // 31. getComplianceSummary
+    this.register({
+      name: "getComplianceSummary",
+      description: "ดึงภาพรวมความสอดคล้องตามข้อกำหนดกฎหมาย สัญญา และนโยบาย พร้อม Compliance Gaps",
+      inputSchema: schemas.ComplianceSummaryInputSchema,
+      permissionRequirement: "COMPLIANCE_VIEW",
+      auditCategory: "COMPLIANCE",
+      handler: async (_input, _user) => {
+        return ComplianceService.getComplianceSummary();
+      },
+    });
+
+    // 32. getExpiringCertificates
+    this.register({
+      name: "getExpiringCertificates",
+      description: "ดึงรายชื่อใบอนุญาต/วุฒิบัตร/ใบรับรองของพนักงานที่ใกล้หมดอายุหรือหมดอายุแล้ว",
+      inputSchema: schemas.ExpiringCertificatesInputSchema,
+      permissionRequirement: "TRAINING_VIEW",
+      auditCategory: "TRAINING",
+      handler: async (input, _user) => {
+        return TrainingCertificationService.getExpiringCertifications(input.daysThreshold || 30);
+      },
+    });
+
+    // 33. getAuditSummary
+    this.register({
+      name: "getAuditSummary",
+      description: "ดึงสถานะแผนการตรวจประเมิน QHSE (Audit Programs) และผลการตรวจประเมิน",
+      inputSchema: schemas.AuditSummaryInputSchema,
+      permissionRequirement: "AUDIT_VIEW",
+      auditCategory: "AUDIT",
+      handler: async (_input, _user) => {
+        return AuditService.getAuditSummary();
       },
     });
   }

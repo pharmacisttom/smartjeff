@@ -1553,3 +1553,560 @@ model ProjectHandover {
   @@index([opportunityId])
 }
 
+// ==========================================
+// Phase 18: Quality, Health, Safety, Environment, Compliance & Risk Management
+// ==========================================
+
+model Incident {
+  id              String             @id @default(cuid())
+  incidentNo      String             @unique
+  siteId          String?
+  projectId       String?
+  workOrderId     String?
+  reportedBy      String
+  incidentType    String             @default("SAFETY") // SAFETY | ACCIDENT | NEAR_MISS | QUALITY | ENVIRONMENT | SECURITY | EQUIPMENT | VEHICLE | PROCESS | CLIENT_COMPLAINT | OTHER
+  severity        String             @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  occurredAt      DateTime           @default(now())
+  location        String
+  description     String
+  immediateAction String?            // STOP_WORK | AREA_ISOLATION | EQUIPMENT_LOCK | MEDICAL_ASSISTANCE | NONE
+  status          String             @default("REPORTED") // REPORTED | ACKNOWLEDGED | INVESTIGATING | ACTION_REQUIRED | MONITORING | RESOLVED | CLOSED
+  assignedTo      String?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  evidence        IncidentEvidence[]
+  findings        Finding[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([siteId])
+  @@index([incidentType])
+  @@index([severity])
+  @@index([status])
+}
+
+model IncidentEvidence {
+  id          String   @id @default(cuid())
+  incidentId  String
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  type        String   @default("PHOTO") // PHOTO | VIDEO_REF | DOCUMENT | WITNESS_NOTE | LOCATION
+  fileUrl     String
+  notes       String?
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  @@index([incidentId])
+}
+
+model SafetyObservation {
+  id            String   @id @default(cuid())
+  observationNo String   @unique
+  siteId        String?
+  type          String   @default("UNSAFE_CONDITION") // UNSAFE_CONDITION | UNSAFE_ACT | GOOD_PRACTICE | NEAR_MISS | ENVIRONMENTAL_CONCERN
+  category      String   @default("GENERAL") // PPE | HOUSEKEEPING | ELECTRICAL | WORKING_AT_HEIGHT | CHEMICAL | SPILL | DUST | NOISE | OTHER
+  location      String
+  description   String
+  photoUrl      String?
+  isAnonymous   Boolean  @default(false)
+  reporterId    String?
+  reporterToken String?  // security/audit token for anonymous reporting
+  status        String   @default("SUBMITTED") // SUBMITTED | REVIEWED | ACTION_TAKEN | CLOSED
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([type])
+  @@index([status])
+}
+
+model InspectionTemplate {
+  id            String           @id @default(cuid())
+  templateNo    String           @unique
+  name          String
+  category      String           @default("SAFETY") // SAFETY | QUALITY | VEHICLE | ASSET | WAREHOUSE | PPE | ENVIRONMENT | HOUSEKEEPING | PROCESS | SUPPLIER
+  version       Int              @default(1)
+  frequency     String           @default("WEEKLY") // DAILY | WEEKLY | MONTHLY | QUARTERLY | ANNUAL | CUSTOM
+  effectiveFrom DateTime         @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean          @default(true)
+  createdBy     String
+  items         InspectionItem[]
+  inspections   Inspection[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model InspectionItem {
+  id           String             @id @default(cuid())
+  templateId   String
+  template     InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  orderIndex   Int                @default(1)
+  question     String
+  description  String?
+  responseType String             @default("PASS_FAIL") // PASS_FAIL | YES_NO | NUMBER | TEXT | SELECT | PHOTO | SIGNATURE
+  required     Boolean            @default(true)
+  weight       Float              @default(1.0)
+  critical     Boolean            @default(false)
+  optionsJson  String?            // JSON options for SELECT
+  createdAt    DateTime           @default(now())
+
+  @@index([templateId])
+}
+
+model Inspection {
+  id             String             @id @default(cuid())
+  inspectionNo   String             @unique
+  templateId     String
+  template       InspectionTemplate @relation(fields: [templateId], references: [id])
+  siteId         String?
+  projectId      String?
+  assetId        String?
+  vehicleId      String?
+  supplierId     String?
+  inspectorId    String
+  scheduledDate  DateTime           @default(now())
+  completedDate  DateTime?
+  result         String             @default("PASS") // PASS | WARNING | FAIL | NOT_APPLICABLE
+  score          Float              @default(100.0)
+  itemsJson      String?            // JSON records: [{ itemId, question, answer, result, notes, photoUrl, critical }]
+  notes          String?
+  signatureUrl   String?
+  status         String             @default("COMPLETED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  findings       Finding[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([templateId])
+  @@index([siteId])
+  @@index([inspectorId])
+  @@index([result])
+}
+
+model Finding {
+  id             String                       @id @default(cuid())
+  findingNo      String                       @unique
+  title          String
+  description    String
+  source         String                       @default("INSPECTION") // INCIDENT | INSPECTION | AUDIT | CLIENT_COMPLAINT | QUALITY_CHECK | SUPPLIER | OTHER
+  sourceId       String?
+  incidentId     String?
+  incident       Incident?                    @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  inspectionId   String?
+  inspection     Inspection?                  @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  classification String                       @default("MINOR") // OBSERVATION | MINOR | MAJOR | CRITICAL
+  siteId         String?
+  projectId      String?
+  ownerId        String
+  dueDate        DateTime
+  priority       String                       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status         String                       @default("OPEN") // OPEN | ASSIGNED | ACTION_IN_PROGRESS | AWAITING_VERIFICATION | VERIFIED | CLOSED
+  closedAt       DateTime?
+  verifiedBy     String?
+  verifiedAt     DateTime?
+  ncr            NonConformance?
+  rca            RCAAnalysis?
+  capas          CorrectivePreventiveAction[]
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  @@index([source, sourceId])
+  @@index([classification])
+  @@index([status])
+  @@index([ownerId])
+  @@index([siteId])
+}
+
+model NonConformance {
+  id              String   @id @default(cuid())
+  referenceNo     String   @unique
+  findingId       String?  @unique
+  finding         Finding? @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  requirement     String
+  actualCondition String
+  evidence        String?
+  impact          String?
+  source          String   @default("INTERNAL") // INTERNAL | CLIENT | AUDITOR | SUPPLIER
+  ownerId         String
+  status          String   @default("OPEN") // OPEN | IN_REVIEW | CAPA_CREATED | CLOSED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+model RCAAnalysis {
+  id                String   @id @default(cuid())
+  findingId         String   @unique
+  finding           Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  method            String   @default("FIVE_WHY") // FIVE_WHY | FISHBONE | CAUSE_CATEGORY | OTHER
+  fiveWhyJson       String?  // JSON array: [{ step: 1, question: "Why?", answer: "..." }, ...]
+  fishboneJson      String?  // JSON: { people: [], process: [], machine: [], material: [], environment: [], management: [] }
+  rootCauseSummary  String
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+}
+
+model CorrectivePreventiveAction {
+  id                     String    @id @default(cuid())
+  capaNo                 String    @unique
+  findingId              String?
+  finding                Finding?  @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  sourceType             String    @default("FINDING") // FINDING | INCIDENT | AUDIT | RISK | COMPLAINT | OTHER
+  sourceId               String?
+  title                  String
+  description            String
+  actionType             String    @default("CORRECTIVE") // CORRECTIVE | PREVENTIVE | IMMEDIATE | SYSTEMIC
+  ownerId                String
+  dueDate                DateTime
+  priority               String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status                 String    @default("ASSIGNED") // DRAFT | ASSIGNED | IN_PROGRESS | AWAITING_VERIFICATION | VERIFIED | CLOSED | OVERDUE
+  evidence               String?   // JSON: [{ type, url, note }]
+  verificationMethod     String?
+  verifiedBy             String?
+  verifiedAt             DateTime?
+  verificationNotes      String?
+  effectivenessReviewDue DateTime? // 30 / 60 / 90 days after closure
+  effectivenessStatus    String?   // EFFECTIVE | PARTIALLY_EFFECTIVE | NOT_EFFECTIVE | REOPENED
+  effectivenessReviewedBy String?
+  effectivenessReviewedAt DateTime?
+  effectivenessNotes     String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([dueDate])
+}
+
+model RiskRegister {
+  id                 String        @id @default(cuid())
+  riskNo             String        @unique
+  title              String
+  description        String
+  category           String        @default("OPERATIONS") // ENTERPRISE | PROJECT | SITE | PROCESS | SAFETY | QUALITY | FINANCIAL | SUPPLIER | FLEET | ASSET | IT | COMPLIANCE
+  scope              String        @default("SITE") // ENTERPRISE | PROJECT | SITE
+  siteId             String?
+  projectId          String?
+  likelihood         Int           @default(3) // 1-5
+  impact             Int           @default(3) // 1-5
+  inherentScore      Int           @default(9) // likelihood * impact
+  inherentLevel      String        @default("MODERATE") // LOW | MODERATE | HIGH | CRITICAL
+  treatment          String        @default("REDUCE") // AVOID | REDUCE | TRANSFER | ACCEPT
+  acceptedBy         String?
+  acceptedAt         DateTime?
+  residualLikelihood Int           @default(2) // 1-5
+  residualImpact     Int           @default(2) // 1-5
+  residualScore      Int           @default(4) // residualLikelihood * residualImpact
+  residualLevel      String        @default("LOW") // LOW | MODERATE | HIGH | CRITICAL
+  reviewFrequency    String        @default("QUARTERLY") // MONTHLY | QUARTERLY | ANNUAL | CUSTOM
+  reviewDate         DateTime?
+  ownerId            String
+  status             String        @default("ACTIVE") // ACTIVE | MITIGATED | ACCEPTED | RETIRED
+  controls           RiskControl[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([category])
+  @@index([inherentLevel])
+  @@index([residualLevel])
+  @@index([status])
+  @@index([siteId])
+  @@index([projectId])
+}
+
+model RiskControl {
+  id          String       @id @default(cuid())
+  riskId      String
+  risk        RiskRegister @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  description String
+  controlType String       @default("PREVENTIVE") // PREVENTIVE | DETECTIVE | CORRECTIVE
+  ownerId     String
+  status      String       @default("IMPLEMENTED") // IMPLEMENTED | PLANNED | INEFFECTIVE
+  evidence    String?
+  createdAt   DateTime     @default(now())
+
+  @@index([riskId])
+}
+
+model ComplianceRequirement {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  title           String
+  description     String?
+  category        String          @default("LEGAL") // LEGAL | CLIENT | CONTRACT | INTERNAL_POLICY | SAFETY | QUALITY | ENVIRONMENT | LICENSE | CERTIFICATION
+  scope           String          @default("ORGANIZATION") // ORGANIZATION | PROJECT | SITE | EMPLOYEE | VEHICLE | ASSET | SUPPLIER
+  siteId          String?
+  projectId       String?
+  ownerId         String
+  effectiveFrom   DateTime        @default(now())
+  expiryDate      DateTime?
+  reviewFrequency String          @default("ANNUAL")
+  status          String          @default("COMPLIANT") // COMPLIANT | PARTIAL | NON_COMPLIANT | EXPIRED | REVIEW_REQUIRED
+  evidenceSummary String?
+  gaps            ComplianceGap[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([scope])
+}
+
+model ComplianceGap {
+  id             String                @id @default(cuid())
+  requirementId  String
+  requirement    ComplianceRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  entityType     String                // PROJECT | SITE | EMPLOYEE | VEHICLE | ASSET | SUPPLIER
+  entityId       String
+  gapDescription String
+  severity       String                @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  ownerId        String
+  dueDate        DateTime
+  status         String                @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | WAIVED
+  resolvedAt     DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([requirementId])
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model EmployeeCertification {
+  id                 String    @id @default(cuid())
+  employeeId         String
+  certificateNumber  String
+  name               String
+  issuer             String
+  issueDate          DateTime
+  expiryDate         DateTime?
+  attachmentUrl      String?
+  verificationStatus String    @default("VALID") // VALID | EXPIRING | EXPIRED | REVOKED
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([verificationStatus])
+  @@index([expiryDate])
+}
+
+model TrainingCourse {
+  id             String            @id @default(cuid())
+  code           String            @unique
+  name           String
+  description    String?
+  category       String            @default("SAFETY") // SAFETY | TECHNICAL | QUALITY | COMPLIANCE | LEADERSHIP
+  validityMonths Int?              @default(12)
+  mandatory      Boolean           @default(false)
+  sessions       TrainingSession[]
+  createdAt      DateTime          @default(now())
+}
+
+model TrainingSession {
+  id          String               @id @default(cuid())
+  sessionNo   String               @unique
+  courseId    String
+  course      TrainingCourse       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  date        DateTime
+  trainer     String
+  location    String
+  capacity    Int                  @default(20)
+  status      String               @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  attendances TrainingAttendance[]
+  createdAt   DateTime             @default(now())
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model TrainingAttendance {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employeeId     String
+  status         String          @default("REGISTERED") // REGISTERED | ATTENDED | PASSED | FAILED | ABSENT
+  score          Float?
+  certificateUrl String?
+  createdAt      DateTime        @default(now())
+
+  @@unique([sessionId, employeeId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model ControlledDocument {
+  id              String                   @id @default(cuid())
+  documentNo      String                   @unique
+  title           String
+  type            String                   @default("PROCEDURE") // POLICY | PROCEDURE | WORK_INSTRUCTION | FORM | STANDARD | MANUAL | SPECIFICATION | OTHER
+  version         Int                      @default(1)
+  ownerId         String
+  authorId        String
+  reviewerId      String?
+  approverId      String?
+  effectiveDate   DateTime                 @default(now())
+  reviewDate      DateTime?
+  status          String                   @default("EFFECTIVE") // DRAFT | UNDER_REVIEW | APPROVED | EFFECTIVE | SUPERSEDED | ARCHIVED
+  fileUrl         String?
+  changeSummary   String?
+  acknowledgments DocumentAcknowledgment[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([documentNo, version])
+}
+
+model DocumentAcknowledgment {
+  id             String             @id @default(cuid())
+  documentId     String
+  document       ControlledDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  employeeId     String
+  acknowledgedAt DateTime           @default(now())
+  ipAddress      String?
+  userAgent      String?
+
+  @@unique([documentId, employeeId])
+  @@index([employeeId])
+}
+
+model AuditProgram {
+  id          String   @id @default(cuid())
+  programNo   String   @unique
+  year        Int
+  title       String
+  description String?
+  status      String   @default("ACTIVE") // PLANNED | ACTIVE | COMPLETED
+  audits      Audit[]
+  createdAt   DateTime @default(now())
+}
+
+model Audit {
+  id            String           @id @default(cuid())
+  auditNo       String           @unique
+  programId     String?
+  program       AuditProgram?    @relation(fields: [programId], references: [id], onDelete: SetNull)
+  type          String           @default("INTERNAL") // INTERNAL | CLIENT | SUPPLIER | SITE | PROJECT | QUALITY | SAFETY | COMPLIANCE
+  scope         String
+  leadAuditorId String
+  siteId        String?
+  projectId     String?
+  supplierId    String?
+  scheduledDate DateTime
+  actualDate    DateTime?
+  status        String           @default("PLANNED") // PLANNED | IN_PROGRESS | REPORTING | FOLLOW_UP | CLOSED
+  reportUrl     String?
+  checklists    AuditChecklist[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([siteId])
+}
+
+model AuditChecklist {
+  id          String  @id @default(cuid())
+  auditId     String
+  audit       Audit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  item        String
+  requirement String
+  result      String  @default("COMPLIANT") // COMPLIANT | MINOR_NC | MAJOR_NC | OBSERVATION | NOT_APPLICABLE
+  notes       String?
+
+  @@index([auditId])
+}
+
+model AssetCalibration {
+  id              String    @id @default(cuid())
+  assetId         String
+  calibrationDate DateTime  @default(now())
+  nextDueDate     DateTime
+  provider        String
+  certificateUrl  String?
+  result          String    @default("PASS") // PASS | FAIL
+  status          String    @default("VALID") // VALID | DUE | OVERDUE | FAILED
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  @@index([assetId])
+  @@index([status])
+}
+
+model Permit {
+  id            String    @id @default(cuid())
+  permitNo      String    @unique
+  scope         String    @default("SITE") // ORGANIZATION | SITE | PROJECT | VEHICLE | OPERATION
+  type          String    // OPERATING_LICENSE | ENVIRONMENTAL | TRANSPORT | SAFETY | FACTORY
+  issuer        String
+  issueDate     DateTime  @default(now())
+  expiryDate    DateTime
+  status        String    @default("VALID") // VALID | EXPIRING | EXPIRED | REVOKED
+  attachmentUrl String?
+  siteId        String?
+  projectId     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model PermitToWork {
+  id                   String    @id @default(cuid())
+  ptwNo                String    @unique
+  siteId               String?
+  projectId            String?
+  workOrderId          String?
+  type                 String    @default("GENERAL") // HOT_WORK | WORK_AT_HEIGHT | CONFINED_SPACE | ELECTRICAL | EXCAVATION | LIFTING | GENERAL
+  requestedBy          String
+  requestedAt          DateTime  @default(now())
+  validFrom            DateTime
+  validTo              DateTime
+  location             String
+  hazardSummary        String
+  controlsChecklist    String    // JSON: { ppe: true, isolation: true, fireWatch: false, gasTest: false, barricade: true, rescuePlan: false }
+  status               String    @default("DRAFT") // DRAFT | PENDING | APPROVED | ACTIVE | SUSPENDED | CLOSED | CANCELLED
+  approvedBy           String?
+  approvedAt           DateTime?
+  closedBy             String?
+  closedAt             DateTime?
+  safetyOfficerNotes   String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+  @@index([siteId])
+  @@index([type])
+}
+
+model ClientComplaint {
+  id                  String    @id @default(cuid())
+  complaintNo         String    @unique
+  clientId            String
+  projectId           String?
+  siteId              String?
+  receivedAt          DateTime  @default(now())
+  description         String
+  severity            String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  ownerId             String
+  status              String    @default("RECEIVED") // RECEIVED | INVESTIGATING | CORRECTIVE_ACTION | CLIENT_RESPONSE | CLOSED
+  clientResponseNotes String?
+  findingId           String?
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+}
+
+

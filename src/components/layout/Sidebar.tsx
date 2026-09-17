@@ -27,6 +27,9 @@ import {
   Kanban,
   Target,
   Compass,
+  ShieldAlert,
+  AlertTriangle,
+  FileCheck2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -39,10 +42,14 @@ const EMPLOYEE_NAV = [
   { href: "/chat", label: "AI ผู้ช่วย HR", icon: MessageSquare },
   { href: "/mobile/inventory", label: "คลังพัสดุมือถือ", icon: Boxes },
   { href: "/mobile/site-survey", label: "สำรวจพื้นที่ (Site Survey)", icon: Compass },
+  { href: "/mobile/qhse", label: "ความปลอดภัยมือถือ (QHSE)", icon: ShieldAlert },
 ];
 
 const ADMIN_NAV = [
   { href: "/admin/dashboard", label: "แดชบอร์ดผู้บริหาร", icon: LayoutDashboard },
+  { href: "/admin/qhse", label: "ศูนย์ความปลอดภัย (QHSE)", icon: ShieldAlert },
+  { href: "/admin/risk", label: "บริหารความเสี่ยง (Risk)", icon: AlertTriangle },
+  { href: "/admin/compliance", label: "การปฏิบัติตามเกณฑ์ (Compliance)", icon: FileCheck2 },
   { href: "/admin/crm", label: "ภาพรวมการขาย (CRM)", icon: Briefcase },
   { href: "/admin/crm/pipeline", label: "ไปป์ไลน์การขาย (Pipeline)", icon: Kanban },
   { href: "/admin/crm/leads", label: "ลูกค้าเป้าหมาย (Leads)", icon: Target },

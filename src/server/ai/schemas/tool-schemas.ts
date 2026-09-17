@@ -127,6 +127,33 @@ export const RenewalOpportunitiesInputSchema = z.object({
   daysThreshold: z.number().optional().default(90),
 });
 
+// Phase 18: QHSE Schemas
+export const QHSESummaryInputSchema = z.object({
+  siteId: z.string().optional(),
+});
+
+export const OpenIncidentsInputSchema = z.object({
+  siteId: z.string().optional(),
+  severity: z.string().optional(),
+});
+
+export const CAPAStatusInputSchema = z.object({
+  isOverdueOnly: z.boolean().optional(),
+});
+
+export const RiskRegisterSummaryInputSchema = z.object({
+  siteId: z.string().optional(),
+  projectId: z.string().optional(),
+});
+
+export const ComplianceSummaryInputSchema = z.object({});
+
+export const ExpiringCertificatesInputSchema = z.object({
+  daysThreshold: z.number().optional().default(30),
+});
+
+export const AuditSummaryInputSchema = z.object({});
+
 export type LiveOperationsInput = z.infer<typeof LiveOperationsInputSchema>;
 export type SiteStatusInput = z.infer<typeof SiteStatusInputSchema>;
 export type SiteDetailInput = z.infer<typeof SiteDetailInputSchema>;
@@ -154,3 +181,11 @@ export type EstimateBreakdownInput = z.infer<typeof EstimateBreakdownInputSchema
 export type QuotationStatusInput = z.infer<typeof QuotationStatusInputSchema>;
 export type EstimateVsActualInput = z.infer<typeof EstimateVsActualInputSchema>;
 export type RenewalOpportunitiesInput = z.infer<typeof RenewalOpportunitiesInputSchema>;
+export type QHSESummaryInput = z.infer<typeof QHSESummaryInputSchema>;
+export type OpenIncidentsInput = z.infer<typeof OpenIncidentsInputSchema>;
+export type CAPAStatusInput = z.infer<typeof CAPAStatusInputSchema>;
+export type RiskRegisterSummaryInput = z.infer<typeof RiskRegisterSummaryInputSchema>;
+export type ComplianceSummaryInput = z.infer<typeof ComplianceSummaryInputSchema>;
+export type ExpiringCertificatesInput = z.infer<typeof ExpiringCertificatesInputSchema>;
+export type AuditSummaryInput = z.infer<typeof AuditSummaryInputSchema>;
+
