@@ -76,6 +76,8 @@ model Site {
   shiftAssignments ShiftAssignment[]
   teams            Team[]
   schedulePeriods  SchedulePeriod[]
+  alerts           OperationalAlert[]
+  riskConfig       OperationsRiskConfig?
   createdAt   DateTime @default(now())
 }
 
@@ -459,5 +461,100 @@ model ShiftAuditLog {
 
   @@index([assignmentId])
   @@index([action, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 12: AI Operations Copilot & Operations Intelligence Models
+// -----------------------------------------------------------------------------
+
+model AIConversation {
+  id          String       @id @default(cuid())
+  userId      String
+  title       String
+  context     String?      // JSON string: { siteId, date, timeRange, metric }
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  messages    AIMessage[]
+
+  @@index([userId, createdAt])
+}
+
+model AIMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user | assistant | system | tool
+  content        String
+  toolCalls      String?      // JSON array of tool calls & parameters
+  evidence       String?      // JSON array of grounding evidence items
+  tokens         Int?
+  latencyMs      Int?
+  confidence     String?      // HIGH | MEDIUM | LOW
+  createdAt      DateTime     @default(now())
+  feedbacks      AIFeedback[]
+
+  @@index([conversationId, createdAt])
+}
+
+model AIFeedback {
+  id          String    @id @default(cuid())
+  messageId   String
+  message     AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  rating      Int       // 1 = Useful (👍), -1 = Not Useful (👎)
+  reason      String?
+  createdAt   DateTime  @default(now())
+
+  @@index([messageId])
+  @@index([userId])
+}
+
+model AIAuditLog {
+  id               String   @id @default(cuid())
+  userId           String?
+  questionCategory String   // LIVE_OPERATIONS | WORKFORCE | FORECAST | ATTENDANCE | OT | PAYROLL_SUMMARY | LABOR_COST | ALERTS | SITE_COMPARISON | SCENARIO | GENERAL_HELP
+  toolsUsed        String?  // JSON array of tool names
+  dataScope        String?  // JSON string: { role, siteScope, requestedSites }
+  responseStatus   String   // SUCCESS | ERROR | REJECTED_BY_RBAC | INJECTION_ATTEMPT | DEGRADED
+  latencyMs        Int?
+  tokenEstimate    Int?
+  ipAddress        String?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([questionCategory])
+}
+
+model OperationalAlert {
+  id             String    @id @default(cuid())
+  siteId         String?
+  site           Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  alertType      String    // WORKFORCE_DEFICIT | OT_SURGE | ATTENDANCE_ANOMALY | SUPERVISOR_ABSENT | COST_OVERRUN | GEOFENCE_VIOLATION
+  severity       String    // LOW | MEDIUM | HIGH | CRITICAL
+  title          String
+  message        String
+  status         String    @default("ACTIVE") // ACTIVE | ACKNOWLEDGED | RESOLVED | SUPPRESSED
+  metrics        String?   // JSON metadata: { expected, actual, delta, trend }
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([siteId, status, createdAt])
+  @@index([severity, status])
+  @@index([alertType])
+}
+
+model OperationsRiskConfig {
+  id                    String   @id @default(cuid())
+  siteId                String?  @unique
+  site                  Site?    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  minStaffingThreshold  Float    @default(0.85) // < 85% is high risk
+  maxOtHoursPerWeek     Float    @default(20.0)
+  lateToleranceMinutes  Int      @default(15)
+  supervisorRequired    Boolean  @default(true)
+  updatedAt             DateTime @updatedAt
 }
 
