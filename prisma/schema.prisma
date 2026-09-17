@@ -56,6 +56,8 @@ model Site {
   workEnd     Float   @default(16)
   otStart     Float?  @default(16)
   otEnd       Float?  @default(17)
+  minimumWorkforce Int? @default(1)
+  requiresSupervisor Boolean @default(false)
   employees   Employee[]
   config      PayrollConfig?
   createdAt   DateTime @default(now())

@@ -28,6 +28,8 @@ export async function POST(req: Request) {
       workEnd: body.workEnd ? parseFloat(body.workEnd) : 16,
       otStart: body.otStart ? parseFloat(body.otStart) : 16,
       otEnd: body.otEnd ? parseFloat(body.otEnd) : 17,
+      minimumWorkforce: body.minimumWorkforce !== undefined ? parseInt(body.minimumWorkforce) : 1,
+      requiresSupervisor: body.requiresSupervisor !== undefined ? Boolean(body.requiresSupervisor) : false,
     });
 
     return NextResponse.json({ site, message: "เพิ่มไซต์งานใหม่เรียบร้อยแล้ว" });
