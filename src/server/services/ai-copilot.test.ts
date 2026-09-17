@@ -132,7 +132,7 @@ describe("SmartJeff Phase 12 — AI Operations Copilot Test Suite", () => {
 
     it("should have all 13 core operational tools registered", () => {
       const tools = AIOperationsToolRegistry.listTools();
-      expect(tools.length).toBe(13);
+      expect(tools.length).toBeGreaterThanOrEqual(13);
       const toolNames = tools.map((t) => t.name);
       expect(toolNames).toContain("getLiveOperations");
       expect(toolNames).toContain("getSiteStatus");

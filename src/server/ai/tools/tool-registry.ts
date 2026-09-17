@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { OperationsIntelligenceService } from "@/server/services/operations-intelligence.service";
 import { OperationsScenarioService } from "@/server/services/operations-scenario.service";
+import { StockMovementService } from "@/server/services/inventory/stock-movement.service";
+import { ItemService } from "@/server/services/inventory/item.service";
+import { MaterialRequirementService } from "@/server/services/inventory/material-requirement.service";
+import { PurchaseRequestService } from "@/server/services/procurement/purchase-request.service";
+import { PurchaseOrderService } from "@/server/services/procurement/purchase-order.service";
+import { SupplierService } from "@/server/services/procurement/supplier.service";
+import { AssetService } from "@/server/services/inventory/asset.service";
 import { AIAuthorizationService, AIUserContext } from "../security/ai-authorization.service";
 import * as schemas from "../schemas/tool-schemas";
 
@@ -217,6 +224,94 @@ export class AIOperationsToolRegistry {
         const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
         if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
         return OperationsScenarioService.runScenario(input);
+      },
+    });
+
+    // 14. getInventorySummary (Phase 16)
+    this.register({
+      name: "getInventorySummary",
+      description: "ดึงข้อมูลสรุปภาพรวมคลังสินค้า มูลค่าสต็อกรวม และจำนวนสินค้าใกล้หมด/หมดคลัง",
+      inputSchema: schemas.InventorySummaryInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "INVENTORY",
+      handler: async () => {
+        return StockMovementService.getInventorySummary();
+      },
+    });
+
+    // 15. getLowStockItems (Phase 16)
+    this.register({
+      name: "getLowStockItems",
+      description: "ดึงรายการสินค้าที่สต็อกต่ำกว่าจุดสั่งซื้อซ้ำ (Reorder Point) หรือหมดคลัง",
+      inputSchema: schemas.LowStockItemsInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "INVENTORY",
+      handler: async () => {
+        return ItemService.getLowStockItems();
+      },
+    });
+
+    // 16. getProjectMaterialStatus (Phase 16)
+    this.register({
+      name: "getProjectMaterialStatus",
+      description: "ตรวจสอบความต้องการใช้วัสดุและรายการที่ขาดแคลน (Shortage) ของโครงการ",
+      inputSchema: schemas.ProjectMaterialStatusInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "MATERIAL_PLANNING",
+      handler: async (input) => {
+        return MaterialRequirementService.getRequirements({ projectId: input.projectId });
+      },
+    });
+
+    // 17. getPurchaseRequestSummary (Phase 16)
+    this.register({
+      name: "getPurchaseRequestSummary",
+      description: "สรุปรายการใบขอซื้อ (PR) ค้างอนุมัติหรือจำแนกตามโครงการ",
+      inputSchema: schemas.PurchaseRequestSummaryInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "PROCUREMENT",
+      handler: async (input) => {
+        return PurchaseRequestService.getPRs({ status: input.status, projectId: input.projectId });
+      },
+    });
+
+    // 18. getPurchaseOrderSummary (Phase 16)
+    this.register({
+      name: "getPurchaseOrderSummary",
+      description: "สรุปใบสั่งซื้อ (PO) สถานะเปิดอยู่ ยอดเงินรวม และกำหนดส่งมอบ",
+      inputSchema: schemas.PurchaseOrderSummaryInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "PROCUREMENT",
+      handler: async (input) => {
+        return PurchaseOrderService.getPOs({ status: input.status, supplierId: input.supplierId, projectId: input.projectId });
+      },
+    });
+
+    // 19. getSupplierDeliverySummary (Phase 16)
+    this.register({
+      name: "getSupplierDeliverySummary",
+      description: "สรุปสถิติและประสิทธิภาพการส่งมอบสินค้าของผู้จำหน่าย (On-time Rate, Delay Days)",
+      inputSchema: schemas.SupplierDeliverySummaryInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "PROCUREMENT",
+      handler: async (input) => {
+        return SupplierService.getSupplierDeliveryMetrics(input.supplierId);
+      },
+    });
+
+    // 20. getAssetSummary (Phase 16)
+    this.register({
+      name: "getAssetSummary",
+      description: "สรุปรายการทรัพย์สินและเครื่องมือ อุปกรณ์ที่กำลังใช้งาน และการตรวจสภาพ",
+      inputSchema: schemas.AssetSummaryInputSchema,
+      permissionRequirement: "OPERATIONS_VIEW",
+      auditCategory: "ASSET",
+      handler: async (input, user) => {
+        if (input.siteId) {
+          const scopeCheck = AIAuthorizationService.checkSiteScope(user, input.siteId);
+          if (!scopeCheck.allowed) throw new Error(scopeCheck.reason);
+        }
+        return AssetService.getAssets({ siteId: input.siteId, category: input.category, status: input.status });
       },
     });
   }

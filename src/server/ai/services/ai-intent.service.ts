@@ -10,6 +10,9 @@ export type OperationIntentType =
   | "SITE_COMPARISON"
   | "SCENARIO"
   | "EXECUTIVE_BRIEF"
+  | "INVENTORY"
+  | "PROCUREMENT"
+  | "ASSET"
   | "GENERAL_HELP";
 
 export interface ResolvedIntent {
@@ -303,6 +306,71 @@ export class AIIntentService {
             toolName: "getLiveOperations",
             input: {},
           },
+        ],
+        entities,
+      };
+    }
+
+    // Phase 16: Inventory & Low Stock
+    if (
+      q.includes("ของ") ||
+      q.includes("สต็อก") ||
+      q.includes("สต๊อก") ||
+      q.includes("คลัง") ||
+      q.includes("ใกล้หมด") ||
+      q.includes("หมดคลัง") ||
+      q.includes("inventory") ||
+      q.includes("low stock")
+    ) {
+      return {
+        intent: "INVENTORY",
+        confidence: 0.92,
+        tools: [
+          { toolName: "getLowStockItems", input: {} },
+          { toolName: "getInventorySummary", input: {} },
+        ],
+        entities,
+      };
+    }
+
+    // Phase 16: Procurement & PO & PR
+    if (
+      q.includes("จัดซื้อ") ||
+      q.includes("สั่งซื้อ") ||
+      q.includes("po") ||
+      q.includes("pr") ||
+      q.includes("ขอซื้อ") ||
+      q.includes("supplier") ||
+      q.includes("ผู้จำหน่าย") ||
+      q.includes("ส่งของ") ||
+      q.includes("ส่งช้า")
+    ) {
+      return {
+        intent: "PROCUREMENT",
+        confidence: 0.9,
+        tools: [
+          { toolName: "getPurchaseOrderSummary", input: {} },
+          { toolName: "getSupplierDeliverySummary", input: {} },
+          { toolName: "getPurchaseRequestSummary", input: {} },
+        ],
+        entities,
+      };
+    }
+
+    // Phase 16: Assets & Tools
+    if (
+      q.includes("เครื่องมือ") ||
+      q.includes("อุปกรณ์") ||
+      q.includes("asset") ||
+      q.includes("ทรัพย์สิน") ||
+      q.includes("ยืม") ||
+      q.includes("คืน")
+    ) {
+      return {
+        intent: "ASSET",
+        confidence: 0.88,
+        tools: [
+          { toolName: "getAssetSummary", input: { siteId: entities.siteId } },
         ],
         entities,
       };

@@ -66,6 +66,40 @@ export const OperationsScenarioInputSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
 });
 
+// Phase 16: Procurement, Inventory & Asset Tool Schemas
+export const InventorySummaryInputSchema = z.object({
+  warehouseId: z.string().optional(),
+});
+
+export const LowStockItemsInputSchema = z.object({
+  limit: z.number().int().optional().default(10),
+});
+
+export const ProjectMaterialStatusInputSchema = z.object({
+  projectId: z.string().min(1, "projectId is required"),
+});
+
+export const PurchaseRequestSummaryInputSchema = z.object({
+  status: z.string().optional(),
+  projectId: z.string().optional(),
+});
+
+export const PurchaseOrderSummaryInputSchema = z.object({
+  status: z.string().optional(),
+  supplierId: z.string().optional(),
+  projectId: z.string().optional(),
+});
+
+export const SupplierDeliverySummaryInputSchema = z.object({
+  supplierId: z.string().optional(),
+});
+
+export const AssetSummaryInputSchema = z.object({
+  siteId: z.string().optional(),
+  category: z.string().optional(),
+  status: z.string().optional(),
+});
+
 export type LiveOperationsInput = z.infer<typeof LiveOperationsInputSchema>;
 export type SiteStatusInput = z.infer<typeof SiteStatusInputSchema>;
 export type SiteDetailInput = z.infer<typeof SiteDetailInputSchema>;
@@ -79,3 +113,10 @@ export type OperationsAlertsInput = z.infer<typeof OperationsAlertsInputSchema>;
 export type ExecutiveDailyBriefInput = z.infer<typeof ExecutiveDailyBriefInputSchema>;
 export type CompareSitesInput = z.infer<typeof CompareSitesInputSchema>;
 export type OperationsScenarioInput = z.infer<typeof OperationsScenarioInputSchema>;
+export type InventorySummaryInput = z.infer<typeof InventorySummaryInputSchema>;
+export type LowStockItemsInput = z.infer<typeof LowStockItemsInputSchema>;
+export type ProjectMaterialStatusInput = z.infer<typeof ProjectMaterialStatusInputSchema>;
+export type PurchaseRequestSummaryInput = z.infer<typeof PurchaseRequestSummaryInputSchema>;
+export type PurchaseOrderSummaryInput = z.infer<typeof PurchaseOrderSummaryInputSchema>;
+export type SupplierDeliverySummaryInput = z.infer<typeof SupplierDeliverySummaryInputSchema>;
+export type AssetSummaryInput = z.infer<typeof AssetSummaryInputSchema>;
