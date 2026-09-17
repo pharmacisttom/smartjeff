@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { showSuccess, showLoading, closeSwal } from "@/lib/swal";
 import { autoAssignWorkforce } from "@/lib/operations/auto-assign";
 
@@ -63,13 +64,23 @@ export default function OperationsPlanningPage() {
           </div>
         </div>
 
-        <button
-          onClick={runAutoAssignment}
-          className="flex items-center space-x-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all active:scale-95 self-start md:self-center"
-        >
-          <Zap className="w-4 h-4 text-amber-300" />
-          <span>คำนวณแผนจัดสรรคนด่วน (Auto-Assign)</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
+          <Link
+            href="/admin/operations/workforce-planning"
+            className="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all active:scale-95"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>เข้าสู่ระบบ Workforce DSS (Phase 8) →</span>
+          </Link>
+
+          <button
+            onClick={runAutoAssignment}
+            className="flex items-center space-x-2 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all active:scale-95"
+          >
+            <Zap className="w-4 h-4 text-amber-300" />
+            <span>คำนวณแผนจัดสรรคนด่วน (Auto-Assign)</span>
+          </button>
+        </div>
       </div>
 
       {/* Optimization Savings Callout */}

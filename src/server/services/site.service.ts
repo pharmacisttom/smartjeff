@@ -31,6 +31,8 @@ export class SiteService {
     workEnd?: number;
     otStart?: number;
     otEnd?: number;
+    minimumWorkforce?: number | null;
+    requiresSupervisor?: boolean;
   }) {
     return prisma.site.create({
       data: {
@@ -44,6 +46,8 @@ export class SiteService {
         workEnd: data.workEnd || 16,
         otStart: data.otStart || 16,
         otEnd: data.otEnd || 17,
+        minimumWorkforce: data.minimumWorkforce !== undefined ? data.minimumWorkforce : 1,
+        requiresSupervisor: data.requiresSupervisor !== undefined ? Boolean(data.requiresSupervisor) : false,
       },
     });
   }
@@ -62,6 +66,8 @@ export class SiteService {
         workEnd: data.workEnd !== undefined ? parseFloat(data.workEnd) : undefined,
         otStart: data.otStart !== undefined ? parseFloat(data.otStart) : undefined,
         otEnd: data.otEnd !== undefined ? parseFloat(data.otEnd) : undefined,
+        minimumWorkforce: data.minimumWorkforce !== undefined ? (data.minimumWorkforce ? parseInt(data.minimumWorkforce) : null) : undefined,
+        requiresSupervisor: data.requiresSupervisor !== undefined ? Boolean(data.requiresSupervisor) : undefined,
       },
     });
   }

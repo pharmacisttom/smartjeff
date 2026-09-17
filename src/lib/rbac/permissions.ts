@@ -67,6 +67,9 @@ export const PERMISSIONS = {
   "apikey.create.system": { category: "apikey", level: 1, label: "สร้าง System API Key" },
   "apikey.revoke": { category: "apikey", level: 2, label: "ยกเลิก API Key" },
 
+  // ========== OPERATIONS & LIVE COMMAND CENTER ==========
+  "operations.live.read": { category: "operations", level: 2, label: "ดูหน้าบัญชาการปฏิบัติการสด (Live Command Center)" },
+
   // ========== SYSTEM & LICENSE ==========
   "system.audit.read": { category: "system", level: 1, label: "ดู Audit Logs ทั้งระบบ" },
   "system.health": { category: "system", level: 1, label: "ดูสถานะเซิร์ฟเวอร์ System Health" },
@@ -88,12 +91,41 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionCode[]> = {
     "report.daily", "report.weekly", "report.monthly", "report.export", "report.executive",
     "user.read.all", "user.create", "user.update", "user.role.assign",
     "apikey.read.own", "apikey.create", "apikey.revoke",
+    "operations.live.read",
+  ],
+
+  EXECUTIVE: [
+    "employee.read.all",
+    "attendance.read.all",
+    "site.read",
+    "report.daily", "report.weekly", "report.monthly", "report.export", "report.executive",
+    "operations.live.read",
+  ],
+
+  HR: [
+    "employee.read.all", "employee.create", "employee.update",
+    "attendance.read.all", "attendance.approve", "attendance.edit",
+    "leave.approve.all", "leave.config",
+    "payroll.read.all", "payroll.calculate", "payroll.approve", "payroll.export", "payroll.config",
+    "site.read",
+    "report.daily", "report.weekly", "report.monthly", "report.export", "report.executive",
+    "operations.live.read",
+  ],
+
+  SITE_MANAGER: [
+    "employee.read.team", "employee.read.all",
+    "attendance.read.team", "attendance.read.all", "attendance.approve",
+    "leave.approve.team",
+    "site.read", "site.update",
+    "report.daily", "report.weekly",
+    "operations.live.read",
   ],
 
   SUPERVISOR: [
     "employee.read.team", "employee.read.all",
     "attendance.read.team", "attendance.read.all", "attendance.approve",
     "leave.approve.team",
+    "site.read",
     "report.daily", "report.weekly",
     "user.read.team",
     "notification.read",

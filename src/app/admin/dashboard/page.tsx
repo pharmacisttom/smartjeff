@@ -201,6 +201,14 @@ export default function AdminDashboardPage() {
           </button>
 
           <Link
+            href="/admin/operations/live-map"
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-4 py-2.5 rounded-2xl shadow-md transition-all active:scale-95"
+          >
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span>แผนที่สด (Live Map)</span>
+          </Link>
+
+          <Link
             href="/admin/attendance"
             className="flex items-center space-x-2 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm px-4 py-2.5 rounded-2xl shadow-md transition-all"
           >

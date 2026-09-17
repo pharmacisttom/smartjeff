@@ -37,6 +37,15 @@ model Employee {
   leaves       Leave[]
   payslips     Payslip[]
   chats        ChatMessage[]
+  skills       EmployeeSkill[]
+  planItems    WorkforcePlanItem[]
+  shiftAssignments ShiftAssignment[]
+  shiftPatterns    EmployeeShiftPattern[]
+  teamMemberships  TeamMember[]
+  requesterSwaps   ShiftSwapRequest[] @relation("RequesterSwaps")
+  targetSwaps      ShiftSwapRequest[] @relation("TargetSwaps")
+  attendanceCorrections AttendanceCorrection[]
+  toolAssignments  ToolAssignment[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -56,8 +65,24 @@ model Site {
   workEnd     Float   @default(16)
   otStart     Float?  @default(16)
   otEnd       Float?  @default(17)
+  minimumWorkforce Int? @default(1)
+  targetWorkforce  Int? @default(1)
+  maximumWorkforce Int?
+  requiresSupervisor Boolean @default(false)
   employees   Employee[]
   config      PayrollConfig?
+  workforceRequirements SiteWorkforceRequirement[]
+  sourcePlans WorkforcePlan[] @relation("SourceSitePlans")
+  targetPlans WorkforcePlan[] @relation("TargetSitePlans")
+  shiftAssignments ShiftAssignment[]
+  teams            Team[]
+  schedulePeriods  SchedulePeriod[]
+  alerts           OperationalAlert[]
+  riskConfig       OperationsRiskConfig?
+  warehouses       Warehouse[]
+  costEntries      ProjectCostEntry[]
+  materialIssues   MaterialIssue[]
+  requirements     MaterialRequirement[]
   createdAt   DateTime @default(now())
 }
 
@@ -80,6 +105,7 @@ model Attendance {
   isApproved       Boolean  @default(false)
   approvedBy       String?
   approvedAt       DateTime?
+  corrections      AttendanceCorrection[]
   createdAt        DateTime @default(now())
 
   @@index([employeeId, timestamp])
@@ -175,4 +201,2787 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@index([entity, entityId])
+}
+
+model SiteWorkforceRequirement {
+  id            String    @id @default(cuid())
+  siteId        String
+  site          Site      @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  position      String?
+  minimum       Int       @default(1)
+  target        Int       @default(1)
+  maximum       Int?
+  shift         String?   @default("DAY") // DAY | NIGHT
+  dayOfWeek     Int?      // 0-6 or null
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([siteId, position])
+}
+
+model Skill {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String
+  category    String?         // TECHNICAL | SAFETY | OPERATION | LEADERSHIP
+  description String?
+  employees   EmployeeSkill[]
+  createdAt   DateTime        @default(now())
+}
+
+model EmployeeSkill {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skillId    String
+  skill      Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  level      Int       @default(1) // 1 - 5
+  verified   Boolean   @default(false)
+  verifiedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, skillId])
+  @@index([employeeId])
+}
+
+model WorkforcePlan {
+  id           String              @id @default(cuid())
+  planDate     DateTime
+  sourceSiteId String
+  sourceSite   Site                @relation("SourceSitePlans", fields: [sourceSiteId], references: [id])
+  targetSiteId String
+  targetSite   Site                @relation("TargetSitePlans", fields: [targetSiteId], references: [id])
+  reason       String
+  status       String              @default("DRAFT") // DRAFT | PENDING | APPROVED | REJECTED | CANCELLED | COMPLETED
+  createdBy    String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  items        WorkforcePlanItem[]
+
+  @@index([planDate, status])
+}
+
+model WorkforcePlanItem {
+  id         String        @id @default(cuid())
+  planId     String
+  plan       WorkforcePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee      @relation(fields: [employeeId], references: [id])
+  position   String?
+  note       String?
+}
+
+// ----------------------------------------------------
+// SMARTJEFF PHASE 9: SHIFT & SCHEDULING INTELLIGENCE
+// ----------------------------------------------------
+
+model Shift {
+  id                      String              @id @default(cuid())
+  code                    String              @unique
+  name                    String
+  startTime               String              // "07:00"
+  endTime                 String              // "16:00"
+  breakMinutes            Int                 @default(60)
+  isOvernight             Boolean             @default(false)
+  lateToleranceMinutes    Int                 @default(10)
+  earlyCheckInMinutes     Int                 @default(30)
+  allowedEarlyLeaveMinutes Int                @default(0)
+  color                   String?             @default("#3B82F6")
+  isActive                Boolean             @default(true)
+  assignments             ShiftAssignment[]
+  patternItems            ShiftPatternItem[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+}
+
+model ShiftAssignment {
+  id                      String              @id @default(cuid())
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  siteId                  String
+  site                    Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  shiftId                 String
+  shift                   Shift               @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  workDate                DateTime            // YYYY-MM-DD (Bangkok 00:00:00)
+  plannedStart            DateTime
+  plannedEnd              DateTime
+  role                    String?
+  status                  String              @default("PLANNED") // DRAFT | PLANNED | CONFIRMED | IN_PROGRESS | COMPLETED | ABSENT | CANCELLED
+  assignedBy              String?
+  assignedAt              DateTime            @default(now())
+  confirmedAt             DateTime?
+  notes                   String?
+  requesterSwaps          ShiftSwapRequest[]  @relation("RequesterAssignment")
+  targetSwaps             ShiftSwapRequest[]  @relation("TargetAssignment")
+  auditLogs               ShiftAuditLog[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([employeeId, workDate])
+  @@index([siteId, workDate])
+  @@index([shiftId, workDate])
+  @@index([status])
+}
+
+model ShiftPattern {
+  id                      String                 @id @default(cuid())
+  code                    String                 @unique
+  name                    String
+  description             String?
+  cycleDays               Int                    @default(7)
+  isActive                Boolean                @default(true)
+  items                   ShiftPatternItem[]
+  employeePatterns        EmployeeShiftPattern[]
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+}
+
+model ShiftPatternItem {
+  id                      String              @id @default(cuid())
+  patternId               String
+  pattern                 ShiftPattern        @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  dayNumber               Int                 // 1 .. cycleDays
+  shiftId                 String?
+  shift                   Shift?              @relation(fields: [shiftId], references: [id])
+  isDayOff                Boolean             @default(false)
+
+  @@unique([patternId, dayNumber])
+}
+
+model EmployeeShiftPattern {
+  id                      String              @id @default(cuid())
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  patternId               String
+  pattern                 ShiftPattern        @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  startDate               DateTime
+  endDate                 DateTime?
+  createdAt               DateTime            @default(now())
+
+  @@index([employeeId, startDate])
+}
+
+model Team {
+  id                      String              @id @default(cuid())
+  code                    String              @unique
+  name                    String
+  siteId                  String?
+  site                    Site?               @relation(fields: [siteId], references: [id])
+  supervisorId            String?
+  color                   String?             @default("#10B981")
+  isActive                Boolean             @default(true)
+  members                 TeamMember[]
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+}
+
+model TeamMember {
+  id                      String              @id @default(cuid())
+  teamId                  String
+  team                    Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role                    String?             @default("MEMBER") // SUPERVISOR | MEMBER
+  joinedAt                DateTime            @default(now())
+
+  @@unique([teamId, employeeId])
+}
+
+model ShiftSwapRequest {
+  id                      String              @id @default(cuid())
+  requesterId             String
+  requester               Employee            @relation("RequesterSwaps", fields: [requesterId], references: [id])
+  targetEmployeeId        String
+  targetEmployee          Employee            @relation("TargetSwaps", fields: [targetEmployeeId], references: [id])
+  requesterAssignmentId   String
+  requesterAssignment     ShiftAssignment     @relation("RequesterAssignment", fields: [requesterAssignmentId], references: [id])
+  targetAssignmentId      String
+  targetAssignment        ShiftAssignment     @relation("TargetAssignment", fields: [targetAssignmentId], references: [id])
+  reason                  String?
+  status                  String              @default("PENDING") // PENDING | ACCEPTED | REJECTED | APPROVED | CANCELLED
+  requestedAt             DateTime            @default(now())
+  reviewedBy              String?
+  approvedBy              String?
+  approvedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([requesterId, status])
+  @@index([targetEmployeeId, status])
+}
+
+model AttendanceCorrection {
+  id                      String              @id @default(cuid())
+  attendanceId            String?
+  attendance              Attendance?         @relation(fields: [attendanceId], references: [id])
+  employeeId              String
+  employee                Employee            @relation(fields: [employeeId], references: [id])
+  workDate                DateTime
+  requestedCheckIn        DateTime?
+  requestedCheckOut       DateTime?
+  reason                  String
+  status                  String              @default("PENDING") // PENDING | APPROVED | REJECTED
+  approvedBy              String?
+  approvedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([employeeId, workDate])
+}
+
+model SchedulePeriod {
+  id                      String              @id @default(cuid())
+  siteId                  String?
+  site                    Site?               @relation(fields: [siteId], references: [id])
+  startDate               DateTime
+  endDate                 DateTime
+  version                 Int                 @default(1)
+  status                  String              @default("DRAFT") // DRAFT | MANAGER_REVIEW | HR_REVIEW | APPROVED | PUBLISHED | LOCKED
+  publishedAt             DateTime?
+  lockedBy                String?
+  lockedAt                DateTime?
+  lockReason              String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  @@index([startDate, endDate, status])
+}
+
+model ShiftAuditLog {
+  id                      String              @id @default(cuid())
+  assignmentId            String?
+  assignment              ShiftAssignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  action                  String              // CREATE | UPDATE | DELETE | SWAP | APPROVE | PUBLISH | LOCK | UNLOCK
+  oldValue                String?
+  newValue                String?
+  performedBy             String
+  reason                  String?
+  createdAt               DateTime            @default(now())
+
+  @@index([assignmentId])
+  @@index([action, createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Phase 12: AI Operations Copilot & Operations Intelligence Models
+// -----------------------------------------------------------------------------
+
+model AIConversation {
+  id          String       @id @default(cuid())
+  userId      String
+  title       String
+  context     String?      // JSON string: { siteId, date, timeRange, metric }
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  messages    AIMessage[]
+
+  @@index([userId, createdAt])
+}
+
+model AIMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // user | assistant | system | tool
+  content        String
+  toolCalls      String?      // JSON array of tool calls & parameters
+  evidence       String?      // JSON array of grounding evidence items
+  tokens         Int?
+  latencyMs      Int?
+  confidence     String?      // HIGH | MEDIUM | LOW
+  createdAt      DateTime     @default(now())
+  feedbacks      AIFeedback[]
+
+  @@index([conversationId, createdAt])
+}
+
+model AIFeedback {
+  id          String    @id @default(cuid())
+  messageId   String
+  message     AIMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId      String
+  rating      Int       // 1 = Useful (👍), -1 = Not Useful (👎)
+  reason      String?
+  createdAt   DateTime  @default(now())
+
+  @@index([messageId])
+  @@index([userId])
+}
+
+model AIAuditLog {
+  id               String   @id @default(cuid())
+  userId           String?
+  questionCategory String   // LIVE_OPERATIONS | WORKFORCE | FORECAST | ATTENDANCE | OT | PAYROLL_SUMMARY | LABOR_COST | ALERTS | SITE_COMPARISON | SCENARIO | GENERAL_HELP
+  toolsUsed        String?  // JSON array of tool names
+  dataScope        String?  // JSON string: { role, siteScope, requestedSites }
+  responseStatus   String   // SUCCESS | ERROR | REJECTED_BY_RBAC | INJECTION_ATTEMPT | DEGRADED
+  latencyMs        Int?
+  tokenEstimate    Int?
+  ipAddress        String?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([questionCategory])
+}
+
+model OperationalAlert {
+  id             String    @id @default(cuid())
+  siteId         String?
+  site           Site?     @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  alertType      String    // WORKFORCE_DEFICIT | OT_SURGE | ATTENDANCE_ANOMALY | SUPERVISOR_ABSENT | COST_OVERRUN | GEOFENCE_VIOLATION
+  severity       String    // LOW | MEDIUM | HIGH | CRITICAL
+  title          String
+  message        String
+  status         String    @default("ACTIVE") // ACTIVE | ACKNOWLEDGED | RESOLVED | SUPPRESSED
+  metrics        String?   // JSON metadata: { expected, actual, delta, trend }
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([siteId, status, createdAt])
+  @@index([severity, status])
+  @@index([alertType])
+}
+
+model OperationsRiskConfig {
+  id                    String   @id @default(cuid())
+  siteId                String?  @unique
+  site                  Site?    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  minStaffingThreshold  Float    @default(0.85) // < 85% is high risk
+  maxOtHoursPerWeek     Float    @default(20.0)
+  lateToleranceMinutes  Int      @default(15)
+  supervisorRequired    Boolean  @default(true)
+  updatedAt             DateTime @updatedAt
+}
+
+// ==========================================
+// Phase 15 & 16: Project, Cost & Procurement Foundations
+// ==========================================
+
+model Client {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  legalName    String?
+  taxId        String?
+  address      String?
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  status       String     @default("ACTIVE") // PROSPECT | ACTIVE | INACTIVE | SUSPENDED | ARCHIVED
+  projects     Project[]
+  contracts    Contract[]
+  opportunities Opportunity[]
+  tenders       Tender[]
+  quotations    SalesQuotation[]
+  leads         Lead[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status])
+  @@index([code])
+}
+
+model Project {
+  id                  String                @id @default(cuid())
+  projectCode         String                @unique
+  clientId            String
+  client              Client                @relation(fields: [clientId], references: [id])
+  name                String
+  description         String?
+  startDate           DateTime              @default(now())
+  endDate             DateTime?
+  status              String                @default("ACTIVE") // PLANNING | ACTIVE | ON_HOLD | COMPLETED | CLOSED
+  projectManagerId    String?
+  budgetAmount        Float                 @default(0)
+  currency            String                @default("THB")
+  sourceOpportunityId String?
+  sourceEstimateId    String?
+  sourceQuotationId   String?
+  contracts           Contract[]
+  costs               ProjectCostEntry[]
+  purchaseOrders      PurchaseOrder[]
+  purchaseRequests    PurchaseRequest[]
+  materialIssues      MaterialIssue[]
+  requirements        MaterialRequirement[]
+  reservations        StockReservation[]
+  handovers           ProjectHandover[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([sourceOpportunityId])
+}
+
+model Contract {
+  id            String    @id @default(cuid())
+  contractNo    String    @unique
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id])
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id])
+  name          String
+  contractValue Float     @default(0)
+  startDate     DateTime  @default(now())
+  endDate       DateTime
+  status        String    @default("ACTIVE") // DRAFT | ACTIVE | EXPIRED | COMPLETED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([projectId])
+}
+
+model ProjectCostEntry {
+  id               String    @id @default(cuid())
+  projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  siteId           String?
+  site             Site?     @relation(fields: [siteId], references: [id])
+  costType         String    // MATERIAL | LABOR | OT | FLEET | FUEL | EXPENSE | OTHER
+  sourceType       String    // GOODS_RECEIPT | MATERIAL_ISSUE | PO | PAYROLL | EXPENSE | MANUAL
+  sourceId         String
+  costDate         DateTime  @default(now())
+  amount           Float
+  currency         String    @default("THB")
+  description      String
+  allocationMethod String    @default("DIRECT")
+  isCommitted      Boolean   @default(false)
+  status           String    @default("POSTED")
+  allocatedBy      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([sourceType, sourceId, projectId, costType])
+  @@index([projectId, costDate])
+  @@index([siteId])
+}
+
+// ==========================================
+// Phase 16: Item Master, Category & Unit
+// ==========================================
+
+model ItemCategory {
+  id        String         @id @default(cuid())
+  code      String         @unique
+  name      String
+  parentId  String?
+  parent    ItemCategory?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  ItemCategory[] @relation("SubCategories")
+  items     Item[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model UnitOfMeasure {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  nameTh    String
+  nameEn    String
+  items     Item[]
+  createdAt DateTime @default(now())
+}
+
+model Item {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  description  String?
+  categoryId   String
+  category     ItemCategory          @relation(fields: [categoryId], references: [id])
+  unitId       String
+  unit         UnitOfMeasure         @relation(fields: [unitId], references: [id])
+  itemType     String                @default("MATERIAL") // MATERIAL | CONSUMABLE | SPARE_PART | TOOL | EQUIPMENT | ASSET | SERVICE | OTHER
+  sku          String?               @unique
+  barcode      String?
+  minimumStock Float                 @default(0)
+  maximumStock Float?
+  reorderPoint Float                 @default(0)
+  standardCost Float                 @default(0)
+  isActive     Boolean               @default(true)
+  balances     StockBalance[]
+  movements    StockMovement[]
+  requirements MaterialRequirement[]
+  reservations StockReservation[]
+  prItems      PurchaseRequestItem[]
+  poItems      PurchaseOrderItem[]
+  assets       Asset[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([categoryId])
+  @@index([itemType])
+}
+
+// ==========================================
+// Phase 16: Warehouse & Stock Ledger
+// ==========================================
+
+model Warehouse {
+  id            String          @id @default(cuid())
+  code          String          @unique
+  name          String
+  type          String          @default("CENTRAL") // CENTRAL | SITE | TEMPORARY | VEHICLE | OTHER
+  siteId        String?
+  site          Site?           @relation(fields: [siteId], references: [id])
+  location      String?
+  status        String          @default("ACTIVE")
+  managerId     String?
+  balances      StockBalance[]
+  movements     StockMovement[]
+  issues        MaterialIssue[]
+  receipts      GoodsReceipt[]
+  fromTransfers StockTransfer[] @relation("FromWarehouse")
+  toTransfers   StockTransfer[] @relation("ToWarehouse")
+  stockCounts   StockCount[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([siteId])
+  @@index([status])
+}
+
+model StockBalance {
+  id                String    @id @default(cuid())
+  warehouseId       String
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity          Float     @default(0)
+  reservedQuantity  Float     @default(0)
+  availableQuantity Float     @default(0)
+  averageCost       Float     @default(0)
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([warehouseId, itemId])
+  @@index([warehouseId])
+  @@index([itemId])
+}
+
+model StockMovement {
+  id            String    @id @default(cuid())
+  warehouseId   String
+  warehouse     Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  movementType  String    // PURCHASE_RECEIPT | ISSUE | RETURN | TRANSFER_IN | TRANSFER_OUT | ADJUSTMENT_IN | ADJUSTMENT_OUT | CONSUMPTION | DAMAGED | LOST
+  quantity      Float
+  unitCost      Float
+  totalCost     Float
+  referenceType String    // PO | GR | ISSUE | TRANSFER | ADJUSTMENT | WORK_ORDER | MANUAL
+  referenceId   String
+  projectId     String?
+  siteId        String?
+  workOrderId   String?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+
+  @@index([warehouseId, itemId])
+  @@index([movementType])
+  @@index([referenceType, referenceId])
+}
+
+// ==========================================
+// Phase 16: Material Planning & Reservation
+// ==========================================
+
+model MaterialRequirement {
+  id               String             @id @default(cuid())
+  itemId           String
+  item             Item               @relation(fields: [itemId], references: [id])
+  projectId        String?
+  project          Project?           @relation(fields: [projectId], references: [id])
+  siteId           String?
+  site             Site?              @relation(fields: [siteId], references: [id])
+  workOrderId      String?
+  quantityRequired Float
+  requiredDate     DateTime
+  priority         String             @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status           String             @default("REQUESTED") // DRAFT | REQUESTED | APPROVED | PARTIALLY_FULFILLED | FULFILLED | CANCELLED
+  requestedBy      String
+  reservations     StockReservation[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([projectId])
+  @@index([itemId])
+  @@index([status])
+}
+
+model StockReservation {
+  id            String               @id @default(cuid())
+  warehouseId   String
+  itemId        String
+  item          Item                 @relation(fields: [itemId], references: [id])
+  requirementId String?
+  requirement   MaterialRequirement? @relation(fields: [requirementId], references: [id])
+  projectId     String?
+  project       Project?             @relation(fields: [projectId], references: [id])
+  workOrderId   String?
+  quantity      Float
+  status        String               @default("ACTIVE") // ACTIVE | RELEASED | CONSUMED | CANCELLED
+  reservedBy    String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([warehouseId, itemId])
+  @@index([projectId])
+}
+
+// ==========================================
+// Phase 16: Procurement (Supplier, PR, RFQ, Quotation, PO, GR)
+// ==========================================
+
+model Supplier {
+  id           String              @id @default(cuid())
+  code         String              @unique
+  name         String
+  legalName    String?
+  taxId        String?
+  address      String?
+  contactName  String?
+  phone        String?
+  email        String?
+  paymentTerms String?             @default("CREDIT_30")
+  status       String              @default("ACTIVE") // PROSPECT | ACTIVE | SUSPENDED | INACTIVE | BLACKLISTED
+  rfqSuppliers RFQSupplier[]
+  quotations   SupplierQuotation[]
+  orders       PurchaseOrder[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status])
+  @@index([code])
+}
+
+model PurchaseRequest {
+  id           String                @id @default(cuid())
+  prNo         String                @unique
+  requesterId  String
+  projectId    String?
+  project      Project?              @relation(fields: [projectId], references: [id])
+  siteId       String?
+  workOrderId  String?
+  department   String?
+  requiredDate DateTime
+  priority     String                @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  reason       String
+  status       String                @default("DRAFT") // DRAFT | SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | CONVERTED_TO_PO | CANCELLED
+  approvedBy   String?
+  approvedAt   DateTime?
+  items        PurchaseRequestItem[]
+  rfqs         RequestForQuotation[]
+  orders       PurchaseOrder[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([status])
+  @@index([projectId])
+}
+
+model PurchaseRequestItem {
+  id                 String          @id @default(cuid())
+  purchaseRequestId  String
+  purchaseRequest    PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  itemId             String?
+  item               Item?           @relation(fields: [itemId], references: [id])
+  description        String
+  quantity           Float
+  unitName           String          @default("ชิ้น")
+  estimatedUnitPrice Float           @default(0)
+  estimatedTotal     Float           @default(0)
+  createdAt          DateTime        @default(now())
+
+  @@index([purchaseRequestId])
+}
+
+model RequestForQuotation {
+  id                String              @id @default(cuid())
+  rfqNo             String              @unique
+  purchaseRequestId String?
+  purchaseRequest   PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id])
+  issueDate         DateTime            @default(now())
+  closingDate       DateTime
+  status            String              @default("OPEN") // OPEN | CLOSED | CANCELLED
+  suppliers         RFQSupplier[]
+  quotations        SupplierQuotation[]
+  createdAt         DateTime            @default(now())
+
+  @@index([status])
+}
+
+model RFQSupplier {
+  id         String              @id @default(cuid())
+  rfqId      String
+  rfq        RequestForQuotation @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  supplierId String
+  supplier   Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([rfqId, supplierId])
+}
+
+model SupplierQuotation {
+  id            String                  @id @default(cuid())
+  quotationNo   String
+  supplierId    String
+  supplier      Supplier                @relation(fields: [supplierId], references: [id])
+  rfqId         String?
+  rfq           RequestForQuotation?    @relation(fields: [rfqId], references: [id])
+  validUntil    DateTime
+  subtotal      Float
+  discount      Float                   @default(0)
+  tax           Float                   @default(0)
+  total         Float
+  leadTimeDays  Int                     @default(7)
+  paymentTerms  String?
+  attachmentUrl String?
+  isSelected    Boolean                 @default(false)
+  items         SupplierQuotationItem[]
+  createdAt     DateTime                @default(now())
+
+  @@index([supplierId])
+  @@index([rfqId])
+}
+
+model SupplierQuotationItem {
+  id          String            @id @default(cuid())
+  quotationId String
+  quotation   SupplierQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  itemId      String?
+  description String
+  quantity    Float
+  unitPrice   Float
+  discount    Float             @default(0)
+  total       Float
+
+  @@index([quotationId])
+}
+
+model PurchaseOrder {
+  id                   String              @id @default(cuid())
+  poNo                 String              @unique
+  supplierId           String
+  supplier             Supplier            @relation(fields: [supplierId], references: [id])
+  projectId            String?
+  project              Project?            @relation(fields: [projectId], references: [id])
+  siteId               String?
+  purchaseRequestId    String?
+  purchaseRequest      PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id])
+  orderDate            DateTime            @default(now())
+  expectedDeliveryDate DateTime
+  subtotal             Float
+  discount             Float               @default(0)
+  tax                  Float               @default(0)
+  total                Float
+  version              Int                 @default(1)
+  revisionReason       String?
+  status               String              @default("DRAFT") // DRAFT | PENDING_APPROVAL | APPROVED | SENT | PARTIALLY_RECEIVED | RECEIVED | CLOSED | CANCELLED
+  createdBy            String
+  approvedBy           String?
+  approvedAt           DateTime?
+  items                PurchaseOrderItem[]
+  receipts             GoodsReceipt[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id               String             @id @default(cuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId           String?
+  item             Item?              @relation(fields: [itemId], references: [id])
+  description      String
+  quantity         Float
+  unitName         String             @default("ชิ้น")
+  unitPrice        Float
+  tax              Float              @default(0)
+  total            Float
+  receivedQuantity Float              @default(0)
+  grItems          GoodsReceiptItem[]
+
+  @@index([purchaseOrderId])
+}
+
+model GoodsReceipt {
+  id                 String             @id @default(cuid())
+  grNo               String             @unique
+  purchaseOrderId    String
+  purchaseOrder      PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  warehouseId        String
+  warehouse          Warehouse          @relation(fields: [warehouseId], references: [id])
+  receivedDate       DateTime           @default(now())
+  receivedBy         String
+  supplierDeliveryNo String?
+  status             String             @default("COMPLETED") // COMPLETED | REVIEW_REQUIRED | REJECTED
+  items              GoodsReceiptItem[]
+  createdAt          DateTime           @default(now())
+
+  @@index([purchaseOrderId])
+  @@index([warehouseId])
+}
+
+model GoodsReceiptItem {
+  id               String            @id @default(cuid())
+  goodsReceiptId   String
+  goodsReceipt     GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poItemId         String
+  poItem           PurchaseOrderItem @relation(fields: [poItemId], references: [id])
+  itemId           String
+  quantityReceived Float
+  quantityAccepted Float
+  quantityRejected Float             @default(0)
+  qualityStatus    String            @default("PASS") // PASS | REJECT | REVIEW
+  unitCost         Float
+  notes            String?
+
+  @@index([goodsReceiptId])
+}
+
+// ==========================================
+// Phase 16: Material Issue, Transfer & Stock Count
+// ==========================================
+
+model MaterialIssue {
+  id          String              @id @default(cuid())
+  issueNo     String              @unique
+  warehouseId String
+  warehouse   Warehouse           @relation(fields: [warehouseId], references: [id])
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id])
+  siteId      String?
+  site        Site?               @relation(fields: [siteId], references: [id])
+  workOrderId String?
+  requestedBy String
+  issuedBy    String?
+  issueDate   DateTime            @default(now())
+  status      String              @default("ISSUED") // DRAFT | REQUESTED | APPROVED | ISSUED | PARTIAL | CANCELLED
+  items       MaterialIssueItem[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([projectId])
+  @@index([warehouseId])
+  @@index([siteId])
+}
+
+model MaterialIssueItem {
+  id              String        @id @default(cuid())
+  materialIssueId String
+  materialIssue   MaterialIssue @relation(fields: [materialIssueId], references: [id], onDelete: Cascade)
+  itemId          String
+  requestedQty    Float
+  issuedQty       Float
+  unitCost        Float
+  totalCost       Float
+
+  @@index([materialIssueId])
+}
+
+model StockTransfer {
+  id              String    @id @default(cuid())
+  transferNo      String    @unique
+  fromWarehouseId String
+  fromWarehouse   Warehouse @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  status          String    @default("DRAFT") // DRAFT | APPROVED | IN_TRANSIT | RECEIVED | CANCELLED
+  initiatedBy     String
+  receivedBy      String?
+  transferDate    DateTime  @default(now())
+  receivedDate    DateTime?
+  items           String    // JSON: [{ itemId, quantity, unitCost }]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model StockCount {
+  id          String    @id @default(cuid())
+  countNo     String    @unique
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  countType   String    @default("CYCLE") // FULL | CYCLE
+  countedDate DateTime  @default(now())
+  countedBy   String
+  status      String    @default("PENDING_REVIEW") // PENDING_REVIEW | ADJUSTED | CANCELLED
+  results     String    // JSON: [{ itemId, systemQty, countedQty, variance, averageCost }]
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([warehouseId])
+}
+
+// ==========================================
+// Phase 16: Tools & Asset Operations
+// ==========================================
+
+model Asset {
+  id                String            @id @default(cuid())
+  assetCode         String            @unique
+  itemId            String?
+  item              Item?             @relation(fields: [itemId], references: [id])
+  name              String
+  serialNo          String?           @unique
+  category          String            // HEAVY_EQUIPMENT | POWER_TOOL | HAND_TOOL | VEHICLE | IT_HARDWARE | SAFETY | OTHER
+  purchaseDate      DateTime?
+  purchaseCost      Float             @default(0)
+  currentSiteId     String?
+  currentEmployeeId String?
+  status            String            @default("AVAILABLE") // AVAILABLE | ASSIGNED | IN_USE | MAINTENANCE | DAMAGED | LOST | DISPOSED
+  warrantyExpiry    DateTime?
+  qrCode            String?
+  assignments       AssetAssignment[]
+  inspections       AssetInspection[]
+  toolAssignments   ToolAssignment[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status])
+  @@index([currentSiteId])
+  @@index([assetCode])
+}
+
+model ToolAssignment {
+  id                String    @id @default(cuid())
+  assetId           String
+  asset             Asset     @relation(fields: [assetId], references: [id])
+  employeeId        String
+  employee          Employee  @relation(fields: [employeeId], references: [id])
+  siteId            String?
+  issuedAt          DateTime  @default(now())
+  expectedReturnAt  DateTime?
+  returnedAt        DateTime?
+  status            String    @default("ISSUED") // ISSUED | RETURNED | OVERDUE | DAMAGED | LOST
+  issuedBy          String
+  receivedCondition String?   @default("GOOD")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([assetId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model AssetAssignment {
+  id         String    @id @default(cuid())
+  assetId    String
+  asset      Asset     @relation(fields: [assetId], references: [id])
+  employeeId String?
+  siteId     String?
+  projectId  String?
+  assignedAt DateTime  @default(now())
+  returnedAt DateTime?
+  assignedBy String
+  status     String    @default("ACTIVE") // ACTIVE | RETURNED
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  @@index([assetId])
+}
+
+model AssetInspection {
+  id             String   @id @default(cuid())
+  assetId        String
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  inspectorId    String
+  inspectionDate DateTime @default(now())
+  result         String   // PASS | WARNING | FAIL
+  checklistJson  String?  // JSON
+  notes          String?
+  photoUrl       String?
+  createdAt      DateTime @default(now())
+
+  @@index([assetId])
+}
+
+// ==========================================
+// Phase 17: CRM, Sales Pipeline, Tender & Estimation Models
+// ==========================================
+
+model Lead {
+  id                String         @id @default(cuid())
+  leadNo            String         @unique
+  companyName       String
+  contactName       String
+  phone             String?
+  email             String?
+  source            String         @default("OTHER") // REFERRAL | WEBSITE | PHONE | EMAIL | EVENT | TENDER | PARTNER | EXISTING_CLIENT | OTHER
+  industry          String?
+  province          String?
+  interest          String?
+  estimatedValue    Float?
+  ownerId           String?
+  status            String         @default("NEW") // NEW | CONTACTED | QUALIFYING | QUALIFIED | UNQUALIFIED | CONVERTED | LOST
+  notes             String?
+  convertedClientId String?
+  convertedClient   Client?        @relation(fields: [convertedClientId], references: [id])
+  activities        CRMActivity[]
+  opportunities     Opportunity[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([convertedClientId])
+}
+
+model CRMActivity {
+  id            String       @id @default(cuid())
+  leadId        String?
+  lead          Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  clientId      String?
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  type          String       // CALL | EMAIL | MEETING | SITE_VISIT | FOLLOW_UP | NOTE | DOCUMENT | OTHER
+  subject       String
+  description   String?
+  scheduledAt   DateTime
+  completedAt   DateTime?
+  ownerId       String
+  status        String       @default("PLANNED") // PLANNED | COMPLETED | CANCELLED
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Opportunity {
+  id                     String                   @id @default(cuid())
+  opportunityNo          String                   @unique
+  clientId               String
+  client                 Client                   @relation(fields: [clientId], references: [id])
+  leadId                 String?
+  lead                   Lead?                    @relation(fields: [leadId], references: [id])
+  name                   String
+  description            String?
+  ownerId                String
+  estimatedContractValue Float                    @default(0)
+  expectedStartDate      DateTime?
+  expectedCloseDate      DateTime?
+  stage                  String                   @default("DISCOVERY") // DISCOVERY | QUALIFICATION | SITE_SURVEY | ESTIMATION | PROPOSAL | NEGOTIATION | AWAITING_DECISION | WON | LOST | ON_HOLD
+  source                 String                   @default("OTHER")
+  probability            Int?                     @default(20) // user-entered or rule-based 0-100
+  status                 String                   @default("OPEN") // OPEN | WON | LOST | ON_HOLD
+  wonDate                DateTime?
+  acceptedQuotationId    String?
+  finalValue             Float?
+  lostReason             String?                  // PRICE | SCOPE | TIMELINE | CAPACITY | QUALIFICATION | CLIENT_DECISION | NO_BUDGET | OTHER
+  competitor             String?
+  lostNotes              String?
+  convertedProjectId     String?
+  requirements           OpportunityRequirement[]
+  surveys                SiteSurvey[]
+  estimates              OpportunityEstimate[]
+  quotations             SalesQuotation[]
+  activities             CRMActivity[]
+  negotiations           NegotiationLog[]
+  tenders                Tender[]
+  handovers              ProjectHandover[]
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  @@index([clientId])
+  @@index([leadId])
+  @@index([stage])
+  @@index([status])
+  @@index([ownerId])
+}
+
+model OpportunityRequirement {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  type          String      // WORKFORCE | SKILL | SHIFT | SITE | FLEET | MATERIAL | EQUIPMENT | SLA | COMPLIANCE | DOCUMENT | OTHER
+  description   String
+  quantity      Float?
+  unit          String?
+  priority      String      @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  mandatory     Boolean     @default(false)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([opportunityId])
+}
+
+model SiteSurvey {
+  id                String      @id @default(cuid())
+  opportunityId     String
+  opportunity       Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  temporarySiteName String
+  address           String
+  lat               Float?
+  lng               Float?
+  surveyDate        DateTime    @default(now())
+  surveyedBy        String
+  accessNotes       String?
+  workArea          String?
+  workingHours      String?
+  riskNotes         String?
+  photos            String?     // JSON array of photo URLs or base64
+  checklistData     String?     // JSON
+  status            String      @default("PLANNED") // PLANNED | IN_PROGRESS | COMPLETED | REVIEWED
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([opportunityId])
+  @@index([status])
+}
+
+model Tender {
+  id                    String            @id @default(cuid())
+  tenderNo              String            @unique
+  clientId              String
+  client                Client            @relation(fields: [clientId], references: [id])
+  opportunityId         String?
+  opportunity           Opportunity?      @relation(fields: [opportunityId], references: [id])
+  title                 String
+  referenceNo           String?
+  publishDate           DateTime          @default(now())
+  submissionDeadline    DateTime
+  clarificationDeadline DateTime?
+  estimatedValue        Float?
+  submissionMethod      String            @default("ONLINE") // ONLINE | PHYSICAL | EMAIL
+  status                String            @default("IDENTIFIED") // IDENTIFIED | REVIEWING | GO | NO_GO | PREPARING | SUBMITTED | AWARDED | NOT_AWARDED | CANCELLED
+  ownerId               String
+  goNoGoDecision        String?           // GO | NO_GO | PENDING
+  goNoGoReason          String?
+  goNoGoReviewedBy      String?
+  goNoGoReviewedAt      DateTime?
+  submittedAt           DateTime?
+  submittedBy           String?
+  submissionReference   String?
+  checklist             TenderChecklist[]
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([clientId])
+  @@index([opportunityId])
+  @@index([status])
+  @@index([submissionDeadline])
+}
+
+model TenderChecklist {
+  id            String   @id @default(cuid())
+  tenderId      String
+  tender        Tender   @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+  category      String   // TECHNICAL | COMMERCIAL | COMPANY_DOCS | INSURANCE | CERTIFICATE | PRICING | BID_BOND
+  item          String
+  mandatory     Boolean  @default(true)
+  status        String   @default("PENDING") // PENDING | COMPLETED | WAIVED
+  attachmentUrl String?
+  notes         String?
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenderId])
+}
+
+model OpportunityEstimate {
+  id                  String               @id @default(cuid())
+  estimateNo          String               @unique
+  opportunityId       String
+  opportunity         Opportunity          @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  version             Int                  @default(1)
+  status              String               @default("DRAFT") // DRAFT | CALCULATING | REVIEW | APPROVED | SUPERSEDED | REJECTED
+  directCost          Float                @default(0)
+  overheadPercent     Float                @default(10.0)
+  overheadAmount      Float                @default(0)
+  contingencyPercent  Float                @default(5.0)
+  contingencyAmount   Float                @default(0)
+  totalEstimatedCost  Float                @default(0)
+  targetMarginPercent Float                @default(20.0)
+  targetMarginAmount  Float                @default(0)
+  suggestedPrice      Float                @default(0)
+  finalPrice          Float                @default(0)
+  currency            String               @default("THB")
+  createdBy           String
+  approvedBy          String?
+  approvedAt          DateTime?
+  notes               String?
+  lines               EstimateLine[]
+  assumptions         EstimateAssumption[]
+  quotations          SalesQuotation[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([opportunityId])
+  @@index([status])
+}
+
+model EstimateLine {
+  id              String              @id @default(cuid())
+  estimateId      String
+  estimate        OpportunityEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  category        String              // WORKFORCE | OT | ALLOWANCE | FLEET | FUEL | TRAVEL | MATERIAL | EQUIPMENT | SUBCONTRACT | OVERHEAD | CONTINGENCY | OTHER
+  description     String
+  quantity        Float
+  unit            String
+  unitCost        Float
+  totalCost       Float
+  sourceType      String?             // STANDARD_COST | LAST_PURCHASE | SUPPLIER_QUOTE | MANUAL_ESTIMATE | WORKFORCE_FORMULA | FLEET_FORMULA
+  sourceReference String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+
+  @@index([estimateId])
+  @@index([category])
+}
+
+model EstimateAssumption {
+  id         String              @id @default(cuid())
+  estimateId String
+  estimate   OpportunityEstimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  key        String
+  label      String
+  value      String
+  unit       String?
+  version    Int                 @default(1)
+  notes      String?
+
+  @@index([estimateId])
+}
+
+model SalesQuotation {
+  id                  String               @id @default(cuid())
+  quotationNo         String               @unique
+  opportunityId       String
+  opportunity         Opportunity          @relation(fields: [opportunityId], references: [id])
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id])
+  estimateId          String?
+  estimate            OpportunityEstimate? @relation(fields: [estimateId], references: [id])
+  version             Int                  @default(1)
+  issueDate           DateTime             @default(now())
+  validUntil          DateTime
+  currency            String               @default("THB")
+  subtotal            Float                @default(0)
+  discount            Float                @default(0)
+  tax                 Float                @default(0)
+  total               Float                @default(0)
+  status              String               @default("DRAFT") // DRAFT | UNDER_REVIEW | APPROVED | SENT | REVISED | ACCEPTED | REJECTED | EXPIRED | CANCELLED
+  termsAndConditions  String?
+  revisionReason      String?
+  previousQuotationId String?
+  createdBy           String
+  approvedBy          String?
+  approvedAt          DateTime?
+  items               SalesQuotationItem[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([opportunityId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model SalesQuotationItem {
+  id          String         @id @default(cuid())
+  quotationId String
+  quotation   SalesQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unit        String
+  unitPrice   Float
+  total       Float
+
+  @@index([quotationId])
+}
+
+model NegotiationLog {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  date          DateTime    @default(now())
+  subject       String
+  clientRequest String
+  ourResponse   String
+  priceImpact   Float?      @default(0)
+  scopeImpact   String?
+  nextAction    String?
+  ownerId       String
+  createdAt     DateTime    @default(now())
+
+  @@index([opportunityId])
+}
+
+model ProjectHandover {
+  id                       String       @id @default(cuid())
+  projectId                String
+  project                  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  opportunityId            String
+  opportunity              Opportunity  @relation(fields: [opportunityId], references: [id])
+  status                   String       @default("DRAFT") // DRAFT | READY | ACCEPTED_BY_OPERATIONS | COMPLETE
+  meetingDate              DateTime?
+  participants             String?      // comma-separated or json
+  notes                    String?
+  signedContractConfirmed  Boolean      @default(false)
+  scopeConfirmed           Boolean      @default(false)
+  siteConfirmed            Boolean      @default(false)
+  workforcePlanConfirmed   Boolean      @default(false)
+  materialPlanConfirmed    Boolean      @default(false)
+  fleetPlanConfirmed       Boolean      @default(false)
+  clientContactConfirmed   Boolean      @default(false)
+  slaConfirmed             Boolean      @default(false)
+  riskConfirmed            Boolean      @default(false)
+  acceptedBy               String?
+  acceptedAt               DateTime?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([opportunityId])
+}
+
+// ==========================================
+// Phase 18: Quality, Health, Safety, Environment, Compliance & Risk Management
+// ==========================================
+
+model Incident {
+  id              String             @id @default(cuid())
+  incidentNo      String             @unique
+  siteId          String?
+  projectId       String?
+  workOrderId     String?
+  reportedBy      String
+  incidentType    String             @default("SAFETY") // SAFETY | ACCIDENT | NEAR_MISS | QUALITY | ENVIRONMENT | SECURITY | EQUIPMENT | VEHICLE | PROCESS | CLIENT_COMPLAINT | OTHER
+  severity        String             @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  occurredAt      DateTime           @default(now())
+  location        String
+  description     String
+  immediateAction String?            // STOP_WORK | AREA_ISOLATION | EQUIPMENT_LOCK | MEDICAL_ASSISTANCE | NONE
+  status          String             @default("REPORTED") // REPORTED | ACKNOWLEDGED | INVESTIGATING | ACTION_REQUIRED | MONITORING | RESOLVED | CLOSED
+  assignedTo      String?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  evidence        IncidentEvidence[]
+  findings        Finding[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([siteId])
+  @@index([incidentType])
+  @@index([severity])
+  @@index([status])
+}
+
+model IncidentEvidence {
+  id          String   @id @default(cuid())
+  incidentId  String
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  type        String   @default("PHOTO") // PHOTO | VIDEO_REF | DOCUMENT | WITNESS_NOTE | LOCATION
+  fileUrl     String
+  notes       String?
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+
+  @@index([incidentId])
+}
+
+model SafetyObservation {
+  id            String   @id @default(cuid())
+  observationNo String   @unique
+  siteId        String?
+  type          String   @default("UNSAFE_CONDITION") // UNSAFE_CONDITION | UNSAFE_ACT | GOOD_PRACTICE | NEAR_MISS | ENVIRONMENTAL_CONCERN
+  category      String   @default("GENERAL") // PPE | HOUSEKEEPING | ELECTRICAL | WORKING_AT_HEIGHT | CHEMICAL | SPILL | DUST | NOISE | OTHER
+  location      String
+  description   String
+  photoUrl      String?
+  isAnonymous   Boolean  @default(false)
+  reporterId    String?
+  reporterToken String?  // security/audit token for anonymous reporting
+  status        String   @default("SUBMITTED") // SUBMITTED | REVIEWED | ACTION_TAKEN | CLOSED
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([type])
+  @@index([status])
+}
+
+model InspectionTemplate {
+  id            String           @id @default(cuid())
+  templateNo    String           @unique
+  name          String
+  category      String           @default("SAFETY") // SAFETY | QUALITY | VEHICLE | ASSET | WAREHOUSE | PPE | ENVIRONMENT | HOUSEKEEPING | PROCESS | SUPPLIER
+  version       Int              @default(1)
+  frequency     String           @default("WEEKLY") // DAILY | WEEKLY | MONTHLY | QUARTERLY | ANNUAL | CUSTOM
+  effectiveFrom DateTime         @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean          @default(true)
+  createdBy     String
+  items         InspectionItem[]
+  inspections   Inspection[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model InspectionItem {
+  id           String             @id @default(cuid())
+  templateId   String
+  template     InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  orderIndex   Int                @default(1)
+  question     String
+  description  String?
+  responseType String             @default("PASS_FAIL") // PASS_FAIL | YES_NO | NUMBER | TEXT | SELECT | PHOTO | SIGNATURE
+  required     Boolean            @default(true)
+  weight       Float              @default(1.0)
+  critical     Boolean            @default(false)
+  optionsJson  String?            // JSON options for SELECT
+  createdAt    DateTime           @default(now())
+
+  @@index([templateId])
+}
+
+model Inspection {
+  id             String             @id @default(cuid())
+  inspectionNo   String             @unique
+  templateId     String
+  template       InspectionTemplate @relation(fields: [templateId], references: [id])
+  siteId         String?
+  projectId      String?
+  assetId        String?
+  vehicleId      String?
+  supplierId     String?
+  inspectorId    String
+  scheduledDate  DateTime           @default(now())
+  completedDate  DateTime?
+  result         String             @default("PASS") // PASS | WARNING | FAIL | NOT_APPLICABLE
+  score          Float              @default(100.0)
+  itemsJson      String?            // JSON records: [{ itemId, question, answer, result, notes, photoUrl, critical }]
+  notes          String?
+  signatureUrl   String?
+  status         String             @default("COMPLETED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  findings       Finding[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([templateId])
+  @@index([siteId])
+  @@index([inspectorId])
+  @@index([result])
+}
+
+model Finding {
+  id             String                       @id @default(cuid())
+  findingNo      String                       @unique
+  title          String
+  description    String
+  source         String                       @default("INSPECTION") // INCIDENT | INSPECTION | AUDIT | CLIENT_COMPLAINT | QUALITY_CHECK | SUPPLIER | OTHER
+  sourceId       String?
+  incidentId     String?
+  incident       Incident?                    @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  inspectionId   String?
+  inspection     Inspection?                  @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  classification String                       @default("MINOR") // OBSERVATION | MINOR | MAJOR | CRITICAL
+  siteId         String?
+  projectId      String?
+  ownerId        String
+  dueDate        DateTime
+  priority       String                       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status         String                       @default("OPEN") // OPEN | ASSIGNED | ACTION_IN_PROGRESS | AWAITING_VERIFICATION | VERIFIED | CLOSED
+  closedAt       DateTime?
+  verifiedBy     String?
+  verifiedAt     DateTime?
+  ncr            NonConformance?
+  rca            RCAAnalysis?
+  capas          CorrectivePreventiveAction[]
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  @@index([source, sourceId])
+  @@index([classification])
+  @@index([status])
+  @@index([ownerId])
+  @@index([siteId])
+}
+
+model NonConformance {
+  id              String   @id @default(cuid())
+  referenceNo     String   @unique
+  findingId       String?  @unique
+  finding         Finding? @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  requirement     String
+  actualCondition String
+  evidence        String?
+  impact          String?
+  source          String   @default("INTERNAL") // INTERNAL | CLIENT | AUDITOR | SUPPLIER
+  ownerId         String
+  status          String   @default("OPEN") // OPEN | IN_REVIEW | CAPA_CREATED | CLOSED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+model RCAAnalysis {
+  id                String   @id @default(cuid())
+  findingId         String   @unique
+  finding           Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  method            String   @default("FIVE_WHY") // FIVE_WHY | FISHBONE | CAUSE_CATEGORY | OTHER
+  fiveWhyJson       String?  // JSON array: [{ step: 1, question: "Why?", answer: "..." }, ...]
+  fishboneJson      String?  // JSON: { people: [], process: [], machine: [], material: [], environment: [], management: [] }
+  rootCauseSummary  String
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+}
+
+model CorrectivePreventiveAction {
+  id                     String    @id @default(cuid())
+  capaNo                 String    @unique
+  findingId              String?
+  finding                Finding?  @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  sourceType             String    @default("FINDING") // FINDING | INCIDENT | AUDIT | RISK | COMPLAINT | OTHER
+  sourceId               String?
+  title                  String
+  description            String
+  actionType             String    @default("CORRECTIVE") // CORRECTIVE | PREVENTIVE | IMMEDIATE | SYSTEMIC
+  ownerId                String
+  dueDate                DateTime
+  priority               String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status                 String    @default("ASSIGNED") // DRAFT | ASSIGNED | IN_PROGRESS | AWAITING_VERIFICATION | VERIFIED | CLOSED | OVERDUE
+  evidence               String?   // JSON: [{ type, url, note }]
+  verificationMethod     String?
+  verifiedBy             String?
+  verifiedAt             DateTime?
+  verificationNotes      String?
+  effectivenessReviewDue DateTime? // 30 / 60 / 90 days after closure
+  effectivenessStatus    String?   // EFFECTIVE | PARTIALLY_EFFECTIVE | NOT_EFFECTIVE | REOPENED
+  effectivenessReviewedBy String?
+  effectivenessReviewedAt DateTime?
+  effectivenessNotes     String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([dueDate])
+}
+
+model RiskRegister {
+  id                 String        @id @default(cuid())
+  riskNo             String        @unique
+  title              String
+  description        String
+  category           String        @default("OPERATIONS") // ENTERPRISE | PROJECT | SITE | PROCESS | SAFETY | QUALITY | FINANCIAL | SUPPLIER | FLEET | ASSET | IT | COMPLIANCE
+  scope              String        @default("SITE") // ENTERPRISE | PROJECT | SITE
+  siteId             String?
+  projectId          String?
+  likelihood         Int           @default(3) // 1-5
+  impact             Int           @default(3) // 1-5
+  inherentScore      Int           @default(9) // likelihood * impact
+  inherentLevel      String        @default("MODERATE") // LOW | MODERATE | HIGH | CRITICAL
+  treatment          String        @default("REDUCE") // AVOID | REDUCE | TRANSFER | ACCEPT
+  acceptedBy         String?
+  acceptedAt         DateTime?
+  residualLikelihood Int           @default(2) // 1-5
+  residualImpact     Int           @default(2) // 1-5
+  residualScore      Int           @default(4) // residualLikelihood * residualImpact
+  residualLevel      String        @default("LOW") // LOW | MODERATE | HIGH | CRITICAL
+  reviewFrequency    String        @default("QUARTERLY") // MONTHLY | QUARTERLY | ANNUAL | CUSTOM
+  reviewDate         DateTime?
+  ownerId            String
+  status             String        @default("ACTIVE") // ACTIVE | MITIGATED | ACCEPTED | RETIRED
+  controls           RiskControl[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([category])
+  @@index([inherentLevel])
+  @@index([residualLevel])
+  @@index([status])
+  @@index([siteId])
+  @@index([projectId])
+}
+
+model RiskControl {
+  id          String       @id @default(cuid())
+  riskId      String
+  risk        RiskRegister @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  description String
+  controlType String       @default("PREVENTIVE") // PREVENTIVE | DETECTIVE | CORRECTIVE
+  ownerId     String
+  status      String       @default("IMPLEMENTED") // IMPLEMENTED | PLANNED | INEFFECTIVE
+  evidence    String?
+  createdAt   DateTime     @default(now())
+
+  @@index([riskId])
+}
+
+model ComplianceRequirement {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  title           String
+  description     String?
+  category        String          @default("LEGAL") // LEGAL | CLIENT | CONTRACT | INTERNAL_POLICY | SAFETY | QUALITY | ENVIRONMENT | LICENSE | CERTIFICATION
+  scope           String          @default("ORGANIZATION") // ORGANIZATION | PROJECT | SITE | EMPLOYEE | VEHICLE | ASSET | SUPPLIER
+  siteId          String?
+  projectId       String?
+  ownerId         String
+  effectiveFrom   DateTime        @default(now())
+  expiryDate      DateTime?
+  reviewFrequency String          @default("ANNUAL")
+  status          String          @default("COMPLIANT") // COMPLIANT | PARTIAL | NON_COMPLIANT | EXPIRED | REVIEW_REQUIRED
+  evidenceSummary String?
+  gaps            ComplianceGap[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([scope])
+}
+
+model ComplianceGap {
+  id             String                @id @default(cuid())
+  requirementId  String
+  requirement    ComplianceRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  entityType     String                // PROJECT | SITE | EMPLOYEE | VEHICLE | ASSET | SUPPLIER
+  entityId       String
+  gapDescription String
+  severity       String                @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  ownerId        String
+  dueDate        DateTime
+  status         String                @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | WAIVED
+  resolvedAt     DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([requirementId])
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model EmployeeCertification {
+  id                 String    @id @default(cuid())
+  employeeId         String
+  certificateNumber  String
+  name               String
+  issuer             String
+  issueDate          DateTime
+  expiryDate         DateTime?
+  attachmentUrl      String?
+  verificationStatus String    @default("VALID") // VALID | EXPIRING | EXPIRED | REVOKED
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([verificationStatus])
+  @@index([expiryDate])
+}
+
+model TrainingCourse {
+  id             String            @id @default(cuid())
+  code           String            @unique
+  name           String
+  description    String?
+  category       String            @default("SAFETY") // SAFETY | TECHNICAL | QUALITY | COMPLIANCE | LEADERSHIP
+  validityMonths Int?              @default(12)
+  mandatory      Boolean           @default(false)
+  sessions       TrainingSession[]
+  createdAt      DateTime          @default(now())
+}
+
+model TrainingSession {
+  id          String               @id @default(cuid())
+  sessionNo   String               @unique
+  courseId    String
+  course      TrainingCourse       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  date        DateTime
+  trainer     String
+  location    String
+  capacity    Int                  @default(20)
+  status      String               @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
+  attendances TrainingAttendance[]
+  createdAt   DateTime             @default(now())
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model TrainingAttendance {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  employeeId     String
+  status         String          @default("REGISTERED") // REGISTERED | ATTENDED | PASSED | FAILED | ABSENT
+  score          Float?
+  certificateUrl String?
+  createdAt      DateTime        @default(now())
+
+  @@unique([sessionId, employeeId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model ControlledDocument {
+  id              String                   @id @default(cuid())
+  documentNo      String                   @unique
+  title           String
+  type            String                   @default("PROCEDURE") // POLICY | PROCEDURE | WORK_INSTRUCTION | FORM | STANDARD | MANUAL | SPECIFICATION | OTHER
+  version         Int                      @default(1)
+  ownerId         String
+  authorId        String
+  reviewerId      String?
+  approverId      String?
+  effectiveDate   DateTime                 @default(now())
+  reviewDate      DateTime?
+  status          String                   @default("EFFECTIVE") // DRAFT | UNDER_REVIEW | APPROVED | EFFECTIVE | SUPERSEDED | ARCHIVED
+  fileUrl         String?
+  changeSummary   String?
+  acknowledgments DocumentAcknowledgment[]
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([documentNo, version])
+}
+
+model DocumentAcknowledgment {
+  id             String             @id @default(cuid())
+  documentId     String
+  document       ControlledDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  employeeId     String
+  acknowledgedAt DateTime           @default(now())
+  ipAddress      String?
+  userAgent      String?
+
+  @@unique([documentId, employeeId])
+  @@index([employeeId])
+}
+
+model AuditProgram {
+  id          String   @id @default(cuid())
+  programNo   String   @unique
+  year        Int
+  title       String
+  description String?
+  status      String   @default("ACTIVE") // PLANNED | ACTIVE | COMPLETED
+  audits      Audit[]
+  createdAt   DateTime @default(now())
+}
+
+model Audit {
+  id            String           @id @default(cuid())
+  auditNo       String           @unique
+  programId     String?
+  program       AuditProgram?    @relation(fields: [programId], references: [id], onDelete: SetNull)
+  type          String           @default("INTERNAL") // INTERNAL | CLIENT | SUPPLIER | SITE | PROJECT | QUALITY | SAFETY | COMPLIANCE
+  scope         String
+  leadAuditorId String
+  siteId        String?
+  projectId     String?
+  supplierId    String?
+  scheduledDate DateTime
+  actualDate    DateTime?
+  status        String           @default("PLANNED") // PLANNED | IN_PROGRESS | REPORTING | FOLLOW_UP | CLOSED
+  reportUrl     String?
+  checklists    AuditChecklist[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([siteId])
+}
+
+model AuditChecklist {
+  id          String  @id @default(cuid())
+  auditId     String
+  audit       Audit   @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  item        String
+  requirement String
+  result      String  @default("COMPLIANT") // COMPLIANT | MINOR_NC | MAJOR_NC | OBSERVATION | NOT_APPLICABLE
+  notes       String?
+
+  @@index([auditId])
+}
+
+model AssetCalibration {
+  id              String    @id @default(cuid())
+  assetId         String
+  calibrationDate DateTime  @default(now())
+  nextDueDate     DateTime
+  provider        String
+  certificateUrl  String?
+  result          String    @default("PASS") // PASS | FAIL
+  status          String    @default("VALID") // VALID | DUE | OVERDUE | FAILED
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  @@index([assetId])
+  @@index([status])
+}
+
+model Permit {
+  id            String    @id @default(cuid())
+  permitNo      String    @unique
+  scope         String    @default("SITE") // ORGANIZATION | SITE | PROJECT | VEHICLE | OPERATION
+  type          String    // OPERATING_LICENSE | ENVIRONMENTAL | TRANSPORT | SAFETY | FACTORY
+  issuer        String
+  issueDate     DateTime  @default(now())
+  expiryDate    DateTime
+  status        String    @default("VALID") // VALID | EXPIRING | EXPIRED | REVOKED
+  attachmentUrl String?
+  siteId        String?
+  projectId     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+  @@index([expiryDate])
+}
+
+model PermitToWork {
+  id                   String    @id @default(cuid())
+  ptwNo                String    @unique
+  siteId               String?
+  projectId            String?
+  workOrderId          String?
+  type                 String    @default("GENERAL") // HOT_WORK | WORK_AT_HEIGHT | CONFINED_SPACE | ELECTRICAL | EXCAVATION | LIFTING | GENERAL
+  requestedBy          String
+  requestedAt          DateTime  @default(now())
+  validFrom            DateTime
+  validTo              DateTime
+  location             String
+  hazardSummary        String
+  controlsChecklist    String    // JSON: { ppe: true, isolation: true, fireWatch: false, gasTest: false, barricade: true, rescuePlan: false }
+  status               String    @default("DRAFT") // DRAFT | PENDING | APPROVED | ACTIVE | SUSPENDED | CLOSED | CANCELLED
+  approvedBy           String?
+  approvedAt           DateTime?
+  closedBy             String?
+  closedAt             DateTime?
+  safetyOfficerNotes   String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status])
+  @@index([siteId])
+  @@index([type])
+}
+
+model ClientComplaint {
+  id                  String    @id @default(cuid())
+  complaintNo         String    @unique
+  clientId            String
+  projectId           String?
+  siteId              String?
+  receivedAt          DateTime  @default(now())
+  description         String
+  severity            String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  ownerId             String
+  status              String    @default("RECEIVED") // RECEIVED | INVESTIGATING | CORRECTIVE_ACTION | CLIENT_RESPONSE | CLOSED
+  clientResponseNotes String?
+  findingId           String?
+  resolvedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+}
+
+// ==========================================
+// Phase 21: Bank Reconciliation, Treasury & Budget Control
+// ==========================================
+
+model FinancialAccount {
+  id                   String    @id @default(cuid())
+  accountCode          String    @unique
+  accountName          String
+  bankCode             String    // KTB | SCB | KBANK | BBL | BAY | TTB | CASH | OTHER
+  branchName           String?
+  accountNo            String
+  maskedAccountNo      String
+  currency             String    @default("THB")
+  accountType          String    @default("CURRENT") // CURRENT | SAVINGS | FIXED | CASH | OTHER
+  ledgerBalance        Float     @default(0.0)
+  lastBankBalance      Float     @default(0.0)
+  reconciledBalance    Float     @default(0.0)
+  lastReconciledDate   DateTime?
+  status               String    @default("ACTIVE") // ACTIVE | INACTIVE | FROZEN
+  statementImportType  String    @default("CSV") // CSV | XLSX | OFX | API | MANUAL
+  reconciliationEnabled Boolean  @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([bankCode])
+  @@index([status])
+}
+
+model BankStatement {
+  id                 String    @id @default(cuid())
+  statementNo        String    @unique
+  financialAccountId String
+  statementDate      DateTime
+  periodStart        DateTime
+  periodEnd          DateTime
+  openingBalance     Float
+  closingBalance     Float
+  currency           String    @default("THB")
+  sourceType         String    @default("CSV") // CSV | XLSX | OFX | API | MANUAL
+  fileName           String
+  importedBy         String
+  importedAt         DateTime  @default(now())
+  status             String    @default("IMPORTED") // IMPORTED | PROCESSING | RECONCILING | RECONCILED | REVIEW_REQUIRED | LOCKED
+  lockedAt           DateTime?
+  lockedBy           String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([financialAccountId])
+  @@index([status])
+  @@index([statementDate])
+}
+
+model BankTransaction {
+  id                 String    @id @default(cuid())
+  statementId        String
+  financialAccountId String
+  transactionDate    DateTime
+  valueDate          DateTime?
+  description        String
+  reference          String?
+  amount             Float
+  direction          String    // CREDIT | DEBIT
+  balance            Float?
+  externalId         String?
+  hash               String    @unique
+  status             String    @default("UNMATCHED") // UNMATCHED | SUGGESTED_MATCH | MATCHED | PARTIALLY_MATCHED | EXCLUDED | REVIEW_REQUIRED
+  unmatchedCategory  String?   // UNKNOWN_RECEIPT | UNKNOWN_PAYMENT | BANK_FEE | INTEREST | TRANSFER | REFUND | OTHER
+  exclusionReason    String?
+  excludedBy         String?
+  excludedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([statementId])
+  @@index([financialAccountId])
+  @@index([status])
+  @@index([transactionDate])
+}
+
+model CashTransaction {
+  id                 String    @id @default(cuid())
+  transactionNo      String    @unique
+  financialAccountId String
+  transactionDate    DateTime
+  amount             Float
+  direction          String    // CREDIT | DEBIT
+  category           String    // RECEIPT | PAYMENT | PAYROLL | EXPENSE | TRANSFER | ADJUSTMENT | FEE | INTEREST
+  referenceType      String?   // CUSTOMER_RECEIPT | SUPPLIER_PAYMENT | PAYROLL | EXPENSE | INTERNAL_TRANSFER | FINANCE_ADJUSTMENT
+  referenceId        String?
+  description        String
+  partyType          String?   // CUSTOMER | SUPPLIER | EMPLOYEE | INTERNAL
+  partyId            String?
+  partyName          String?
+  reconciled         Boolean   @default(false)
+  reconciledAt       DateTime?
+  reconciledMatchId  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([financialAccountId])
+  @@index([transactionDate])
+  @@index([referenceType, referenceId])
+  @@index([reconciled])
+}
+
+model BankReconciliationMatch {
+  id                 String    @id @default(cuid())
+  bankTransactionId  String
+  targetType         String    // CASH_TRANSACTION | CUSTOMER_RECEIPT | SUPPLIER_PAYMENT | PAYROLL | EXPENSE | INTERNAL_TRANSFER | FINANCE_ADJUSTMENT
+  targetId           String
+  matchedAmount      Float
+  matchMethod        String    // AUTO_SUGGESTED | MANUAL | REFERENCE | AMOUNT_DATE | OTHER
+  matchScore         Float     @default(100.0)
+  matchExplanation   String?
+  confirmedBy        String
+  confirmedAt        DateTime  @default(now())
+  unmatchReason      String?
+  status             String    @default("CONFIRMED") // CONFIRMED | UNMATCHED | VOIDED
+  createdAt          DateTime  @default(now())
+
+  @@index([bankTransactionId])
+  @@index([targetType, targetId])
+  @@index([status])
+}
+
+model TreasuryDailySnapshot {
+  id                 String    @id @default(cuid())
+  snapshotDate       DateTime
+  financialAccountId String
+  openingBalance     Float
+  inflow             Float
+  outflow            Float
+  closingBalance     Float
+  reconciledBalance  Float
+  availableCash      Float     @default(0.0)
+  committedOutflow   Float     @default(0.0)
+  createdAt          DateTime  @default(now())
+
+  @@unique([snapshotDate, financialAccountId])
+  @@index([snapshotDate])
+  @@index([financialAccountId])
+}
+
+model CostCenter {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  name               String
+  type               String    // OPERATIONS | LOGISTICS | ADMINISTRATIVE | PROJECT | OVERHEAD
+  department         String
+  ownerId            String?
+  active             Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([department])
+  @@index([active])
+}
+
+model BudgetPlan {
+  id                 String    @id @default(cuid())
+  planNo             String    @unique
+  name               String
+  fiscalYear         Int
+  version            Int       @default(1)
+  status             String    @default("DRAFT") // DRAFT | SUBMITTED | REVIEW | APPROVED | ACTIVE | REVISED | CLOSED
+  currency           String    @default("THB")
+  totalBudget        Float     @default(0.0)
+  createdBy          String
+  approvedBy         String?
+  approvedAt         DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([fiscalYear])
+  @@index([status])
+}
+
+model BudgetLine {
+  id                 String    @id @default(cuid())
+  budgetPlanId       String
+  costCenterId       String?
+  projectId          String?
+  siteId             String?
+  department         String?
+  category           String    // LABOR | OT | MATERIAL | FLEET | FUEL | MAINTENANCE | TRAVEL | PROCUREMENT | CAPEX | OTHER
+  period             String    // e.g. "2026-01", "2026-ANNUAL"
+  allocatedAmount    Float     @default(0.0)
+  consumedAmount     Float     @default(0.0)
+  committedAmount    Float     @default(0.0)
+  forecastAmount     Float     @default(0.0)
+  availableAmount    Float     @default(0.0)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([budgetPlanId])
+  @@index([costCenterId])
+  @@index([projectId])
+  @@index([category])
+  @@index([period])
+}
+
+model BudgetTransfer {
+  id                 String    @id @default(cuid())
+  transferNo         String    @unique
+  fromBudgetLineId   String
+  toBudgetLineId     String
+  amount             Float
+  reason             String
+  requestedBy        String
+  approvedBy         String?
+  status             String    @default("PENDING") // PENDING | APPROVED | REJECTED | APPLIED
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([fromBudgetLineId])
+  @@index([toBudgetLineId])
+  @@index([status])
+}
+
+model BudgetRevision {
+  id                 String    @id @default(cuid())
+  revisionNo         String    @unique
+  budgetPlanId       String
+  fromVersion        Int
+  toVersion          Int
+  reasonCategory     String    // SCOPE_CHANGE | CONTRACT_CHANGE | OPERATIONAL_CHANGE | MANAGEMENT_DECISION | OTHER
+  notes              String
+  requestedBy        String
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@index([budgetPlanId])
+}
+
+model FinanceControlConfig {
+  id                       String    @id @default(cuid())
+  key                      String    @unique @default("DEFAULT")
+  matchingThreshold        Float     @default(90.0)
+  dateToleranceDays        Int       @default(2)
+  minimumCashBuffer        Float     @default(500000.0)
+  forecastHorizonWeeks     Int       @default(13)
+  budgetControlMode        String    @default("WARNING") // OFF | WARNING | APPROVAL_REQUIRED | HARD_BLOCK
+  budgetAlertThresholdPct  Float     @default(90.0)
+  separationOfDutiesEnabled Boolean  @default(true)
+  updatedAt                DateTime  @updatedAt
+}
+
+// ==========================================
+// Phase 23: Enterprise Automation & Events
+// ==========================================
+
+model BusinessEvent {
+  id             String    @id @default(cuid())
+  eventId        String    @unique
+  eventType      String
+  eventVersion   Int       @default(1)
+  aggregateType  String
+  aggregateId    String
+  occurredAt     DateTime  @default(now())
+  actorId        String?
+  correlationId  String
+  causationId    String?
+  tenantId       String?
+  payloadJson    String
+  metadataJson   String?
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([eventType])
+  @@index([aggregateType, aggregateId])
+  @@index([correlationId])
+  @@index([occurredAt])
+}
+
+model OutboxEvent {
+  id           String    @id @default(cuid())
+  eventId      String    @unique
+  eventType    String
+  payloadJson  String
+  status       String    @default("PENDING") // PENDING | PROCESSING | PROCESSED | FAILED
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(5)
+  lastError    String?
+  nextRetryAt  DateTime?
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([nextRetryAt])
+}
+
+model ProcessedEvent {
+  id           String    @id @default(cuid())
+  consumerName String
+  eventId      String
+  processedAt  DateTime  @default(now())
+
+  @@unique([consumerName, eventId])
+  @@index([eventId])
+}
+
+model WorkflowDefinition {
+  id              String    @id @default(cuid())
+  code            String
+  name            String
+  domain          String    // WORKFORCE, ATTENDANCE, SCHEDULE, PAYROLL, PROJECT, CRM, PROCUREMENT, INVENTORY, FLEET, QHSE, FINANCE, TREASURY, ANALYTICS, PORTAL, SYSTEM
+  version         Int       @default(1)
+  triggerType     String    // EVENT, SCHEDULE, MANUAL
+  triggerEvent    String?
+  status          String    @default("DRAFT") // DRAFT | ACTIVE | PAUSED | DEPRECATED
+  criticality     String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  description     String?
+  businessOwner   String?
+  definitionJson  String
+  changeReason    String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([code, version])
+  @@index([triggerEvent])
+  @@index([status])
+}
+
+model WorkflowInstance {
+  id                 String    @id @default(cuid())
+  instanceNumber     String    @unique
+  workflowDefinitionId String
+  version            Int
+  businessEntityType String?
+  businessEntityId   String?
+  status             String    @default("RUNNING") // RUNNING | WAITING | COMPLETED | FAILED | CANCELLED
+  contextJson        String
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+  correlationId      String?
+  currentStepId      String?
+  error              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([workflowDefinitionId])
+  @@index([status])
+  @@index([correlationId])
+}
+
+model WorkflowExecution {
+  id                 String    @id @default(cuid())
+  workflowInstanceId String
+  stepId             String
+  stepType           String    // ACTION, CONDITION, APPROVAL, NOTIFICATION, DELAY, WEBHOOK, CREATE_TASK, UPDATE_RECORD, PARALLEL, END
+  status             String    // SUCCESS, FAILED, SKIPPED, WAITING
+  inputJson          String?
+  outputJson         String?
+  error              String?
+  durationMs         Int       @default(0)
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+
+  @@index([workflowInstanceId])
+}
+
+model RuleDefinition {
+  id             String    @id @default(cuid())
+  code           String
+  name           String
+  domain         String
+  version        Int       @default(1)
+  ruleType       String    @default("THRESHOLD") // THRESHOLD | CONDITION | TIME | EVENT | STATE_CHANGE
+  description    String?
+  conditionsJson String
+  actionsJson    String
+  priority       Int       @default(100)
+  enabled        Boolean   @default(true)
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([code, version])
+  @@index([domain])
+  @@index([enabled])
+}
+
+model ApprovalWorkflowDefinition {
+  id                           String    @id @default(cuid())
+  code                         String    @unique
+  name                         String
+  domain                       String
+  entityType                   String    // PO, INVOICE, PAYMENT, CAPA, PAYROLL
+  thresholdRulesJson           String
+  strategy                     String    @default("SEQUENTIAL") // ANY, ALL, SEQUENTIAL, PARALLEL
+  separationOfDutiesRulesJson  String?
+  slaHours                     Int       @default(24)
+  escalateToRole               String?
+  active                       Boolean   @default(true)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+}
+
+model ApprovalRequest {
+  id                   String    @id @default(cuid())
+  requestNumber        String    @unique
+  approvalDefinitionId String
+  entityType           String
+  entityId             String
+  requesterId          String
+  currentTier          Int       @default(1)
+  status               String    @default("PENDING") // PENDING, APPROVED, REJECTED, RETURNED, CANCELLED
+  amount               Float?
+  metadataJson         String?
+  dueAt                DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+model ApprovalDecision {
+  id                String    @id @default(cuid())
+  approvalRequestId String
+  tier              Int
+  approverId        String
+  delegatedFromId   String?
+  decision          String    // APPROVED, REJECTED, RETURNED, CANCELLED
+  comments          String?
+  decidedAt         DateTime  @default(now())
+
+  @@index([approvalRequestId])
+}
+
+model ApprovalDelegation {
+  id         String    @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  scope      String    @default("ALL")
+  startAt    DateTime
+  endAt      DateTime
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model AutomationSchedule {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  name              String
+  scheduleType      String    // ONE_TIME, DAILY, WEEKLY, MONTHLY, CRON
+  cronExpression    String?
+  timezone          String    @default("Asia/Bangkok")
+  targetAction      String
+  targetPayloadJson String?
+  lastRunAt         DateTime?
+  nextRunAt         DateTime?
+  lastStatus        String?
+  lockedUntil       DateTime?
+  lockedBy          String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model NotificationTemplate {
+  id                String    @id @default(cuid())
+  code              String    @unique
+  name              String
+  channel           String    // IN_APP, EMAIL, WEB_PUSH, TELEGRAM, LINE
+  priority          String    @default("NORMAL") // NORMAL, IMPORTANT, CRITICAL
+  subjectTemplate   String?
+  bodyTemplateTh    String
+  bodyTemplateEn    String?
+  variablesJson     String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model WebhookEndpoint {
+  id             String    @id @default(cuid())
+  name           String
+  url            String
+  eventTypesJson String
+  secretHash     String
+  status         String    @default("ACTIVE") // ACTIVE, PAUSED, DISABLED
+  timeoutMs      Int       @default(10000)
+  maxRetries     Int       @default(5)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model WebhookDelivery {
+  id              String    @id @default(cuid())
+  eventId         String
+  endpointId      String
+  statusCode      Int?
+  attempt         Int       @default(1)
+  durationMs      Int       @default(0)
+  responseSnippet String?
+  status          String    @default("PENDING") // PENDING, SUCCESS, FAILED, RETRYING, DEAD
+  deliveredAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([endpointId])
+  @@index([eventId])
+  @@index([status])
+}
+
+model DeadLetterJob {
+  id              String    @id @default(cuid())
+  queueName       String
+  jobName         String
+  eventId         String?
+  payloadJson     String
+  reason          String    // MAX_RETRY, VALIDATION_ERROR, HANDLER_ERROR, EXTERNAL_FAILURE
+  errorMessage    String?
+  stackTrace      String?
+  retryCount      Int       @default(0)
+  status          String    @default("OPEN") // OPEN, RETRIED, DISMISSED
+  dismissedBy     String?
+  dismissedReason String?
+  dismissedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([queueName])
+  @@index([status])
+}
+
+model IntegrationCredential {
+  id               String    @id @default(cuid())
+  name             String
+  clientId         String    @unique
+  secretHash       String
+  scopesJson       String    // JSON array of strings
+  expiresAt        DateTime?
+  rateLimitPerMin  Int       @default(120)
+  status           String    @default("ACTIVE") // ACTIVE, REVOKED, EXPIRED
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model IntegrationAuditLog {
+  id           String    @id @default(cuid())
+  credentialId String?
+  endpoint     String
+  method       String
+  action       String
+  status       String    // SUCCESS, FORBIDDEN, RATE_LIMITED, ERROR
+  ipAddress    String?
+  userAgent    String?
+  responseCode Int
+  timestamp    DateTime  @default(now())
+
+  @@index([credentialId])
+  @@index([timestamp])
+}
+
+model EventSubscription {
+  id             String    @id @default(cuid())
+  name           String
+  targetType     String    // WORKFLOW, WEBHOOK, INTERNAL_HANDLER, NOTIFICATION
+  targetId       String
+  eventTypesJson String
+  filtersJson    String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+// ============================================================================
+// PHASE 25: RELIABILITY, DR, OBSERVABILITY & BUSINESS CONTINUITY MODELS
+// ============================================================================
+
+model ServiceCatalogEntry {
+  id             String    @id @default(cuid())
+  code           String    @unique // WEB, WORKER, SCHEDULER, POSTGRESQL, REDIS, OBJECT_STORAGE, ANALYTICS, EMAIL_PROVIDER, TELEGRAM, LINE, EXTERNAL_WEBHOOK
+  name           String
+  tier           String    @default("CORE") // CORE, DATA, MESSAGING, INTEGRATION
+  criticality    String    @default("CRITICAL") // CRITICAL, HIGH, MEDIUM, LOW
+  owner          String    @default("DevOps / SRE")
+  port           Int?
+  dependsOnJson  String?   // JSON array of service codes
+  status         String    @default("HEALTHY") // HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN
+  lastCheckAt    DateTime  @default(now())
+  metadataJson   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model WorkerHeartbeat {
+  id              String    @id @default(cuid())
+  workerId        String    @unique
+  processName     String    // smartjeff-worker, smartjeff-scheduler
+  hostname        String    @default("vps-primary")
+  status          String    @default("ONLINE") // ONLINE, DEGRADED, OFFLINE
+  processedJobs   Int       @default(0)
+  failedJobs      Int       @default(0)
+  activeJobs      Int       @default(0)
+  cpuUsage        Float     @default(0.0)
+  memUsageMb      Float     @default(0.0)
+  lastHeartbeatAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ApplicationError {
+  id               String    @id @default(cuid())
+  errorId          String    @unique @default(cuid())
+  service          String    @default("WEB")
+  route            String?
+  errorType        String
+  message          String
+  stackFingerprint String    // MD5/SHA256 hash of normalized stack trace
+  stackTrace       String?
+  metadataJson     String?
+  count            Int       @default(1)
+  status           String    @default("OPEN") // OPEN, ACKNOWLEDGED, RESOLVED, IGNORED
+  firstOccurredAt  DateTime  @default(now())
+  lastOccurredAt   DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model BackupRecord {
+  id             String    @id @default(cuid())
+  backupNumber   String    @unique
+  backupType     String    @default("DATABASE_FULL") // DATABASE_FULL, DATABASE_INCREMENTAL, OBJECT_STORAGE, CONFIGURATION, APPLICATION_METADATA
+  destination    String    @default("LOCAL") // LOCAL, S3_REMOTE, SECONDARY_OFFSITE
+  storagePath    String
+  sizeBytes      Int       @default(0)
+  checksumSha256 String
+  isEncrypted    Boolean   @default(true)
+  encryptionAlgo String    @default("AES-256-GCM")
+  status         String    @default("SUCCESS") // RUNNING, SUCCESS, FAILED, VERIFICATION_FAILED
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  retentionDays  Int       @default(30)
+  metadataJson   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  verifications  BackupVerificationRecord[]
+}
+
+model BackupVerificationRecord {
+  id                         String        @id @default(cuid())
+  backupRecordId             String
+  targetEnvironment          String        @default("TEMPORARY_ISOLATED") // TEMPORARY_ISOLATED, STAGING
+  schemaCheckPassed          Boolean       @default(true)
+  integrityCheckPassed       Boolean       @default(true)
+  referentialIntegrityPassed Boolean       @default(true)
+  querySmokePassed           Boolean       @default(true)
+  status                     String        @default("VERIFIED") // VERIFIED, FAILED, NOT_TESTED
+  testedAt                   DateTime      @default(now())
+  verificationDurationMs     Int           @default(0)
+  errorLog                   String?
+  detailsJson                String?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+  backupRecord               BackupRecord  @relation(fields: [backupRecordId], references: [id], onDelete: Cascade)
+}
+
+model SystemMaintenance {
+  id              String    @id @default(cuid())
+  mode            String    @default("NORMAL") // NORMAL, MAINTENANCE, READ_ONLY, DEGRADED
+  reason          String?
+  bypassRolesJson String?   // JSON array e.g. ["ADMIN", "PLATFORM_ADMIN", "SRE"]
+  startedAt       DateTime  @default(now())
+  scheduledEndAt  DateTime?
+  active          Boolean   @default(true)
+  createdBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model DeploymentRecord {
+  id                String    @id @default(cuid())
+  version           String
+  gitCommit         String
+  deployedBy        String    @default("system")
+  environment       String    @default("production")
+  status            String    @default("SUCCESS") // DEPLOYING, SUCCESS, FAILED, ROLLED_BACK
+  deployedAt        DateTime  @default(now())
+  rollbackReason    String?
+  healthCheckStatus String    @default("HEALTHY")
+  releaseNotes      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model PlatformIncident {
+  id             String      @id @default(cuid())
+  incidentNumber String      @unique
+  title          String
+  service        String      @default("WEB")
+  severity       String      @default("SEV3") // SEV1, SEV2, SEV3, SEV4
+  type           String      @default("OUTAGE") // OUTAGE, PERFORMANCE, DATABASE, STORAGE, NETWORK, DEPLOYMENT, SECURITY, OTHER
+  status         String      @default("OPEN") // OPEN, INVESTIGATING, MITIGATED, RESOLVED, POSTMORTEM
+  commander      String?
+  detectedAt     DateTime    @default(now())
+  acknowledgedAt DateTime?
+  mitigatedAt    DateTime?
+  resolvedAt     DateTime?
+  rootCause      String?
+  impactSummary  String?
+  timelineJson   String?     // JSON array of event objects
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  postmortems    Postmortem[]
+}
+
+model Postmortem {
+  id              String           @id @default(cuid())
+  incidentId      String
+  title           String
+  summary         String
+  impact          String
+  timeline        String
+  rootCause       String
+  resolution      String
+  actionItemsJson String?          // JSON array of action items with owners
+  publishedAt     DateTime?
+  author          String           @default("SRE Commander")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  incident        PlatformIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+model ServiceLevelObjective {
+  id                    String    @id @default(cuid())
+  code                  String    @unique
+  name                  String
+  service               String    @default("WEB")
+  metricName            String    // AVAILABILITY, LATENCY_P95, ERROR_RATE, BACKUP_FRESHNESS
+  targetPercentage      Float     @default(99.9)
+  actualPercentage      Float     @default(100.0)
+  errorBudgetMinutes    Int       @default(43) // e.g. 43 mins for 99.9% in 30 days
+  consumedBudgetMinutes Int       @default(0)
+  periodDays            Int       @default(30)
+  status                String    @default("MET") // MET, AT_RISK, BREACHED
+  lastEvaluatedAt       DateTime  @default(now())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model DisasterRecoveryExercise {
+  id               String    @id @default(cuid())
+  exerciseNumber   String    @unique
+  scenario         String    // VPS_LOSS, DATABASE_CORRUPTION, STORAGE_OUTAGE, REDIS_FAILURE
+  participants     String
+  targetRtoMinutes Int       @default(60)
+  actualRtoMinutes Int       @default(45)
+  targetRpoMinutes Int       @default(15)
+  actualRpoMinutes Int       @default(10)
+  result           String    @default("PASS") // PASS, PARTIAL, FAIL
+  notes            String?
+  executedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+// ============================================================================
+// PHASE 26: AI AGENTIC OPERATIONS, HUMAN APPROVAL & GOVERNANCE MODELS
+// ============================================================================
+
+model AgentDefinition {
+  id               String    @id @default(cuid())
+  code             String    @unique // WORKFORCE_AGENT, PROCUREMENT_AGENT, FLEET_AGENT, PROJECT_AGENT, CRM_AGENT, QHSE_AGENT, FINANCE_AGENT, PLATFORM_AGENT
+  name             String
+  domain           String    // WORKFORCE, PROCUREMENT, FLEET, PROJECT, CRM, QHSE, FINANCE, PLATFORM
+  description      String
+  allowedToolsJson String    // JSON array of tool names
+  maxRiskLevel     String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status           String    @default("ACTIVE") // ACTIVE, DISABLED, DEPRECATED
+  version          String    @default("1.0.0")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model AgentPrompt {
+  id            String    @id @default(cuid())
+  agentCode     String
+  version       String
+  systemPrompt  String
+  effectiveFrom DateTime  @default(now())
+  status        String    @default("ACTIVE") // ACTIVE, DRAFT, ARCHIVED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([agentCode, version])
+}
+
+model AIActionProposal {
+  id                  String    @id @default(cuid())
+  proposalNumber      String    @unique
+  conversationId      String?
+  userId              String
+  agentCode           String
+  actionType          String    // CREATE_DRAFT_SCHEDULE, CREATE_DRAFT_PR, CREATE_DRAFT_WORK_ORDER, CREATE_DRAFT_CAPA, CREATE_COLLECTION_TASK, CREATE_DRAFT_TRIP, SIMULATE_SCENARIO
+  resourceType        String    // SCHEDULE, PURCHASE_REQUEST, WORK_ORDER, CAPA, INVOICE_COLLECTION, FLEET_TRIP, SCENARIO
+  resourceId          String?
+  inputJson           String    // Initial input payload from model/user
+  previewJson         String    // Structured preview (diff, affected records, warnings)
+  impactJson          String?   // Impact analysis (workforce, budget, schedule, compliance)
+  riskLevel           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  confirmationMode    String    @default("CONFIRM") // NONE, CONFIRM, APPROVAL_WORKFLOW, FORBIDDEN
+  permissionRequired  String
+  status              String    @default("DRAFT") // DRAFT, READY_FOR_REVIEW, APPROVED, REJECTED, EXPIRED, EXECUTING, COMPLETED, FAILED
+  idempotencyKey      String    @unique
+  expiresAt           DateTime
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectionReason     String?
+  executedAt          DateTime?
+  executionResultJson String?
+  source              String    @default("AI_ASSISTED")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model AgentDecisionLog {
+  id               String    @id @default(cuid())
+  agentCode        String
+  requestId        String?
+  conversationId   String?
+  userId           String?
+  userGoal         String
+  planJson         String    // Steps, tools, dependencies
+  toolsUsedJson    String    // Array of tool executions
+  proposalId       String?
+  riskLevel        String    @default("LOW")
+  confirmationMode String    @default("NONE")
+  outcome          String    @default("SUCCESS") // SUCCESS, REJECTED, FAILED, FORBIDDEN
+  executionMs      Int       @default(0)
+  createdAt        DateTime  @default(now())
+}
+
+model AIAgentJob {
+  id              String    @id @default(cuid())
+  agentCode       String
+  userId          String
+  status          String    @default("QUEUED") // QUEUED, RUNNING, WAITING_APPROVAL, COMPLETED, FAILED, CANCELLED
+  inputJson       String
+  resultJson      String?
+  progressPercent Int       @default(0)
+  error           String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AIPolicy {
+  id               String    @id @default(cuid())
+  domain           String
+  actionType       String    @unique
+  riskLevel        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  confirmationMode String    @default("CONFIRM") // NONE, CONFIRM, APPROVAL_WORKFLOW, FORBIDDEN
+  allowedRolesJson String    // Array of allowed roles
+  enabled          Boolean   @default(true)
+  version          String    @default("1.0.0")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }

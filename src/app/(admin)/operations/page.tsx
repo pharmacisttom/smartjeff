@@ -38,7 +38,15 @@ export default function OperationsOverviewPage() {
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/operations/live-map"
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all"
+          >
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span>ศูนย์บัญชาการสด (Live Command Center)</span>
+          </Link>
+
           <Link
             href="/operations/planning"
             className="flex items-center space-x-2 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all"
