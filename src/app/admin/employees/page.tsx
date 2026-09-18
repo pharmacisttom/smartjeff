@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Users,
   UserPlus,
@@ -31,6 +31,10 @@ interface Employee {
   dailyRate: number;
   phone: string | null;
   isActive: boolean;
+  isCodeMasked?: boolean;
+  isPhoneMasked?: boolean;
+  isSalaryMasked?: boolean;
+  salaryMaskedDisplay?: string;
 }
 
 export default function AdminEmployeesPage() {
@@ -55,7 +59,7 @@ export default function AdminEmployeesPage() {
     phone: "",
   });
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/employees${search ? `?search=${search}` : ""}`);
@@ -68,11 +72,11 @@ export default function AdminEmployeesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
   useEffect(() => {
     fetchEmployees();
-  }, [search]);
+  }, [fetchEmployees]);
 
   const handleOpenModal = (emp?: Employee) => {
     if (emp) {
@@ -212,7 +216,7 @@ export default function AdminEmployeesPage() {
           <div className="py-16 text-center text-content-muted space-y-2">
             <Users className="w-12 h-12 mx-auto text-content-muted/40" />
             <p className="font-bold text-sm">ไม่พบข้อมูลพนักงาน</p>
-            <p className="text-xs">กดปุ่ม "+ เพิ่มพนักงานใหม่" เพื่อเพิ่มรายชื่อ</p>
+            <p className="text-xs">กดปุ่ม &quot;+ เพิ่มพนักงานใหม่&quot; เพื่อเพิ่มรายชื่อ</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -240,13 +244,19 @@ export default function AdminEmployeesPage() {
                     <td className="py-3.5 px-4 font-semibold text-content-secondary">{emp.position}</td>
                     <td className="py-3.5 px-4 text-content-secondary">{emp.site?.name || "ไม่ระบุ"}</td>
                     <td className="py-3.5 px-4">
-                      <span className="font-bold text-brand-600 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-md">
-                        {emp.salaryType === "MONTHLY"
-                          ? `${Number(emp.baseSalary).toLocaleString()} ฿/เดือน`
-                          : `${Number(emp.dailyRate).toLocaleString()} ฿/วัน`}
-                      </span>
+                      {emp.isSalaryMasked ? (
+                        <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                          ••••••
+                        </span>
+                      ) : (
+                        <span className="font-bold text-brand-600 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-md">
+                          {emp.salaryType === "MONTHLY"
+                            ? `${Number(emp.baseSalary).toLocaleString()} ฿/เดือน`
+                            : `${Number(emp.dailyRate).toLocaleString()} ฿/วัน`}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-3.5 px-4 text-content-muted">{emp.phone || "-"}</td>
+                    <td className="py-3.5 px-4 text-content-muted font-mono">{emp.phone || "-"}</td>
                     <td className="py-3.5 px-4 text-center">
                       {emp.isActive ? (
                         <span className="inline-flex items-center space-x-1 text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full font-bold">

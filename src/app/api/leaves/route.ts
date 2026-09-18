@@ -11,9 +11,7 @@ export async function GET(req: NextRequest) {
     const requestedEmployee = req.nextUrl.searchParams.get("employeeId");
     const employeeId = MANAGEMENT_ROLES.has(auth.session.role)
       ? requestedEmployee
-      : auth.session.sub && auth.session.employeeCode
-        ? undefined
-        : null;
+      : null;
     if (!MANAGEMENT_ROLES.has(auth.session.role)) {
       const sessionEmployeeId = req.headers.get("x-session-employee-id");
       const ownId = sessionEmployeeId || await resolveEmployeeId(auth.session.sub);

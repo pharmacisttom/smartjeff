@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 
 function getJwtSecret(): string {
@@ -12,12 +12,14 @@ export const COOKIE_NAME = "sj_token";
 
 export interface SessionPayload {
   sub: string;
+  sessionId?: string;
   email?: string;
   role: string;
   type: string;
+  authStrength?: string;
+  primaryRole?: string;
+  authzVersion?: number;
   name?: string;
-  siteId?: string;
-  employeeCode?: string;
   iat?: number;
   exp?: number;
 }

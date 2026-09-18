@@ -30,6 +30,7 @@ export function PhotoPreview({
     <div className="flex flex-col items-center justify-center space-y-4 max-w-md mx-auto w-full">
       <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-lg border-2 border-brand-500 bg-slate-900">
         {/* Captured WebP Image */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={dataUrl} alt="Captured Check-in Preview" className="w-full h-full object-cover" />
 
         {/* Top Floating Badge */}

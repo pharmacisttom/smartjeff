@@ -1,11 +1,14 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { EDGE_COOKIE_NAME, verifyTokenAtEdge } from "@/lib/auth-edge";
+import { getDefaultRouteForRole } from "@/lib/role-routing";
 
 const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
+  "/api/auth/session",
+  "/api/auth/debug-session",
   "/api/ping",
   "/_next",
   "/favicon",
@@ -27,6 +30,14 @@ export async function middleware(req: NextRequest) {
 
   // Verify JWT token
   const token = req.cookies.get(EDGE_COOKIE_NAME)?.value;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[AUTH DEBUG]", {
+      pathname,
+      hasCookie: Boolean(token),
+    });
+  }
+
   if (!token) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
@@ -34,6 +45,16 @@ export async function middleware(req: NextRequest) {
   }
 
   const session = await verifyTokenAtEdge(token);
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[AUTH DEBUG VERIFIED]", {
+      pathname,
+      verified: Boolean(session),
+      sub: session?.sub,
+      role: session?.role,
+    });
+  }
+
   if (!session) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
@@ -42,10 +63,10 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
-  // Route protection: admin paths require non-EMPLOYEE role
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
-      !["SUPERADMIN", "ADMIN", "HR", "FINANCE", "EXECUTIVE", "OPERATIONS"].includes(session.role)) {
-    return NextResponse.redirect(new URL("/check-in", req.url));
+  // Route protection: admin paths require management / non-employee roles
+  const isEmployeeOnly = session.role === "EMPLOYEE" || session.type === "EMPLOYEE";
+  if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin") || pathname.startsWith("/api/security")) && isEmployeeOnly) {
+    return NextResponse.redirect(new URL(getDefaultRouteForRole(session.role), req.url));
   }
 
   // Inject session info into request headers for server components

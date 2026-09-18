@@ -83,6 +83,7 @@ export function SiteQRCodeModal({ site, onClose }: SiteQRCodeModalProps) {
           {/* QR Code Canvas Frame */}
           <div className="bg-white p-4 rounded-2xl inline-block shadow-lg border border-slate-200">
             {qrDataUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img src={qrDataUrl} alt={`QR Code ${site.code}`} className="w-64 h-64 mx-auto" />
             ) : (
               <div className="w-64 h-64 bg-slate-100 flex items-center justify-center text-xs text-slate-400">

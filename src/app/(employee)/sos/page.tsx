@@ -1,7 +1,6 @@
-'use me'
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { triggerSOSAlert, EmergencyType } from '@/lib/emergency/sos';
 import { AlertTriangle, PhoneCall, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -12,40 +11,7 @@ export default function EmployeeSOSPage() {
   const [customMsg, setCustomMsg] = useState('');
   const [sentAlert, setSentAlert] = useState<any | null>(null);
 
-  useEffect(() => {
-    let timer: any;
-    if (countdown !== null && countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => (prev !== null ? prev - 1 : null));
-      }, 1000);
-    } else if (countdown === 0) {
-      handleConfirmSOS();
-      setCountdown(null);
-    }
-    return () => clearInterval(timer);
-  }, [countdown]);
-
-  const handlePressSOS = () => {
-    setCountdown(5);
-  };
-
-  const handleCancelCountdown = () => {
-    setCountdown(null);
-  };
-
-  const handleConfirmSOS = () => {
-    // Geolocation fallback
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sendAlertWithCoords(pos.coords.latitude, pos.coords.longitude);
-      },
-      () => {
-        sendAlertWithCoords(12.682, 101.281); // default Maptaphut coords
-      }
-    );
-  };
-
-  const sendAlertWithCoords = (lat: number, lng: number) => {
+  const sendAlertWithCoords = useCallback((lat: number, lng: number) => {
     const alert = triggerSOSAlert('EMP-001', 'สมชาย สายซิ่ง', lat, lng, selectedType, customMsg);
     setSentAlert(alert);
 
@@ -59,12 +25,45 @@ export default function EmployeeSOSPage() {
           <p class="text-emerald-400 font-semibold">เจ้าหน้าที่ศูนย์ควบคุมกำลังเร่งดำเนินการ!</p>
         </div>
       `,
-      icon: 'success',
-      confirmButtonText: 'ตกลง',
-      confirmButtonColor: '#ef4444',
+      icon: 'warning',
       background: '#0f172a',
-      color: '#fff',
+      color: '#ffffff',
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'ตกลง',
     });
+  }, [selectedType, customMsg]);
+
+  const handleConfirmSOS = useCallback(() => {
+    // Geolocation fallback
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        sendAlertWithCoords(pos.coords.latitude, pos.coords.longitude);
+      },
+      () => {
+        sendAlertWithCoords(12.682, 101.281); // default Maptaphut coords
+      }
+    );
+  }, [sendAlertWithCoords]);
+
+  useEffect(() => {
+    let timer: any;
+    if (countdown !== null && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => (prev !== null ? prev - 1 : null));
+      }, 1000);
+    } else if (countdown === 0) {
+      handleConfirmSOS();
+      setCountdown(null);
+    }
+    return () => clearInterval(timer);
+  }, [countdown, handleConfirmSOS]);
+
+  const handlePressSOS = () => {
+    setCountdown(5);
+  };
+
+  const handleCancelCountdown = () => {
+    setCountdown(null);
   };
 
   return (

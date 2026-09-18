@@ -182,7 +182,7 @@ export default function LeavePage() {
           <div className="py-12 text-center text-content-muted space-y-2">
             <Calendar className="w-12 h-12 mx-auto text-content-muted/50" />
             <p className="font-medium text-sm">ยังไม่มีรายการขอลาหรือทำ OT</p>
-            <p className="text-xs text-content-muted">กดปุ่ม "ยื่นใบลา / ขอ OT" ด้านบนเพื่อสร้างรายการใหม่</p>
+            <p className="text-xs text-content-muted">กดปุ่ม &quot;ยื่นใบลา / ขอ OT&quot; ด้านบนเพื่อสร้างรายการใหม่</p>
           </div>
         ) : (
           <div className="space-y-3">

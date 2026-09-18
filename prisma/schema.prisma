@@ -181,10 +181,14 @@ model User {
   mustChangePassword Boolean           @default(false)
   employeeId         String?           @unique
   employee           Employee?         @relation(fields: [employeeId], references: [id])
+  authzVersion       Int               @default(1)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
   recoveryCodes      MfaRecoveryCode[]
+  roleAssignments    UserRoleAssignment[]
+  sessions           UserSession[]
+  accessRequests     AccessRequest[]
 
   @@index([email])
   @@index([isActive])
@@ -199,6 +203,130 @@ model MfaRecoveryCode {
   createdAt DateTime  @default(now())
 
   @@index([userId, usedAt])
+}
+
+model Role {
+  id              String               @id @default(cuid())
+  code            String               @unique
+  nameTh          String
+  nameEn          String
+  description     String?              @db.Text
+  level           Int                  @default(1)
+  departmentType  String?
+  isSystem        Boolean              @default(false)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  permissions     RolePermission[]
+  userAssignments UserRoleAssignment[]
+  authorities     ApprovalAuthority[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  module      String
+  action      String
+  description String?          @db.Text
+  sensitivity String           @default("NORMAL")
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+
+  @@index([code])
+  @@index([module])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model UserRoleAssignment {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     String
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  scopeType  String    @default("GLOBAL")
+  scopeId    String?
+  startAt    DateTime?
+  endAt      DateTime?
+  assignedBy String?
+  reason     String?   @db.Text
+  status     String    @default("ACTIVE")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([roleId])
+  @@index([scopeType, scopeId])
+}
+
+model ApprovalAuthority {
+  id         String   @id @default(cuid())
+  roleId     String
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module     String
+  action     String
+  level      String
+  minAmount  Decimal? @default(0) @db.Decimal(18, 2)
+  maxAmount  Decimal? @db.Decimal(18, 2)
+  isEnabled  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([roleId, module])
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String?
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?  @db.Text
+  status       String   @default("ACTIVE")
+  authStrength String   @default("PASSWORD")
+  authzVersion Int      @default(1)
+  lastSeenAt   DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([userId, status])
+  @@index([sessionId])
+}
+
+model AccessRequest {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetRoleId   String?
+  permissionCode String?
+  scopeType      String?
+  scopeId        String?
+  reason         String    @db.Text
+  durationDays   Int?      @default(30)
+  status         String    @default("PENDING")
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId, status])
 }
 
 model AuditLog {

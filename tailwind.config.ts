@@ -33,6 +33,7 @@ const config: Config = {
           bg: "var(--bg)",
           subtle: "var(--bg-subtle)",
           elevated: "var(--bg-elevated)",
+          card: "var(--bg-card)",
           border: "var(--border)",
         },
         content: {

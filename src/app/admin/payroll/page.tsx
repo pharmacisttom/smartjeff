@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShieldCheck,
   Calculator,
@@ -45,7 +45,7 @@ export default function AdminPayrollPage() {
   const [calculating, setCalculating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const fetchPayroll = async () => {
+  const fetchPayroll = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/payroll?period=${period}`);
@@ -58,11 +58,11 @@ export default function AdminPayrollPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
   useEffect(() => {
     fetchPayroll();
-  }, [period]);
+  }, [fetchPayroll]);
 
   const handleRunPayroll = async () => {
     try {
@@ -217,7 +217,7 @@ export default function AdminPayrollPage() {
           <div className="py-16 text-center text-content-muted space-y-2">
             <Calculator className="w-12 h-12 mx-auto text-content-muted/40" />
             <p className="font-bold text-sm text-content-primary">ยังไม่มีการประมวลผลเงินเดือนงวดนี้</p>
-            <p className="text-xs">กดปุ่ม "ประมวลผลเงินเดือนงวดนี้" ด้านบนเพื่อคำนวณยอดเงินสดของพนักงานทุกคน</p>
+            <p className="text-xs">กดปุ่ม &quot;ประมวลผลเงินเดือนงวดนี้&quot; ด้านบนเพื่อคำนวณยอดเงินสดของพนักงานทุกคน</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

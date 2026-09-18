@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -19,7 +19,7 @@ async function main() {
       throw new Error("Password must include lowercase, uppercase, and a number");
     }
 
-    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const passwordHash = await bcrypt.hash(password, 10);
     await prisma.user.upsert({
       where: { email },
       update: { displayName: name, passwordHash, role: "ADMIN", isActive: true, isLocked: false },

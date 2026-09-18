@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!user?.passwordHash || !user.isActive || user.isLocked) return null;
-        if (!(await argon2.verify(user.passwordHash, String(credentials.password)))) return null;
+        if (!(await bcrypt.compare(String(credentials.password), user.passwordHash))) return null;
 
         return {
           id: user.id,

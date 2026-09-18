@@ -13,18 +13,24 @@ interface CameraCaptureProps {
 export function CameraCapture({ metadata, onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
 
+  const stopCurrentStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     setLoading(true);
     setCameraError(null);
 
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-    }
+    stopCurrentStream();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -40,6 +46,7 @@ export function CameraCapture({ metadata, onCapture, onClose }: CameraCapturePro
         audio: false,
       });
 
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -50,16 +57,14 @@ export function CameraCapture({ metadata, onCapture, onClose }: CameraCapturePro
       setCameraError(err.message || "ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์เข้าถึงกล้อง");
       setLoading(false);
     }
-  }, [facingMode]);
+  }, [facingMode, stopCurrentStream]);
 
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
+      stopCurrentStream();
     };
-  }, [startCamera]);
+  }, [startCamera, stopCurrentStream]);
 
   const handleSnap = async () => {
     if (!videoRef.current) return;

@@ -181,7 +181,7 @@ export default function AdminSitesPage() {
         <div className="bg-surface-card border border-surface-border rounded-3xl p-12 text-center space-y-2">
           <Building2 className="w-12 h-12 mx-auto text-content-muted/40" />
           <p className="font-bold text-sm text-content-primary">ยังไม่มีข้อมูลไซต์งานในระบบ</p>
-          <p className="text-xs text-content-muted">กดปุ่ม "+ เพิ่มไซต์งานใหม่" เพื่อสร้างพิกัด Geofence แรก</p>
+          <p className="text-xs text-content-muted">กดปุ่ม &quot;+ เพิ่มไซต์งานใหม่&quot; เพื่อสร้างพิกัด Geofence แรก</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
