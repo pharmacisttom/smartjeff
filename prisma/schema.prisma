@@ -20,7 +20,7 @@ model Employee {
   birthDate          DateTime?
   gender             String            @default("MALE")
   nationality        String            @default("Thai")
-  idCardNo           String?           @unique
+  idCardNo           String?
   phone              String?
   bankAccount        String?
   bankName           String?
@@ -48,20 +48,24 @@ model Employee {
 }
 
 model Site {
-  id        String         @id @default(cuid())
-  code      String         @unique
-  name      String
-  location  String?
-  lat       Float?
-  lng       Float?
-  radius    Int            @default(200)
-  workStart Float          @default(7)
-  workEnd   Float          @default(16)
-  otStart   Float?         @default(16)
-  otEnd     Float?         @default(17)
-  employees Employee[]
-  config    PayrollConfig?
-  createdAt DateTime       @default(now())
+  id           String         @id @default(cuid())
+  code         String         @unique
+  name         String
+  location     String?
+  estateName   String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  lat          Float?
+  lng          Float?
+  radius       Int            @default(200)
+  workStart    Float          @default(7)
+  workEnd      Float          @default(16)
+  otStart      Float?         @default(16)
+  otEnd        Float?         @default(17)
+  employees    Employee[]
+  config       PayrollConfig?
+  createdAt    DateTime       @default(now())
 }
 
 model Attendance {
@@ -109,24 +113,52 @@ model Leave {
 }
 
 model Payslip {
-  id           String      @id @default(cuid())
-  employeeId   String
-  employee     Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  payrollRunId String?
-  payrollRun   PayrollRun? @relation(fields: [payrollRunId], references: [id])
-  period       String
-  baseSalary   Decimal     @db.Decimal(18, 2)
-  otHours      Float       @default(0)
-  otAmount     Decimal     @default(0) @db.Decimal(18, 2)
-  travelAllow  Decimal     @default(0) @db.Decimal(18, 2)
-  diligence    Decimal     @default(0) @db.Decimal(18, 2)
-  otherIncome  Decimal     @default(0) @db.Decimal(18, 2)
-  tax          Decimal     @default(0) @db.Decimal(18, 2)
-  socialSec    Decimal     @default(0) @db.Decimal(18, 2)
-  otherDeduct  Decimal     @default(0) @db.Decimal(18, 2)
-  netPay       Decimal     @db.Decimal(18, 2)
-  pdfUrl       String?
-  createdAt    DateTime    @default(now())
+  id            String      @id @default(cuid())
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollRunId  String?
+  payrollRun    PayrollRun? @relation(fields: [payrollRunId], references: [id])
+  period        String                       // "2026-09"
+  baseSalary    Float
+  dailyRate     Float?      @default(0)
+  workedDays    Int?        @default(0)
+  dailyAmount   Float?      @default(0)
+  otHours       Float       @default(0)
+  otAmount      Float       @default(0)
+  ot1Hours      Float?      @default(0)
+  ot1Amount     Float?      @default(0)
+  ot15Hours     Float?      @default(0)
+  ot15Amount    Float?      @default(0)
+  ot2Hours      Float?      @default(0)
+  ot2Amount     Float?      @default(0)
+  ot3Hours      Float?      @default(0)
+  ot3Amount     Float?      @default(0)
+  travelAllow   Float       @default(0)
+  diligence     Float       @default(0)
+  mealAllow     Float?      @default(0)
+  otMealAllow   Float?      @default(0)
+  heatAllow     Float?      @default(0)
+  dishwashAllow Float?      @default(0)
+  skillAllow    Float?      @default(0)
+  incentive     Float?      @default(0)
+  shiftAllow    Float?      @default(0)
+  phoneAllow    Float?      @default(0)
+  positionAllow Float?      @default(0)
+  housingAllow  Float?      @default(0)
+  coordAllow    Float?      @default(0)
+  holidayPay    Float?      @default(0)
+  leavePay      Float?      @default(0)
+  otherIncome   Float       @default(0)
+  grossIncome   Float?      @default(0)
+  tax           Float       @default(0)
+  socialSec     Float       @default(0)
+  welfareDeduct Float?      @default(0)
+  otherDeduct   Float       @default(0)
+  totalDeduct   Float?      @default(0)
+  netPay        Float
+  pdfUrl        String?
+  itemizedJson  String?
+  createdAt     DateTime    @default(now())
 
   @@unique([employeeId, period])
   @@index([period])
@@ -163,7 +195,10 @@ model User {
   id                 String            @id @default(cuid())
   email              String            @unique
   passwordHash       String?
+  password           String?
   role               String            @default("EMPLOYEE")
+  permissions        String?           @db.Text
+  assignedSiteCode   String?
   type               String            @default("INTERNAL")
   displayName        String?
   phone              String?

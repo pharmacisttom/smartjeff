@@ -157,6 +157,13 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         permission: "payroll.read",
       },
       {
+        id: "dispatch-doc",
+        labelTh: "เอกสารส่งตัวพนักงาน",
+        href: "/admin/dispatch",
+        icon: FileText,
+        permission: "employee.read",
+      },
+      {
         id: "hr-chat",
         labelTh: "HR Admin Chat",
         href: "/admin/chat",
