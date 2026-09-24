@@ -20,7 +20,7 @@ model Employee {
   birthDate    DateTime?
   gender       String   @default("MALE")
   nationality  String   @default("ไทย")
-  idCardNo     String?  @unique
+  idCardNo     String?
   phone        String?
   bankAccount  String?
   bankName     String?
@@ -45,20 +45,24 @@ model Employee {
 }
 
 model Site {
-  id          String  @id @default(cuid())
-  code        String  @unique
-  name        String
-  location    String?
-  lat         Float?
-  lng         Float?
-  radius      Int     @default(200)
-  workStart   Float   @default(7)
-  workEnd     Float   @default(16)
-  otStart     Float?  @default(16)
-  otEnd       Float?  @default(17)
-  employees   Employee[]
-  config      PayrollConfig?
-  createdAt   DateTime @default(now())
+  id           String  @id @default(cuid())
+  code         String  @unique
+  name         String
+  location     String?
+  estateName   String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  lat          Float?
+  lng          Float?
+  radius       Int     @default(200)
+  workStart    Float   @default(7)
+  workEnd      Float   @default(16)
+  otStart      Float?  @default(16)
+  otEnd        Float?  @default(17)
+  employees    Employee[]
+  config       PayrollConfig?
+  createdAt    DateTime @default(now())
 }
 
 model Attendance {
@@ -104,22 +108,50 @@ model Leave {
 }
 
 model Payslip {
-  id          String   @id @default(cuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  period      String                       // "2026-09"
-  baseSalary  Float
-  otHours     Float    @default(0)
-  otAmount    Float    @default(0)
-  travelAllow Float    @default(0)
-  diligence   Float    @default(0)
-  otherIncome Float    @default(0)
-  tax         Float    @default(0)
-  socialSec   Float    @default(0)
-  otherDeduct Float    @default(0)
-  netPay      Float
-  pdfUrl      String?
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period        String                       // "2026-09"
+  baseSalary    Float
+  dailyRate     Float?   @default(0)
+  workedDays    Int?     @default(0)
+  dailyAmount   Float?   @default(0)
+  otHours       Float    @default(0)
+  otAmount      Float    @default(0)
+  ot1Hours      Float?   @default(0)
+  ot1Amount     Float?   @default(0)
+  ot15Hours     Float?   @default(0)
+  ot15Amount    Float?   @default(0)
+  ot2Hours      Float?   @default(0)
+  ot2Amount     Float?   @default(0)
+  ot3Hours      Float?   @default(0)
+  ot3Amount     Float?   @default(0)
+  travelAllow   Float    @default(0)
+  diligence     Float    @default(0)
+  mealAllow     Float?   @default(0)
+  otMealAllow   Float?   @default(0)
+  heatAllow     Float?   @default(0)
+  dishwashAllow Float?   @default(0)
+  skillAllow    Float?   @default(0)
+  incentive     Float?   @default(0)
+  shiftAllow    Float?   @default(0)
+  phoneAllow    Float?   @default(0)
+  positionAllow Float?   @default(0)
+  housingAllow  Float?   @default(0)
+  coordAllow    Float?   @default(0)
+  holidayPay    Float?   @default(0)
+  leavePay      Float?   @default(0)
+  otherIncome   Float    @default(0)
+  grossIncome   Float?   @default(0)
+  tax           Float    @default(0)
+  socialSec     Float    @default(0)
+  welfareDeduct Float?   @default(0)
+  otherDeduct   Float    @default(0)
+  totalDeduct   Float?   @default(0)
+  netPay        Float
+  pdfUrl        String?
+  itemizedJson  String?
+  createdAt     DateTime @default(now())
 
   @@unique([employeeId, period])
   @@index([period])
@@ -152,15 +184,17 @@ model ChatMessage {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  password     String?
-  role         String   @default("EMPLOYEE") // EMPLOYEE | ADMIN | HR
-  lineUserId   String?  @unique
-  image        String?
-  employeeId   String?  @unique
-  employee     Employee? @relation(fields: [employeeId], references: [id])
-  createdAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  email            String   @unique
+  password         String?
+  role             String   @default("EMPLOYEE") // EMPLOYEE | ADMIN | HR | SUPERVISOR
+  permissions      String?  // ALL or comma-separated permissions
+  assignedSiteCode String?  // For site supervisors
+  lineUserId       String?  @unique
+  image            String?
+  employeeId       String?  @unique
+  employee         Employee? @relation(fields: [employeeId], references: [id])
+  createdAt        DateTime @default(now())
 }
 
 model AuditLog {

@@ -24,6 +24,10 @@ export class SiteService {
     code: string;
     name: string;
     location?: string | null;
+    estateName?: string | null;
+    contactName?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
     lat?: number | null;
     lng?: number | null;
     radius?: number;
@@ -37,6 +41,10 @@ export class SiteService {
         code: data.code,
         name: data.name,
         location: data.location || null,
+        estateName: data.estateName || null,
+        contactName: data.contactName || null,
+        contactEmail: data.contactEmail || null,
+        contactPhone: data.contactPhone || null,
         lat: data.lat || null,
         lng: data.lng || null,
         radius: data.radius || 200,
@@ -55,6 +63,10 @@ export class SiteService {
         code: data.code,
         name: data.name,
         location: data.location,
+        estateName: data.estateName,
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
         lat: data.lat !== undefined ? parseFloat(data.lat) : undefined,
         lng: data.lng !== undefined ? parseFloat(data.lng) : undefined,
         radius: data.radius !== undefined ? parseInt(data.radius) : undefined,

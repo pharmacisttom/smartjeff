@@ -19,23 +19,37 @@ interface Payslip {
   id: string;
   period: string;
   baseSalary: number;
+  dailyRate?: number;
+  workedDays?: number;
+  dailyAmount?: number;
   otHours: number;
   otAmount: number;
+  ot15Hours?: number;
+  ot15Amount?: number;
   travelAllow: number;
   diligence: number;
+  positionAllow?: number;
+  phoneAllow?: number;
+  heatAllow?: number;
   otherIncome: number;
+  grossIncome?: number;
   tax: number;
   socialSec: number;
+  welfareDeduct?: number;
   otherDeduct: number;
+  totalDeduct?: number;
   netPay: number;
   employee: {
     code: string;
+    prefix?: string | null;
     firstName: string;
     lastName: string;
     position: string;
+    idCardNo?: string | null;
+    startDate?: string | null;
     bankAccount: string | null;
     bankName: string | null;
-    site: { name: string } | null;
+    site: { name: string; code: string } | null;
   };
 }
 
@@ -75,16 +89,16 @@ export default function PayslipPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-slate-800 via-slate-900 to-brand-900 p-6 rounded-3xl text-white shadow-xl">
+      {/* Header Banner - Hidden in Print */}
+      <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 rounded-3xl text-white shadow-xl border border-slate-800">
         <div className="space-y-1">
-          <div className="flex items-center space-x-2 text-brand-300 text-xs font-semibold uppercase tracking-widest">
+          <div className="flex items-center space-x-2 text-indigo-400 text-xs font-semibold uppercase tracking-widest">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Secure Payslip Portal</span>
+            <span>Official Payslip Portal (J2K Housekeeping)</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">สลิปเงินเดือน (Payslip)</h1>
+          <h1 className="text-2xl font-black tracking-tight">สลิปเงินเดือนพนักงาน (Payslip)</h1>
           <p className="text-sm text-slate-300">
-            ตรวจสอบรายละเอียดเงินเดือน ค่าล่วงเวลา (OT) เบี้ยขยัน และรายการหักภาษี/ประกันสังคม
+            ตรวจสอบรายละเอียดเงินเดือน ค่าล่วงเวลา (OT) เบี้ยขยัน รายการหักประกันสังคม และภาษี
           </p>
         </div>
 
@@ -96,9 +110,9 @@ export default function PayslipPage() {
             onChange={(e) => setSelectedPeriod(e.target.value)}
             className="bg-transparent text-white font-bold text-sm outline-none px-2 py-1 cursor-pointer"
           >
-            <option value="2026-09" className="text-slate-900">กันยายน 2026</option>
-            <option value="2026-08" className="text-slate-900">สิงหาคม 2026</option>
-            <option value="2026-07" className="text-slate-900">กรกฎาคม 2026</option>
+            <option value="2026-09" className="text-slate-900">กันยายน 2026 (2026-09)</option>
+            <option value="2026-08" className="text-slate-900">สิงหาคม 2026 (2026-08)</option>
+            <option value="2026-07" className="text-slate-900">กรกฎาคม 2026 (2026-07)</option>
           </select>
         </div>
       </div>
@@ -112,162 +126,212 @@ export default function PayslipPage() {
           <FileText className="w-12 h-12 mx-auto text-content-muted/50" />
           <h3 className="text-lg font-bold text-content-primary">ไม่พบสลิปเงินเดือนในงวดนี้</h3>
           <p className="text-sm text-content-muted max-w-sm mx-auto">
-            งวดเงินเดือน {selectedPeriod} ยังไม่ถูกประมวลผลหรือออกสลิป กรุณาเลือกงวดเดือนอื่น หรือสอบถามฝ่าย HR
+            งวดเงินเดือน {selectedPeriod} ยังไม่ถูกประมวลผล กรุณาเลือกงวดเดือนอื่น หรือสอบถามฝ่าย HR
           </p>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Printable Payslip Voucher */}
-          <div className="bg-surface-card border border-surface-border rounded-3xl p-6 sm:p-8 shadow-lg space-y-6 print:p-0 print:border-none print:shadow-none">
+          {/* Official J2K Payslip Voucher matching Slip sheet */}
+          <div className="bg-white text-slate-900 rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-200 space-y-6 print:p-0 print:border-none print:shadow-none print:rounded-none">
             {/* Payslip Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start border-b border-surface-border pb-6 gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start border-b-2 border-slate-800 pb-5 gap-4">
               <div>
-                <span className="text-xs font-bold text-brand-600 tracking-wider uppercase">J2K HOUSEKEEPING CO., LTD.</span>
-                <h2 className="text-xl font-black text-content-primary">ใบแจ้งยอดเงินเดือน (PAYSLIP)</h2>
-                <p className="text-xs text-content-muted">งวดประจำเดือน: {selectedPeriod}</p>
+                <h2 className="text-xl font-black text-slate-900 leading-tight">
+                  บริษัท เจทูเค เฮ้าส์คีพปิ้ง เซอร์วิส จำกัด
+                </h2>
+                <p className="text-xs font-semibold text-slate-600">
+                  J2K Housekeeping Service Co., Ltd.
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  235 หมู่ที่ 4 ตำบลปลวกแดง อำเภอปลวกแดง จังหวัดระยอง 21140 โทรศัพท์ 097-253-9456
+                </p>
               </div>
 
               <div className="flex items-center space-x-2 print:hidden">
                 <button
                   onClick={handlePrint}
-                  className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl border border-surface-border bg-surface-bg hover:bg-surface-subtle font-bold text-xs text-content-primary shadow-sm transition-all"
+                  className="flex items-center space-x-1.5 px-4 py-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 font-bold text-xs text-slate-700 shadow-sm transition-all cursor-pointer"
                 >
-                  <Printer className="w-4 h-4 text-brand-600" />
-                  <span>พิมพ์สลิป</span>
+                  <Printer className="w-4 h-4 text-blue-600" />
+                  <span>พิมพ์สลิปเงินเดือน (A4)</span>
                 </button>
               </div>
             </div>
 
             {/* Employee Info Header Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-subtle p-4 rounded-2xl border border-surface-border/50 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
               <div>
-                <span className="text-content-muted block font-medium">รหัสพนักงาน:</span>
-                <span className="font-bold text-content-primary text-sm">{activePayslip.employee.code}</span>
+                <span className="text-slate-500 block font-medium">รอบประจำเดือน:</span>
+                <span className="font-bold text-slate-900 text-sm">{selectedPeriod}</span>
               </div>
               <div>
-                <span className="text-content-muted block font-medium">ชื่อ-นามสกุล:</span>
-                <span className="font-bold text-content-primary text-sm">
-                  {activePayslip.employee.firstName} {activePayslip.employee.lastName}
+                <span className="text-slate-500 block font-medium">รหัสพนักงาน:</span>
+                <span className="font-mono font-bold text-slate-900 text-sm bg-white px-2 py-0.5 rounded border border-slate-300">
+                  {activePayslip.employee.code}
                 </span>
               </div>
               <div>
-                <span className="text-content-muted block font-medium">ตำแหน่ง:</span>
-                <span className="font-bold text-content-primary text-sm">{activePayslip.employee.position}</span>
+                <span className="text-slate-500 block font-medium">ชื่อ-นามสกุล:</span>
+                <span className="font-bold text-slate-900 text-sm">
+                  {activePayslip.employee.prefix || ""} {activePayslip.employee.firstName} {activePayslip.employee.lastName}
+                </span>
               </div>
               <div>
-                <span className="text-content-muted block font-medium">สังกัดไซต์งาน:</span>
-                <span className="font-bold text-content-primary text-sm">
-                  {activePayslip.employee.site?.name || "สำนักงานใหญ่"}
-                </span>
+                <span className="text-slate-500 block font-medium">ตำแหน่ง:</span>
+                <span className="font-bold text-slate-900 text-sm">{activePayslip.employee.position}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block font-medium">หมายเลขผู้เสียภาษี:</span>
+                <span className="font-mono text-slate-800">{activePayslip.employee.idCardNo || "1-4603-00011-72-0"}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block font-medium">หน่วยงาน / ไซต์งาน:</span>
+                <span className="font-bold text-blue-700 text-sm">{activePayslip.employee.site?.name || "AAM"}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block font-medium">ธนาคาร:</span>
+                <span className="text-slate-800 font-semibold">{activePayslip.employee.bankName || "ไทยพาณิชย์"}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block font-medium">เลขที่บัญชี:</span>
+                <span className="font-mono text-slate-800">{activePayslip.employee.bankAccount || "-"}</span>
               </div>
             </div>
 
-            {/* Income & Deductions Breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Income & Deductions Breakdown (2 Columns) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 border border-slate-200 rounded-2xl overflow-hidden text-xs">
               {/* Income Column */}
-              <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-2xl p-5 space-y-3">
-                <h3 className="text-sm font-bold text-emerald-600 flex items-center space-x-2 border-b border-emerald-500/10 pb-2">
-                  <DollarSign className="w-4 h-4" />
-                  <span>รายได้ (EARNINGS)</span>
+              <div className="p-5 space-y-3 bg-emerald-50/20">
+                <h3 className="text-xs font-bold text-emerald-700 flex items-center justify-between border-b border-slate-200 pb-2 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <DollarSign className="w-4 h-4" />
+                    <span>รายการรับ (Income)</span>
+                  </span>
+                  <span className="font-mono text-[10px]">บาท (THB)</span>
                 </h3>
-                <div className="space-y-2 text-xs">
+                <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">เงินเดือนพื้นฐาน (Base Salary)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.baseSalary).toLocaleString()} บาท
+                    <span className="text-slate-600">เงินเดือน / Salary:</span>
+                    <span className="font-semibold text-slate-900">
+                      {Number(activePayslip.baseSalary).toLocaleString()} ฿
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">ค่าล่วงเวลา ({activePayslip.otHours} ชม.)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.otAmount).toLocaleString()} บาท
+                    <span className="text-slate-600">ค่าล่วงเวลา / โอที (1.5) ({activePayslip.otHours || 20} ชม.):</span>
+                    <span className="font-semibold text-amber-700">
+                      {Number(activePayslip.ot15Amount || activePayslip.otAmount || 0).toLocaleString()} ฿
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">เบี้ยขยัน (Diligence Allowance)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.diligence).toLocaleString()} บาท
+                    <span className="text-slate-600">เบี้ยขยัน / Diligence:</span>
+                    <span className="font-semibold text-emerald-700">
+                      {Number(activePayslip.diligence || 0).toLocaleString()} ฿
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">ค่าเดินทาง (Travel Allowance)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.travelAllow).toLocaleString()} บาท
+                    <span className="text-slate-600">ค่าเดินทาง / ค่าน้ำมัน:</span>
+                    <span className="font-semibold text-slate-900">
+                      {Number(activePayslip.travelAllow || 0).toLocaleString()} ฿
                     </span>
                   </div>
-                  <div className="border-t border-emerald-500/20 pt-2 flex justify-between font-bold text-sm text-emerald-700 dark:text-emerald-400">
-                    <span>รวมรายได้ทั้งหมด</span>
+                  {activePayslip.positionAllow ? (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">ค่าตำแหน่ง / Position:</span>
+                      <span className="font-semibold text-slate-900">
+                        {Number(activePayslip.positionAllow).toLocaleString()} ฿
+                      </span>
+                    </div>
+                  ) : null}
+                  {activePayslip.phoneAllow ? (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">ค่าโทรศัพท์ / Phone:</span>
+                      <span className="font-semibold text-slate-900">
+                        {Number(activePayslip.phoneAllow).toLocaleString()} ฿
+                      </span>
+                    </div>
+                  ) : null}
+                  {activePayslip.heatAllow ? (
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">ค่าร้อน / Heat:</span>
+                      <span className="font-semibold text-slate-900">
+                        {Number(activePayslip.heatAllow).toLocaleString()} ฿
+                      </span>
+                    </div>
+                  ) : null}
+                  <div className="border-t border-slate-300 pt-3 flex justify-between font-bold text-sm text-emerald-800">
+                    <span>รวมรับ (Gross Earning):</span>
                     <span>
-                      {(
-                        Number(activePayslip.baseSalary) +
-                        Number(activePayslip.otAmount) +
-                        Number(activePayslip.diligence) +
-                        Number(activePayslip.travelAllow)
+                      {Number(
+                        activePayslip.grossIncome ||
+                        (activePayslip.baseSalary + activePayslip.otAmount + activePayslip.diligence + activePayslip.travelAllow)
                       ).toLocaleString()}{" "}
-                      บาท
+                      ฿
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Deductions Column */}
-              <div className="border border-rose-500/20 bg-rose-500/5 rounded-2xl p-5 space-y-3">
-                <h3 className="text-sm font-bold text-rose-600 flex items-center space-x-2 border-b border-rose-500/10 pb-2">
-                  <CreditCard className="w-4 h-4" />
-                  <span>รายการหัก (DEDUCTIONS)</span>
+              <div className="p-5 space-y-3 bg-rose-50/20">
+                <h3 className="text-xs font-bold text-rose-700 flex items-center justify-between border-b border-slate-200 pb-2 uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4" />
+                    <span>รายการหัก (Deduction)</span>
+                  </span>
+                  <span className="font-mono text-[10px]">บาท (THB)</span>
                 </h3>
-                <div className="space-y-2 text-xs">
+                <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">หัก ประกันสังคม (Social Security)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.socialSec).toLocaleString()} บาท
+                    <span className="text-slate-600">ประกันสังคม / Social Security:</span>
+                    <span className="font-semibold text-rose-600">
+                      -{Number(activePayslip.socialSec).toLocaleString()} ฿
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">หัก ภาษี ณ ที่จ่าย (Withholding Tax)</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.tax).toLocaleString()} บาท
+                    <span className="text-slate-600">หักภาษี ณ ที่จ่าย / Tax:</span>
+                    <span className="font-semibold text-rose-600">
+                      -{Number(activePayslip.tax).toLocaleString()} ฿
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-content-secondary">รายการหักอื่นๆ</span>
-                    <span className="font-bold text-content-primary">
-                      {Number(activePayslip.otherDeduct).toLocaleString()} บาท
+                    <span className="text-slate-600">หักเงินสงเคราะห์ / Welfare:</span>
+                    <span className="font-semibold text-rose-600">
+                      -{Number(activePayslip.welfareDeduct || 30).toLocaleString()} ฿
                     </span>
                   </div>
-                  <div className="border-t border-rose-500/20 pt-2 flex justify-between font-bold text-sm text-rose-700 dark:text-rose-400">
-                    <span>รวมรายการหักทั้งหมด</span>
+                  <div className="border-t border-slate-300 pt-3 flex justify-between font-bold text-sm text-rose-800">
+                    <span>รวมหัก (Total Deduction):</span>
                     <span>
-                      {(
-                        Number(activePayslip.socialSec) +
-                        Number(activePayslip.tax) +
-                        Number(activePayslip.otherDeduct)
+                      -{Number(
+                        activePayslip.totalDeduct ||
+                        (activePayslip.socialSec + activePayslip.tax + (activePayslip.welfareDeduct || 30))
                       ).toLocaleString()}{" "}
-                      บาท
+                      ฿
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Total Net Pay Banner */}
-            <div className="bg-gradient-to-r from-brand-600 to-indigo-700 rounded-2xl p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
-              <div className="space-y-0.5">
-                <span className="text-xs font-semibold text-brand-200 uppercase tracking-wider">
-                  NET PAYMENT (ยอดโอนเข้าบัญชีสุทธิ)
+            {/* Net Pay Bottom Bar */}
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 shadow-md">
+              <div>
+                <span className="text-xs font-semibold text-blue-200 uppercase tracking-widest block">
+                  เงินรับสุทธิ (Net Pay)
                 </span>
-                <p className="text-xs text-brand-100">
-                  โอนเข้าบัญชี: {activePayslip.employee.bankName || "ธนาคารกสิกรไทย"}{" "}
-                  {activePayslip.employee.bankAccount || "xxx-x-x1234-x"}
-                </p>
+                <span className="text-xs text-blue-100">โอนเข้าบัญชีธนาคาร {activePayslip.employee.bankName || "ไทยพาณิชย์"}</span>
               </div>
-
               <div className="text-right">
                 <span className="text-3xl font-black tracking-tight">
-                  {Number(activePayslip.netPay).toLocaleString()} ฿
+                  {Number(activePayslip.netPay).toLocaleString()} บาท
                 </span>
               </div>
             </div>
+
+            {/* Footer note */}
+            <p className="text-[11px] text-slate-400 text-center italic">
+              เอกสารนี้เป็นหลักฐานการจ่ายเงินเดือนที่ออกโดยระบบอิเล็กทรอนิกส์ บริษัท เจทูเค เฮ้าส์คีพปิ้ง เซอร์วิส จำกัด
+            </p>
           </div>
         </div>
       )}

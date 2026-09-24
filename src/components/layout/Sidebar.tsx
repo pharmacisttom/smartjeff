@@ -33,6 +33,7 @@ const ADMIN_NAV = [
   { href: "/admin/sites", label: "จัดการโรงงาน & นิคมฯ", icon: Building2 },
   { href: "/admin/attendance", label: "อนุมัติเวลาปฏิบัติงาน", icon: UserCheck },
   { href: "/admin/payroll", label: "ระบบคำนวณเงินเดือน", icon: ShieldCheck },
+  { href: "/admin/dispatch", label: "เอกสารส่งตัวพนักงาน", icon: FileText },
   { href: "/admin/chat", label: "HR Admin Chat", icon: MessageSquare },
 ];
 
