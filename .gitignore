@@ -33,7 +33,7 @@ public/receipts/
 public/photos/
 
 # Backups — store offsite only
-backups/
+/backups/
 *.backup
 *.dump
 *.sql.gz

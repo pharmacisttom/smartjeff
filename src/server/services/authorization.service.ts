@@ -32,6 +32,7 @@ export interface UserAuthzContext {
     roleCode: string;
     scopeType: string;
     scopeId: string | null;
+    permissions?: string[];
     startAt: Date | null;
     endAt: Date | null;
   }[];
@@ -91,6 +92,7 @@ export class AuthorizationService {
       roleCode: string;
       scopeType: string;
       scopeId: string | null;
+      permissions?: string[];
       startAt: Date | null;
       endAt: Date | null;
     }[] = [];
@@ -125,19 +127,22 @@ export class AuthorizationService {
         id: assignment.scopeId,
       });
 
+      const rolePerms: string[] = [];
+      for (const rp of role.permissions) {
+        if (rp.permission.isActive) {
+          permissions.add(rp.permission.code);
+          rolePerms.push(rp.permission.code);
+        }
+      }
+
       assignments.push({
         roleCode: role.code,
         scopeType: assignment.scopeType,
         scopeId: assignment.scopeId,
+        permissions: rolePerms,
         startAt: assignment.startAt,
         endAt: assignment.endAt,
       });
-
-      for (const rp of role.permissions) {
-        if (rp.permission.isActive) {
-          permissions.add(rp.permission.code);
-        }
-      }
     }
 
     return {
@@ -189,19 +194,23 @@ export class AuthorizationService {
     let matchedScope: string | undefined;
 
     for (const assignment of context.assignments) {
-      // Fetch permissions for this role
-      const role = await prisma.role.findUnique({
-        where: { code: assignment.roleCode },
-        include: {
-          permissions: {
-            include: { permission: true },
-          },
-        },
-      });
+      let hasPermInRole = assignment.permissions?.includes(opts.permission);
 
-      const hasPermInRole = role?.permissions.some(
-        (rp) => rp.permission.code === opts.permission && rp.permission.isActive
-      );
+      if (hasPermInRole === undefined) {
+        // Fallback to DB query if permissions array not present
+        const role = await prisma.role.findUnique({
+          where: { code: assignment.roleCode },
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        });
+
+        hasPermInRole = role?.permissions.some(
+          (rp) => rp.permission.code === opts.permission && rp.permission.isActive
+        );
+      }
 
       if (hasPermInRole) {
         matchedRole = assignment.roleCode;

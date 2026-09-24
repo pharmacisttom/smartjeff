@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AuthorizationService } from "./authorization.service";
 import { RoleConflictService } from "./role-conflict.service";
 import { EmployeeSerializer } from "../../lib/serializers/employee.serializer";
@@ -7,6 +7,20 @@ import { SessionSerializer } from "../../lib/serializers/session.serializer";
 describe("SMARTJEFF — Central IAM & Authorization Architecture Tests", () => {
   describe("1. Employee Isolation & Principle of Least Privilege", () => {
     it("should allow an employee to access their own resources (scope OWN)", async () => {
+      vi.spyOn(AuthorizationService, "getUserContext").mockResolvedValueOnce({
+        userId: "cmu6dzk9p0001a1uhsbn0jqxd",
+        authzVersion: 1,
+        roles: [{ id: "r1", code: "EMPLOYEE", nameTh: "พนักงาน", level: 1, departmentType: "OPERATIONS" }],
+        assignments: [
+          { roleCode: "EMPLOYEE", scopeType: "OWN", scopeId: null, permissions: ["attendance.submit"], startAt: null, endAt: null },
+        ],
+        permissions: new Set(["attendance.submit"]),
+        scopes: [{ type: "OWN", id: null }],
+        isSuperAdmin: false,
+        isSecurityAdmin: false,
+        isPlatformAdmin: false,
+      });
+
       const result = await AuthorizationService.authorize({
         userId: "cmu6dzk9p0001a1uhsbn0jqxd", // star user
         permission: "attendance.submit",
@@ -15,6 +29,20 @@ describe("SMARTJEFF — Central IAM & Authorization Architecture Tests", () => {
     });
 
     it("should deny standard employee from accessing privileged admin permissions", async () => {
+      vi.spyOn(AuthorizationService, "getUserContext").mockResolvedValueOnce({
+        userId: "cmu6dzk9p0001a1uhsbn0jqxd",
+        authzVersion: 1,
+        roles: [{ id: "r1", code: "EMPLOYEE", nameTh: "พนักงาน", level: 1, departmentType: "OPERATIONS" }],
+        assignments: [
+          { roleCode: "EMPLOYEE", scopeType: "OWN", scopeId: null, permissions: ["attendance.submit"], startAt: null, endAt: null },
+        ],
+        permissions: new Set(["attendance.submit"]),
+        scopes: [{ type: "OWN", id: null }],
+        isSuperAdmin: false,
+        isSecurityAdmin: false,
+        isPlatformAdmin: false,
+      });
+
       const result = await AuthorizationService.authorize({
         userId: "cmu6dzk9p0001a1uhsbn0jqxd", // star user
         permission: "security.role.manage",
@@ -195,7 +223,21 @@ describe("SMARTJEFF — Central IAM & Authorization Architecture Tests", () => {
 
   describe("5. Data Scope Isolation & IDOR Protection", () => {
     it("should reject access when user has permission but their scope does not match resource scope", async () => {
-      // Mock an authorize call with mismatched Site scope
+      vi.spyOn(AuthorizationService, "getUserContext").mockResolvedValueOnce({
+        userId: "user-mock-site-a",
+        authzVersion: 1,
+        roles: [{ id: "r2", code: "SUPERVISOR", nameTh: "หัวหน้างาน", level: 2, departmentType: "OPERATIONS" }],
+        assignments: [
+          { roleCode: "SUPERVISOR", scopeType: "SITE", scopeId: "SITE-A", permissions: ["attendance.approve"], startAt: null, endAt: null },
+        ],
+        permissions: new Set(["attendance.approve"]),
+        scopes: [{ type: "SITE", id: "SITE-A" }],
+        isSuperAdmin: false,
+        isSecurityAdmin: false,
+        isPlatformAdmin: false,
+      });
+
+      // Mock an authorize call with mismatched Site scope (user has SITE-A, requests SITE-B)
       const mockOptions = {
         userId: "user-mock-site-a",
         permission: "attendance.approve",
@@ -205,7 +247,6 @@ describe("SMARTJEFF — Central IAM & Authorization Architecture Tests", () => {
         },
       };
 
-      // Since user doesn't exist in DB or has Site A, authorize should reject
       const result = await AuthorizationService.authorize(mockOptions);
       expect(result.allowed).toBe(false);
     });
