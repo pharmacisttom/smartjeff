@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Wrench, Briefcase, Users, ArrowLeft, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function OperationsWorkOrdersPage() {
@@ -13,9 +14,9 @@ export default async function OperationsWorkOrdersPage() {
       },
       orderBy: { createdAt: "desc" },
       take: 50,
-    }),
-    prisma.workOrder.count({ where: { status: "OPEN" } }),
-    prisma.workOrder.count({ where: { status: "COMPLETED" } }),
+    }).catch(() => []),
+    prisma.workOrder.count({ where: { status: "OPEN" } }).catch(() => 0),
+    prisma.workOrder.count({ where: { status: "COMPLETED" } }).catch(() => 0),
   ]);
 
   return (

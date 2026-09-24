@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # ------------------------------------------------------------
+  # MySQL 8 Database Service
+  # ------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: smartjeff-mysql
+    restart: unless-stopped
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=250
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-SmartJeffRootPass2026!}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-smartjeff}
+      MYSQL_USER: ${MYSQL_USER:-smartjeff}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-SmartJeffAppPass2026!}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/mysql-init:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-SmartJeffRootPass2026!}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - smartjeff-net
+
+  # ------------------------------------------------------------
+  # Redis 7 In-Memory Cache & Session Store
+  # ------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: smartjeff-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-SmartJeffRedis2026!}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-SmartJeffRedis2026!}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - smartjeff-net
+
+  # ------------------------------------------------------------
+  # SmartJeff Next.js Application Service
+  # ------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartjeff-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:-SmartJeffAppPass2026!}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-SmartJeffRedis2026!}@redis:6379/0
+      - AUTH_SECRET=${AUTH_SECRET:-SmartJeffProductionSecretRandomGeneratedKeyMustBeChanged64HexCharacters}
+      - NEXTAUTH_URL=${APP_URL:-http://localhost}
+      - APP_URL=${APP_URL:-http://localhost}
+    expose:
+      - "3000"
+    networks:
+      - smartjeff-net
+
+  # ------------------------------------------------------------
+  # Nginx Reverse Proxy & SSL Termination
+  # ------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: smartjeff-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - app
+    networks:
+      - smartjeff-net
+
+networks:
+  smartjeff-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:

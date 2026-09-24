@@ -4,6 +4,7 @@ import { BarChart3, TrendingUp, Users, Clock, ShieldCheck, ArrowRight } from "lu
 import { EnterpriseModuleHeader } from "@/components/enterprise/EnterpriseModuleHeader";
 import { EnterpriseModuleNav } from "@/components/enterprise/EnterpriseModuleNav";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const ANALYTICS_TABS = [
@@ -16,10 +17,10 @@ const ANALYTICS_TABS = [
 
 export default async function AnalyticsOverviewPage() {
   const [empCount, siteCount, attCount, projectCount] = await Promise.all([
-    prisma.employee.count({ where: { isActive: true } }),
-    prisma.site.count(),
-    prisma.attendance.count(),
-    prisma.project.count(),
+    prisma.employee.count({ where: { isActive: true } }).catch(() => 0),
+    prisma.site.count().catch(() => 0),
+    prisma.attendance.count().catch(() => 0),
+    prisma.project.count().catch(() => 0),
   ]);
 
   return (

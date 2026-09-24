@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Calendar, Clock, Users, ArrowLeft, Plus, CheckCircle2 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function OperationsSchedulePage() {
@@ -13,9 +14,9 @@ export default async function OperationsSchedulePage() {
       },
       orderBy: { date: "desc" },
       take: 50,
-    }),
-    prisma.shiftTemplate.findMany({ where: { isActive: true } }),
-    prisma.employee.count({ where: { isActive: true } }),
+    }).catch(() => []),
+    prisma.shiftTemplate.findMany({ where: { isActive: true } }).catch(() => []),
+    prisma.employee.count({ where: { isActive: true } }).catch(() => 0),
   ]);
 
   return (

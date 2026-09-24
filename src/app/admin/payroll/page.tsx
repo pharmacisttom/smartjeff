@@ -307,7 +307,7 @@ export default function AdminPayrollPage() {
           <div className="py-16 text-center text-content-muted space-y-2">
             <Calculator className="w-12 h-12 mx-auto text-content-muted/40" />
             <p className="font-bold text-sm text-content-primary">ไม่พบข้อมูลสลิปเงินเดือน</p>
-            <p className="text-xs">กดปุ่ม "ประมวลผลเงินเดือนงวดนี้" ด้านบนเพื่อคำนวณเงินเดือน</p>
+            <p className="text-xs">กดปุ่ม &quot;ประมวลผลเงินเดือนงวดนี้&quot; ด้านบนเพื่อคำนวณเงินเดือน</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
