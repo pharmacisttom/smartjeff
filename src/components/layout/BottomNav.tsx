@@ -5,18 +5,20 @@ import { usePathname } from "next/navigation";
 import { Clock, History, CalendarOff, FileText, MessageSquare } from "lucide-react";
 import { useHaptic } from "@/hooks/useHaptic";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { href: "/check-in", label: "ลงเวลา", icon: Clock },
-  { href: "/history", label: "ประวัติ", icon: History },
-  { href: "/leave", label: "ขอลา/OT", icon: CalendarOff },
-  { href: "/payslip", label: "สลิปเงิน", icon: FileText },
-  { href: "/chat", label: "AI แชท", icon: MessageSquare },
-];
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export function BottomNav() {
   const pathname = usePathname();
   const { triggerHaptic } = useHaptic();
+  const { t } = useLanguage();
+
+  const NAV_ITEMS = [
+    { href: "/check-in", label: t("nav.checkin"), icon: Clock },
+    { href: "/history", label: t("nav.history"), icon: History },
+    { href: "/leave", label: t("nav.leave"), icon: CalendarOff },
+    { href: "/payslip", label: t("nav.payslip"), icon: FileText },
+    { href: "/chat", label: t("nav.chat"), icon: MessageSquare },
+  ];
 
   return (
     <nav aria-label="Bottom Navigation" className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-bg border-t border-surface-border safe-pb shadow-lg">

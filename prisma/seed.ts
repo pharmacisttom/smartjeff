@@ -79,10 +79,53 @@ async function main() {
   const customerRows: any[][] = XLSX.utils.sheet_to_json(customerSheet, { header: 1 });
   const siteMap = new Map<string, string>(); // shortCode -> Site.id
 
+  // Site GPS lookup map for realistic factory locations
+  const siteGeoMap: Record<string, { lat: number; lng: number; radius: number }> = {
+    AAM: { lat: 13.0039, lng: 101.1668, radius: 250 },
+    BAT: { lat: 12.9961, lng: 101.1712, radius: 200 },
+    BW: { lat: 13.0012, lng: 101.1645, radius: 200 },
+    CATALER: { lat: 12.9945, lng: 101.1589, radius: 200 },
+    DOWA: { lat: 13.0078, lng: 101.1623, radius: 200 },
+    FTS1: { lat: 13.0055, lng: 101.1590, radius: 200 },
+    FTS2: { lat: 13.0062, lng: 101.1605, radius: 200 },
+    JATH: { lat: 12.9989, lng: 101.1734, radius: 200 },
+    MISUMI: { lat: 13.0025, lng: 101.1610, radius: 250 },
+    MTAT: { lat: 12.9970, lng: 101.1680, radius: 200 },
+    NSA: { lat: 13.0090, lng: 101.1550, radius: 200 },
+    SFT: { lat: 13.0110, lng: 101.1580, radius: 200 },
+    SSMC1: { lat: 13.0080, lng: 101.1565, radius: 200 },
+    SSMC2: { lat: 13.0088, lng: 101.1575, radius: 200 },
+    MISUBISHI: { lat: 12.9930, lng: 101.1640, radius: 200 },
+    "NS-OG(SPT)": { lat: 12.9950, lng: 101.1700, radius: 200 },
+    SYC: { lat: 12.9950, lng: 101.1700, radius: 200 },
+    TFI: { lat: 13.0125, lng: 101.1750, radius: 200 },
+    TNT: { lat: 13.0140, lng: 101.1690, radius: 200 },
+    BRUCKNER: { lat: 13.0130, lng: 101.1720, radius: 200 },
+    CHIKUMA: { lat: 13.0115, lng: 101.1685, radius: 200 },
+    "SHRED TECH": { lat: 13.0645, lng: 101.1128, radius: 200 },
+    "ABPR1,2": { lat: 12.9750, lng: 101.1350, radius: 250 },
+    "ABPR3,4": { lat: 12.9765, lng: 101.1370, radius: 250 },
+    ABPR5: { lat: 12.9780, lng: 101.1390, radius: 250 },
+    "NS-OG(YRT)": { lat: 12.9733, lng: 101.1275, radius: 200 },
+    STDI: { lat: 12.9710, lng: 101.1290, radius: 200 },
+    NIKKO: { lat: 13.1118, lng: 101.0772, radius: 200 },
+    KYT: { lat: 13.1274, lng: 101.1098, radius: 200 },
+    "LCIT B5": { lat: 13.0827, lng: 100.8845, radius: 300 },
+    "LCIT C3": { lat: 13.0840, lng: 100.8860, radius: 300 },
+    LCTH: { lat: 13.0789, lng: 100.8920, radius: 250 },
+    TIPS: { lat: 13.0855, lng: 100.8870, radius: 300 },
+    LSTH: { lat: 12.9654, lng: 101.1689, radius: 250 },
+    "J2K-HQ": { lat: 12.9734, lng: 101.2155, radius: 300 },
+  };
+
   // Create default fallback site
   const defaultSite = await prisma.site.upsert({
     where: { code: "AAM" },
-    update: {},
+    update: {
+      lat: 13.0039,
+      lng: 101.1668,
+      radius: 250,
+    },
     create: {
       code: "AAM",
       name: "บริษัท อเมริกัน แอ็คเซิล แอนด์ แมนูแฟคเจอริ่ง (ประเทศไทย) จำกัด",
@@ -91,9 +134,9 @@ async function main() {
       contactName: "คุณแวว",
       contactEmail: "Widchayaporn.Thakham@aam.com",
       contactPhone: "089-2453192",
-      lat: 12.6841,
-      lng: 101.1476,
-      radius: 200,
+      lat: 13.0039,
+      lng: 101.1668,
+      radius: 250,
       workStart: 7,
       workEnd: 16,
       otStart: 16,
@@ -105,7 +148,11 @@ async function main() {
   // HQ site
   const hqSite = await prisma.site.upsert({
     where: { code: "J2K-HQ" },
-    update: {},
+    update: {
+      lat: 12.9734,
+      lng: 101.2155,
+      radius: 300,
+    },
     create: {
       code: "J2K-HQ",
       name: "สำนักงานใหญ่ บริษัท เจทูเค เฮ้าส์คีพปิ้ง เซอร์วิส จำกัด",
@@ -139,6 +186,7 @@ async function main() {
     const codeInfo = siteLocationMap.get(shortCode);
     const workInfo = workHoursMap.get(shortCode) || { workStart: 7, workEnd: 16, otStart: 16, otEnd: 17 };
     const estate = codeInfo?.estate || "นิคมอุตสาหกรรมในจังหวัดระยอง/ชลบุรี";
+    const geo = siteGeoMap[shortCode] || { lat: 13.0039, lng: 101.1668, radius: 200 };
 
     const site = await prisma.site.upsert({
       where: { code: shortCode },
@@ -149,6 +197,9 @@ async function main() {
         contactPhone: phone,
         estateName: estate,
         location: estate,
+        lat: geo.lat,
+        lng: geo.lng,
+        radius: geo.radius,
         workStart: workInfo.workStart,
         workEnd: workInfo.workEnd,
         otStart: workInfo.otStart,
@@ -162,9 +213,9 @@ async function main() {
         contactName: contact,
         contactEmail: email,
         contactPhone: phone,
-        lat: 12.6841 + (Math.random() * 0.15 - 0.075),
-        lng: 101.1476 + (Math.random() * 0.15 - 0.075),
-        radius: 200,
+        lat: geo.lat,
+        lng: geo.lng,
+        radius: geo.radius,
         workStart: workInfo.workStart,
         workEnd: workInfo.workEnd,
         otStart: workInfo.otStart,
@@ -288,11 +339,35 @@ async function main() {
     const birthDate = excelSerialToDate(row[6]);
     const genderStr = row[8] ? String(row[8]).trim() : "หญิง";
     const nationality = row[9] ? String(row[9]).trim() : "ไทย";
-    const idCardNo = row[10] ? String(row[10]).trim() : null;
-    const phone = row[11] ? String(row[11]).trim() : null;
+
+    // Format ID card / Passport
+    let idCardNo: string | null = null;
+    if (row[10] !== undefined && row[10] !== null && String(row[10]).trim() !== "") {
+      idCardNo = String(row[10]).trim();
+    }
+
+    // Format Phone number: Ensure 10 digits starting with 0 (e.g. 098-451-3766)
+    let phone: string | null = null;
+    if (row[11] !== undefined && row[11] !== null && String(row[11]).trim() !== "") {
+      let pStr = String(row[11]).trim().replace(/[\s-]/g, "");
+      if (/^\d{8,9}$/.test(pStr) && !pStr.startsWith("0")) {
+        pStr = "0" + pStr;
+      }
+      if (pStr.length === 10) {
+        phone = `${pStr.slice(0, 3)}-${pStr.slice(3, 6)}-${pStr.slice(6)}`;
+      } else if (pStr.length === 9) {
+        phone = `${pStr.slice(0, 3)}-${pStr.slice(3, 6)}-${pStr.slice(6)}`;
+      } else {
+        phone = String(row[11]).trim();
+      }
+    }
+
     const bankAccount = row[12] ? String(row[12]).trim() : null;
     const bankName = row[13] ? String(row[13]).trim() : null;
-    const hospital = row[14] ? String(row[14]).trim() : null;
+    const insurance = row[14] ? String(row[14]).trim() : null;
+    const hospital = row[15] ? String(row[15]).trim() : (insurance ? insurance : null);
+    const education = row[16] ? String(row[16]).trim() : null;
+    const hometown = row[17] ? String(row[17]).trim() : null;
 
     // Split prefix and name
     let prefix = "นางสาว";
@@ -343,7 +418,10 @@ async function main() {
         phone,
         bankAccount,
         bankName,
+        insurance,
         hospital,
+        education,
+        hometown,
         salaryType: sal.salaryType || "MONTHLY",
         baseSalary: sal.baseSalary,
         dailyRate: sal.dailyRate,
@@ -363,7 +441,10 @@ async function main() {
         phone,
         bankAccount,
         bankName,
+        insurance,
         hospital,
+        education,
+        hometown,
         salaryType: sal.salaryType || "MONTHLY",
         baseSalary: sal.baseSalary,
         dailyRate: sal.dailyRate,
@@ -569,7 +650,40 @@ async function main() {
     });
   }
 
-  console.log(`✅ Successfully seeded ${createdEmpCount} Employees from jeffy1.xlsx into SQLite!`);
+  // 8. Assign UserRoleAssignment based on user role
+  const allRoles = await prisma.role.findMany();
+  const roleByCode = new Map(allRoles.map((r) => [r.code, r.id]));
+  const allUsers = await prisma.user.findMany();
+
+  for (const u of allUsers) {
+    let targetRoleCode = "EMPLOYEE";
+    if (u.role === "ADMIN") targetRoleCode = "SUPER_ADMIN";
+    else if (u.role === "HR") targetRoleCode = "HR_MANAGER";
+    else if (u.role === "COORDINATOR") targetRoleCode = "SITE_MANAGER";
+    else if (u.role === "SUPERVISOR") targetRoleCode = "SUPERVISOR";
+
+    const roleId = roleByCode.get(targetRoleCode);
+    if (!roleId) continue;
+
+    const existing = await prisma.userRoleAssignment.findFirst({
+      where: { userId: u.id, roleId, status: "ACTIVE" },
+    });
+
+    if (!existing) {
+      await prisma.userRoleAssignment.create({
+        data: {
+          userId: u.id,
+          roleId,
+          scopeType: u.assignedSiteCode ? "SITE" : "GLOBAL",
+          scopeId: u.assignedSiteCode || null,
+          status: "ACTIVE",
+          reason: "Seeded from jeffy1.xlsx",
+        },
+      });
+    }
+  }
+
+  console.log(`✅ Successfully seeded ${createdEmpCount} Employees from jeffy1.xlsx into MySQL!`);
   console.log("🎉 All J2K customer sites, staff permission tiers, and payslips initialized!");
 }
 

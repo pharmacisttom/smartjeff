@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, CheckSquare } from "lucide-react";
+import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, CheckSquare, Globe } from "lucide-react";
 import { showSuccess, showError, showLoading, closeSwal } from "@/lib/swal";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function LoginPage() {
+  const { t, locale } = useLanguage();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -13,12 +16,15 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
-      showError("ข้อมูลไม่ครบถ้วน", "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+      showError(
+        locale === "my" ? "အချက်အလက်မပြည့်စုံပါ" : locale === "km" ? "ព័ត៌មានមិនគ្រប់គ្រាន់" : "ข้อมูลไม่ครบถ้วน",
+        locale === "my" ? "ကျေးဇူးပြု၍ ဝန်ထမ်းကုဒ်နှင့် စကားဝှက်ကို ဖြည့်သွင်းပါ" : locale === "km" ? "សូមបញ្ចូលលេខកូដ និងពាក្យសម្ងាត់" : "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
+      );
       return;
     }
 
     setLoading(true);
-    showLoading("กำลังเข้าสู่ระบบ...", "ตรวจสอบสิทธิ์การเข้าใช้งาน");
+    showLoading(t("login.logging_in"), t("login.subtitle"));
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -46,22 +52,25 @@ export default function LoginPage() {
         closeSwal();
 
         if (sessionRes.ok) {
-          const target = data.redirectTo || "/admin/dashboard";
-          showSuccess("เข้าสู่ระบบสำเร็จ!", "กำลังนำท่านเข้าสู่ระบบ...");
+          const target = data.redirectTo || "/check-in";
+          showSuccess(
+            locale === "my" ? "ဝင်ရောက်မှု အောင်မြင်ပါသည်!" : locale === "km" ? "ចូលប្រព័ន្ធជោគជ័យ!" : "เข้าสู่ระบบสำเร็จ!",
+            locale === "my" ? "စနစ်အတွင်းသို့ ပို့ဆောင်နေပါသည်..." : locale === "km" ? "កំពុងបញ្ជូនទៅប្រព័ន្ធ..." : "กำลังนำท่านเข้าสู่ระบบ..."
+          );
           setTimeout(() => {
             window.location.assign(target);
           }, 600);
         } else {
-          showError("เข้าสู่ระบบไม่สำเร็จ", "เข้าสู่ระบบสำเร็จแต่ไม่สามารถสร้าง Session ได้ กรุณาลองใหม่อีกครั้ง");
+          showError("Error", "Session error. Please try again.");
         }
       } else {
         closeSwal();
         const errorMsg = data.error?.message || data.message || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
-        showError("การเข้าสู่ระบบล้มเหลว", errorMsg);
+        showError(t("common.confirm"), errorMsg);
       }
     } catch (err) {
       closeSwal();
-      showError("ข้อผิดพลาด", "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
+      showError(t("common.confirm"), "Cannot connect to server");
     } finally {
       setLoading(false);
     }
@@ -80,11 +89,20 @@ export default function LoginPage() {
             S
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight">เข้าสู่ระบบ SmartJeff</h1>
+            <h1 className="text-3xl font-black text-white tracking-tight">{t("login.title")}</h1>
             <p className="text-xs text-brand-300 uppercase tracking-widest font-semibold mt-1">
-              SmartJeff Enterprise Operations Platform
+              SmartJeff Operations Platform (J2K)
             </p>
           </div>
+        </div>
+
+        {/* 3-Language Selector Bar (Thai, Myanmar, Khmer) */}
+        <div className="bg-white/10 backdrop-blur-xl border border-white/15 rounded-3xl p-3 shadow-2xl text-center space-y-2">
+          <div className="flex items-center justify-center space-x-1.5 text-xs text-brand-200 font-semibold">
+            <Globe className="w-4 h-4 text-emerald-400" />
+            <span>{t("login.select_language")}</span>
+          </div>
+          <LanguageSwitcher variant="cards" />
         </div>
 
         {/* Login Form Glassmorphism Card */}
@@ -92,7 +110,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <h2 className="text-base font-bold text-white flex items-center">
               <ShieldCheck className="w-5 h-5 mr-2 text-emerald-400" />
-              ยืนยันตัวตนก่อนเข้าใช้งาน
+              {t("login.subtitle")}
             </h2>
           </div>
 
@@ -100,7 +118,7 @@ export default function LoginPage() {
             {/* Identifier Field */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                ชื่อผู้ใช้หรืออีเมล
+                {t("login.identifier")}
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -108,8 +126,8 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="เช่น admin@j2k.co.th หรือ 121095"
-                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white/10 placeholder-slate-400 transition-all"
+                  placeholder="admin@j2k.co.th / 210993"
+                  className="w-full pl-11 pr-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white/10 placeholder-slate-400 transition-all font-mono"
                   required
                 />
               </div>
@@ -118,7 +136,7 @@ export default function LoginPage() {
             {/* Password Field with Show/Hide Toggle */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                รหัสผ่าน
+                {t("login.password")}
               </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -141,18 +159,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* System Security Status */}
-            <div className="p-3.5 rounded-2xl border border-white/15 bg-white/5 flex items-center justify-between transition-all">
-              <div className="flex items-center space-x-3 text-left">
-                <CheckSquare className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-white">ยืนยันตัวตนความปลอดภัยระดับองค์กร</p>
-                  <p className="text-[10px] text-slate-400">Enterprise Identity & Access Protection</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                PROTECTED
-              </span>
+            {/* Hint for Employees */}
+            <div className="p-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-200 text-xs leading-relaxed">
+              💡 {t("login.employee_hint")}
             </div>
 
             {/* Submit Button */}
@@ -161,7 +170,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold text-sm shadow-xl flex items-center justify-center space-x-2 transition-all active:scale-[0.98] disabled:opacity-50"
             >
-              <span>{loading ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}</span>
+              <span>{loading ? t("login.logging_in") : t("login.button")}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>

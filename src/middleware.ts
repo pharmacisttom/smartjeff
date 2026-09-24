@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/auth/logout",
   "/api/auth/session",
   "/api/auth/debug-session",
+  "/api/translate",
   "/api/ping",
   "/_next",
   "/favicon",

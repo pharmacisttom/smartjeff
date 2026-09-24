@@ -42,6 +42,7 @@ public/photos/
 *.xlsx
 *.xls
 *.csv
+!public/templates/*.xlsx
 
 # Logs
 *.log
