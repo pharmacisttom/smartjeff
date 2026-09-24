@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import * as XLSX from "xlsx";
 import * as path from "path";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -26,6 +27,7 @@ async function main() {
 
   // Reset database tables in dependency order
   await prisma.auditLog.deleteMany({});
+  const masterHash = await bcrypt.hash("Smartjeff2026", 10);
   await prisma.chatMessage.deleteMany({});
   await prisma.user.deleteMany({});
   await prisma.attendance.deleteMany({});
@@ -384,6 +386,8 @@ async function main() {
     await prisma.user.upsert({
       where: { email: `${rawCode}@j2k.co.th` },
       update: {
+        password: "Smartjeff2026",
+        passwordHash: masterHash,
         role: userRole,
         permissions: userPerms,
         assignedSiteCode: rawSiteCode,
@@ -392,6 +396,7 @@ async function main() {
       create: {
         email: `${rawCode}@j2k.co.th`,
         password: "Smartjeff2026",
+        passwordHash: masterHash,
         role: userRole,
         permissions: userPerms,
         assignedSiteCode: rawSiteCode,
@@ -487,42 +492,82 @@ async function main() {
     });
   }
 
-  // 7. Seed Admin & Executive Users
-  await prisma.user.upsert({
-    where: { email: "admin@j2k.co.th" },
-    update: { role: "ADMIN", permissions: "ALL" },
-    create: {
+  // 7. Seed Admin, Executive, HR, Coordinator, and Supervisor Users
+  const staffToSeed = [
+    {
       email: "admin@j2k.co.th",
-      password: "Smartjeff2026",
+      displayName: "นายปณิธาน ลานทองกุล (ผู้บริหารสูงสุด)",
       role: "ADMIN",
       permissions: "ALL",
     },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "panithan@j2k.co.th" },
-    update: { role: "ADMIN", permissions: "ALL" },
-    create: {
+    {
       email: "panithan@j2k.co.th",
-      password: "Smartjeff2026",
+      displayName: "นายปณิธาน ลานทองกุล",
       role: "ADMIN",
       permissions: "ALL",
     },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "chuleeporn@j2k.co.th" },
-    update: {
+    {
+      email: "121095@j2k.co.th",
+      displayName: "น.ส.ยุพดี วะโร (Finance & Accounting)",
       role: "HR",
+      permissions: "เวลาเข้า-ออก,เงินเดือน,Attendance,slip,ประวัติ,Customer,โอที,เวลาทำงาน,เอกสารส่งตัว",
+    },
+    {
+      email: "120001@j2k.co.th",
+      displayName: "นางเนตรนภา อินทร์ผลเล็ก (ผู้จัดการทั่วไป)",
+      role: "HR",
+      permissions: "เวลาเข้า-ออก,เงินเดือน,Attendance,slip,ประวัติ,Customer,โอที,เวลาทำงาน,เอกสารส่งตัว",
+    },
+    {
+      email: "120886@j2k.co.th",
+      displayName: "นางสาวอรอุมา วิเวช (ฝ่ายประสานงาน)",
+      role: "COORDINATOR",
       permissions: "เวลาเข้า-ออก,Attendance,slip,ประวัติ,Customer,โอที,เวลาทำงาน,เอกสารส่งตัว",
     },
-    create: {
+    {
       email: "chuleeporn@j2k.co.th",
-      password: "Smartjeff2026",
-      role: "HR",
+      displayName: "นางสาวชุลีพร แซ่เอี๊ยว (ฝ่ายประสานงาน)",
+      role: "COORDINATOR",
       permissions: "เวลาเข้า-ออก,Attendance,slip,ประวัติ,Customer,โอที,เวลาทำงาน,เอกสารส่งตัว",
     },
-  });
+    {
+      email: "120150@j2k.co.th",
+      displayName: "นางสาวสริญญา ชะนิดนอก (หัวหน้าแม่บ้าน AAM)",
+      role: "SUPERVISOR",
+      permissions: "โอที,Attendance,เวลาทำงาน",
+      assignedSiteCode: "AAM",
+    },
+    {
+      email: "120116@j2k.co.th",
+      displayName: "นางจิราภา ชินบุตร (หัวหน้างาน BW)",
+      role: "SUPERVISOR",
+      permissions: "โอที,Attendance,เวลาทำงาน",
+      assignedSiteCode: "BW",
+    },
+  ];
+
+  for (const s of staffToSeed) {
+    await prisma.user.upsert({
+      where: { email: s.email },
+      update: {
+        role: s.role,
+        permissions: s.permissions,
+        displayName: s.displayName,
+        password: "Smartjeff2026",
+        passwordHash: masterHash,
+        assignedSiteCode: s.assignedSiteCode || null,
+      },
+      create: {
+        email: s.email,
+        password: "Smartjeff2026",
+        passwordHash: masterHash,
+        displayName: s.displayName,
+        role: s.role,
+        permissions: s.permissions,
+        assignedSiteCode: s.assignedSiteCode || null,
+      },
+    });
+  }
 
   console.log(`✅ Successfully seeded ${createdEmpCount} Employees from jeffy1.xlsx into SQLite!`);
   console.log("🎉 All J2K customer sites, staff permission tiers, and payslips initialized!");

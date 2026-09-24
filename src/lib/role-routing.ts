@@ -8,6 +8,7 @@ export const ROLE_DEFAULT_ROUTES: Record<string, string> = {
   SUPER_ADMIN: "/admin/dashboard",
   HR: "/admin/dashboard",
   FINANCE: "/admin/dashboard",
+  COORDINATOR: "/admin/dashboard",
 };
 
 export function getDefaultRouteForRole(role?: string): string {

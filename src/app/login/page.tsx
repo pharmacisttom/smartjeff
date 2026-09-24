@@ -1,25 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, CheckSquare, Square } from "lucide-react";
+import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, CheckSquare } from "lucide-react";
 import { showSuccess, showError, showLoading, closeSwal } from "@/lib/swal";
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isHumanVerified, setIsHumanVerified] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
       showError("ข้อมูลไม่ครบถ้วน", "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
-      return;
-    }
-
-    if (!isHumanVerified) {
-      showError("การตรวจสอบล้มเหลว", "กรุณายืนยันว่าคุณไม่ใช่โปรแกรมอัตโนมัติ");
       return;
     }
 
@@ -114,7 +108,7 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="เช่น admin หรือ star"
+                  placeholder="เช่น admin@j2k.co.th หรือ 121095"
                   className="w-full pl-11 pr-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white/10 placeholder-slate-400 transition-all"
                   required
                 />
@@ -147,23 +141,15 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Human / Bot Verification Checkbox */}
+            {/* System Security Status */}
             <div className="p-3.5 rounded-2xl border border-white/15 bg-white/5 flex items-center justify-between transition-all">
-              <button
-                type="button"
-                onClick={() => setIsHumanVerified(!isHumanVerified)}
-                className="flex items-center space-x-3 text-left focus:outline-none"
-              >
-                {isHumanVerified ? (
-                  <CheckSquare className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                )}
+              <div className="flex items-center space-x-3 text-left">
+                <CheckSquare className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                 <div>
-                  <p className="text-xs font-bold text-white">ฉันไม่ใช่โปรแกรมอัตโนมัติ</p>
-                  <p className="text-[10px] text-slate-400">Human / Bot Verification</p>
+                  <p className="text-xs font-bold text-white">ยืนยันตัวตนความปลอดภัยระดับองค์กร</p>
+                  <p className="text-[10px] text-slate-400">Enterprise Identity & Access Protection</p>
                 </div>
-              </button>
+              </div>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 PROTECTED
               </span>
