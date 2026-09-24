@@ -368,6 +368,7 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
           { id: "sec-approvals", labelTh: "สายอนุมัติ (Approval Matrix)", href: "/admin/security/approval-matrix" },
           { id: "sec-devices", labelTh: "อุปกรณ์ที่เชื่อถือ (Devices)", href: "/admin/security/devices" },
           { id: "sec-audit", labelTh: "ประวัติตรวจสอบ (Audit Trail)", href: "/admin/security/audit" },
+          { id: "sec-dlp", labelTh: "ป้องกันการรั่วไหล (DLP)", href: "/admin/security/dlp" },
           { id: "sec-review", labelTh: "ทบทวนสิทธิ์ (Access Review)", href: "/admin/security/access-review" },
         ],
       },

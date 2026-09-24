@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { FileCheck, ShieldAlert, Calendar, Users } from "lucide-react";
+import Link from "next/link";
+import { FileCheck, ShieldCheck, Lock, ExternalLink } from "lucide-react";
 import { EnterpriseModuleHeader } from "@/components/enterprise/EnterpriseModuleHeader";
 import { EnterpriseModuleNav } from "@/components/enterprise/EnterpriseModuleNav";
 
@@ -18,6 +19,7 @@ const SECURITY_TABS = [
   { label: "คำขอเข้าถึงข้อมูล", href: "/admin/security/access-requests" },
   { label: "ทบทวนสิทธิ์ (Access Review)", href: "/admin/security/access-review" },
   { label: "บันทึกการตรวจสอบ (Audit Log)", href: "/admin/security/audit" },
+  { label: "Data Log Prevention (DLP)", href: "/admin/security/dlp" },
 ];
 
 export default async function SecurityAuditLogPage() {
@@ -31,7 +33,7 @@ export default async function SecurityAuditLogPage() {
       <EnterpriseModuleHeader
         badge="SECURITY / AUDIT TRAILS"
         title="บันทึกการตรวจสอบความปลอดภัยระบบ (Security Audit Trail)"
-        description="ประวัติกิจกรรมสำคัญ การเข้าสู่ระบบ การแก้ไขสิทธิ์ การเข้าถึงข้อมูลความลับ และการลบข้อมูล (Tamper-evident Audit Logs)"
+        description="ประวัติกิจกรรมสำคัญ การเข้าสู่ระบบ การแก้ไขสิทธิ์ การเข้าถึงข้อมูลความลับ และการลบข้อมูล (Tamper-evident Audit Logs with DLP Protection)"
         breadcrumbs={[
           { label: "ศูนย์ความปลอดภัย", href: "/admin/security" },
           { label: "บันทึกการตรวจสอบ (Audit Log)" },
@@ -41,9 +43,21 @@ export default async function SecurityAuditLogPage() {
       <EnterpriseModuleNav tabs={SECURITY_TABS} />
 
       <div className="bg-surface-card border border-surface-border rounded-3xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-surface-border pb-3">
-          <h2 className="text-sm font-bold text-content-primary">บันทึกเหตุการณ์ความปลอดภัย ({logs.length} รายการ)</h2>
-          <span className="text-xs text-content-muted">MySQL AuditLog</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-surface-border pb-3">
+          <div>
+            <h2 className="text-sm font-bold text-content-primary">
+              บันทึกเหตุการณ์ความปลอดภัย ({logs.length} รายการ)
+            </h2>
+            <p className="text-xs text-content-muted">
+              ทุกล็อกผ่านการตรวจกรองข้อมูลส่วนบุคคล (DLP Sanitized) และลงลายเซ็นแฮชป้องกันการดัดแปลง (HMAC-SHA256)
+            </p>
+          </div>
+          <Link
+            href="/admin/security/dlp"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-500 rounded-xl text-xs font-semibold border border-blue-500/20 transition-colors"
+          >
+            <Lock className="w-3.5 h-3.5" /> ตรวจสอบความสมบูรณ์ล็อก (DLP Anti-Tamper) <ExternalLink className="w-3 h-3" />
+          </Link>
         </div>
 
         {logs.length === 0 ? (
@@ -61,23 +75,49 @@ export default async function SecurityAuditLogPage() {
                   <th className="p-3">การกระทำ (Action)</th>
                   <th className="p-3">Entity</th>
                   <th className="p-3">IP Address</th>
+                  <th className="p-3">สถานะ DLP</th>
                   <th className="p-3 rounded-r-xl">รายละเอียด (Metadata)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-surface-subtle/50 transition-colors">
-                    <td className="p-3 text-content-muted whitespace-nowrap">
-                      {new Date(log.createdAt).toLocaleString("th-TH")}
-                    </td>
-                    <td className="p-3 font-bold text-brand-600">{log.action}</td>
-                    <td className="p-3 font-semibold text-content-primary">{log.entity}</td>
-                    <td className="p-3 font-mono text-content-secondary">{log.ipAddress || "127.0.0.1"}</td>
-                    <td className="p-3 text-content-secondary font-mono text-[11px] max-w-sm truncate">
-                      {log.metadata || "-"}
-                    </td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  let isDlpProtected = false;
+                  let signatureSnippet: string | null = null;
+
+                  if (log.metadata) {
+                    try {
+                      const parsed = JSON.parse(log.metadata);
+                      if (parsed._dlpProtected) isDlpProtected = true;
+                      if (parsed._dlpSignature) signatureSnippet = parsed._dlpSignature.substring(0, 8);
+                    } catch {
+                      // ignore
+                    }
+                  }
+
+                  return (
+                    <tr key={log.id} className="hover:bg-surface-subtle/50 transition-colors">
+                      <td className="p-3 text-content-muted whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString("th-TH")}
+                      </td>
+                      <td className="p-3 font-bold text-brand-600">{log.action}</td>
+                      <td className="p-3 font-semibold text-content-primary">{log.entity}</td>
+                      <td className="p-3 font-mono text-content-secondary">{log.ipAddress || "127.0.0.1"}</td>
+                      <td className="p-3">
+                        {isDlpProtected ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <ShieldCheck className="w-3 h-3" /> DLP Masked
+                            {signatureSnippet && <span className="font-mono opacity-70">#{signatureSnippet}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-content-muted font-mono">Standard</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-content-secondary font-mono text-[11px] max-w-sm truncate">
+                        {log.metadata || "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
