@@ -3,6 +3,7 @@ import {
   Users,
   Building2,
   Clock,
+  Calendar,
   ShieldCheck,
   MessageSquare,
   History,
@@ -140,6 +141,13 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         labelTh: "จัดการพนักงาน",
         href: "/admin/employees",
         icon: Users,
+        permission: "employee.read",
+      },
+      {
+        id: "workforce-schedule",
+        labelTh: "จัดกำลังคนรายเดือน & ชั่วโมงทำงาน",
+        href: "/admin/schedule",
+        icon: Calendar,
         permission: "employee.read",
       },
       {

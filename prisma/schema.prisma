@@ -63,8 +63,9 @@ model Site {
   workEnd      Float          @default(16)
   otStart      Float?         @default(16)
   otEnd        Float?         @default(17)
-  employees    Employee[]
-  config       PayrollConfig?
+  employees        Employee[]
+  shiftAssignments ShiftAssignment[]
+  config           PayrollConfig?
   createdAt    DateTime       @default(now())
 }
 
@@ -430,11 +431,18 @@ model ShiftAssignment {
   id              String         @id @default(cuid())
   employeeId      String
   employee        Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  siteId          String?
+  site            Site?          @relation(fields: [siteId], references: [id])
   shiftTemplateId String?
   shiftTemplate   ShiftTemplate? @relation(fields: [shiftTemplateId], references: [id])
   date            DateTime
   startTime       String?
   endTime         String?
+  shiftType       String         @default("DAY") // "DAY", "OT", "OFF", "LEAVE", "RELIEF"
+  workHours       Float          @default(8)
+  otHours         Float          @default(0)
+  isRelief        Boolean        @default(false)
+  homeSiteId      String?
   note            String?
   isPublished     Boolean        @default(false)
   createdAt       DateTime       @default(now())
@@ -442,6 +450,7 @@ model ShiftAssignment {
 
   @@unique([employeeId, date])
   @@index([date])
+  @@index([siteId, date])
 }
 
 model PayrollRun {
