@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { MapPin, Users, CheckCircle2, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MapPin, Users, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EmployeeMarkerData {
@@ -19,16 +19,151 @@ interface LiveEmployeeMapProps {
 }
 
 const defaultEmployees: EmployeeMarkerData[] = [
-  { id: "1", name: "สมชาย เข็มกลัด", siteName: "โรงงาน AAM มาบตาพุด", lat: 12.682, lng: 101.173, status: "WORKING", lastSeen: "07:55 น." },
-  { id: "2", name: "พัดมา วงค์คำ", siteName: "อมตะ ซิตี้ ระยอง", lat: 12.981, lng: 101.102, status: "LATE", lastSeen: "08:14 น." },
-  { id: "3", name: "วิชัย ใจดี", siteName: "สำนักงานใหญ่ ชลบุรี", lat: 13.361, lng: 100.982, status: "WORKING", lastSeen: "07:48 น." },
-  { id: "4", name: "นารี รุ่งเรือง", siteName: "โรงงาน AAM มาบตาพุด", lat: 12.689, lng: 101.171, status: "WORKING", lastSeen: "07:52 น." },
-  { id: "5", name: "สร้อยทอง ดีมาก", siteName: "อมตะ ซิตี้ ระยอง", lat: 12.978, lng: 101.109, status: "MISSING", lastSeen: "ยังไม่ลงชื่อออก" },
+  { id: "1", name: "สมชาย เข็มกลัด", siteName: "โรงงาน AAM เหมราช ระยอง", lat: 13.0039, lng: 101.1668, status: "WORKING", lastSeen: "07:55 น." },
+  { id: "2", name: "พัดมา วงค์คำ", siteName: "อมตะ ซิตี้ ระยอง", lat: 12.975, lng: 101.135, status: "LATE", lastSeen: "08:14 น." },
+  { id: "3", name: "วิชัย ใจดี", siteName: "สำนักงานใหญ่ ปลวกแดง", lat: 12.9734, lng: 101.2155, status: "WORKING", lastSeen: "07:48 น." },
+  { id: "4", name: "นารี รุ่งเรือง", siteName: "โรงงาน BAT นิคมฯ เหมราช", lat: 12.9961, lng: 101.1712, status: "WORKING", lastSeen: "07:52 น." },
+  { id: "5", name: "สร้อยทอง ดีมาก", siteName: "อมตะ ซิตี้ ระยอง", lat: 12.9765, lng: 101.137, status: "MISSING", lastSeen: "ยังไม่ลงชื่อออก" },
+  { id: "6", name: "ปณิธาน สดใส", siteName: "ท่าเรือแหลมฉบัง LCIT", lat: 13.0827, lng: 100.8845, status: "WORKING", lastSeen: "07:40 น." },
 ];
 
 export function LiveEmployeeMap({ employees = defaultEmployees }: LiveEmployeeMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markersLayerRef = useRef<any>(null);
+
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [selectedEmp, setSelectedEmp] = useState<EmployeeMarkerData | null>(null);
+  const [isLeafletLoaded, setIsLeafletLoaded] = useState(false);
+
+  // Dynamic Leaflet Loader
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if ((window as any).L) {
+      setIsLeafletLoaded(true);
+      return;
+    }
+
+    const linkId = "leaflet-css-bundle";
+    if (!document.getElementById(linkId)) {
+      const link = document.createElement("link");
+      link.id = linkId;
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.crossOrigin = "";
+      document.head.appendChild(link);
+    }
+
+    const scriptId = "leaflet-js-bundle";
+    if (!document.getElementById(scriptId)) {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.crossOrigin = "";
+      script.async = true;
+      script.onload = () => setIsLeafletLoaded(true);
+      document.body.appendChild(script);
+    } else {
+      const interval = setInterval(() => {
+        if ((window as any).L) {
+          setIsLeafletLoaded(true);
+          clearInterval(interval);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  // Initialize Map
+  useEffect(() => {
+    if (!isLeafletLoaded || !mapContainerRef.current) return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    if (!mapInstanceRef.current) {
+      const map = L.map(mapContainerRef.current, {
+        center: [13.0039, 101.1668],
+        zoom: 11,
+        zoomControl: false,
+        attributionControl: false,
+      });
+
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+        subdomains: "abcd",
+      }).addTo(map);
+
+      markersLayerRef.current = L.layerGroup().addTo(map);
+      mapInstanceRef.current = map;
+    }
+  }, [isLeafletLoaded]);
+
+  // Update Markers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isLeafletLoaded) return;
+    const L = (window as any).L;
+    if (!L) return;
+
+    const markersGroup = markersLayerRef.current;
+    if (markersGroup) markersGroup.clearLayers();
+
+    const filtered = employees.filter((e) => {
+      if (filterStatus === "ALL") return true;
+      return e.status === filterStatus;
+    });
+
+    const bounds = L.latLngBounds([]);
+
+    filtered.forEach((emp) => {
+      const latLng = [emp.lat, emp.lng];
+      bounds.extend(latLng);
+
+      const color =
+        emp.status === "WORKING"
+          ? "#10b981"
+          : emp.status === "LATE"
+          ? "#f59e0b"
+          : "#f43f5e";
+
+      const customIcon = L.divIcon({
+        className: "custom-emp-pin",
+        html: `
+          <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+            <div style="background: ${color}; width: 26px; height: 26px; border-radius: 9999px; border: 2px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: bold;">
+              👤
+            </div>
+            <div style="background: rgba(15,23,42,0.9); color: white; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; margin-top: 2px; white-space: nowrap;">
+              ${emp.name}
+            </div>
+          </div>
+        `,
+        iconSize: [40, 44],
+        iconAnchor: [20, 22],
+      });
+
+      const marker = L.marker(latLng, { icon: customIcon });
+
+      marker.bindPopup(`
+        <div style="padding: 4px; font-family: sans-serif;">
+          <strong style="display: block; font-size: 12px; color: #0f172a;">${emp.name}</strong>
+          <span style="display: block; font-size: 10px; color: #64748b;">${emp.siteName}</span>
+          <div style="margin-top: 4px; font-size: 10px; color: ${color}; font-weight: bold;">
+            สถานะ: ${emp.status === "WORKING" ? "ปกติ" : emp.status === "LATE" ? "มาสาย" : "ยังไม่ลงชื่อออก"} (${emp.lastSeen})
+          </div>
+        </div>
+      `);
+
+      marker.on("click", () => setSelectedEmp(emp));
+      markersGroup.addLayer(marker);
+    });
+
+    if (filtered.length > 0 && bounds.isValid()) {
+      mapInstanceRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+  }, [employees, filterStatus, isLeafletLoaded]);
 
   const filtered = employees.filter((e) => {
     if (filterStatus === "ALL") return true;
@@ -44,7 +179,7 @@ export function LiveEmployeeMap({ employees = defaultEmployees }: LiveEmployeeMa
             <MapPin className="w-5 h-5 text-brand-600" />
             <h3 className="font-bold text-content-primary text-base">แผนที่กำลังพลเรียลไทม์ (Live Operations Map)</h3>
           </div>
-          <p className="text-xs text-content-muted">แสดงตำแหน่งพนักงาน 40 คนบนแผนที่ พร้อมรัศมี Geofence 200m</p>
+          <p className="text-xs text-content-muted">แสดงตำแหน่งพนักงานที่ออกปฏิบัติงานบนแผนที่ดาวเทียม GIS พร้อมสถานะ</p>
         </div>
 
         {/* Status Filter Badges */}
@@ -70,83 +205,32 @@ export function LiveEmployeeMap({ employees = defaultEmployees }: LiveEmployeeMa
         </div>
       </div>
 
-      {/* Simulated Map Visual Canvas */}
-      <div className="w-full h-80 bg-slate-900 rounded-2xl relative overflow-hidden border border-slate-800 p-4 flex flex-col justify-between select-none">
-        {/* Map Grid Patterns */}
-        <div className="absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none" />
-
-        {/* Geofence Circles */}
-        <div className="absolute top-12 left-16 w-32 h-32 rounded-full border-2 border-dashed border-emerald-500/40 bg-emerald-500/5 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] font-bold text-emerald-400 bg-slate-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
-            AAM Geofence 200m
-          </span>
-        </div>
-
-        <div className="absolute bottom-10 right-20 w-36 h-36 rounded-full border-2 border-dashed border-indigo-500/40 bg-indigo-500/5 flex items-center justify-center pointer-events-none">
-          <span className="text-[10px] font-bold text-indigo-400 bg-slate-950/80 px-2 py-0.5 rounded border border-indigo-500/30">
-            อมตะซิตี้ Geofence 200m
-          </span>
-        </div>
-
-        {/* Employee Markers */}
-        <div className="relative z-10 grid grid-cols-2 md:grid-cols-3 gap-3">
-          {filtered.map((emp) => (
-            <div
-              key={emp.id}
-              onClick={() => setSelectedEmp(emp)}
-              className={cn(
-                "p-3 rounded-2xl border transition-all cursor-pointer shadow-md backdrop-blur-md flex items-center justify-between",
-                emp.status === "WORKING"
-                  ? "bg-emerald-950/40 border-emerald-500/40 hover:border-emerald-400"
-                  : emp.status === "LATE"
-                  ? "bg-amber-950/40 border-amber-500/40 hover:border-amber-400"
-                  : "bg-rose-950/40 border-rose-500/40 hover:border-rose-400"
-              )}
-            >
-              <div className="space-y-0.5">
-                <div className="flex items-center space-x-1.5">
-                  <div
-                    className={cn(
-                      "w-2.5 h-2.5 rounded-full animate-ping",
-                      emp.status === "WORKING"
-                        ? "bg-emerald-400"
-                        : emp.status === "LATE"
-                        ? "bg-amber-400"
-                        : "bg-rose-400"
-                    )}
-                  />
-                  <span className="font-bold text-white text-xs">{emp.name}</span>
-                </div>
-                <p className="text-[10px] text-slate-300 truncate max-w-[140px]">{emp.siteName}</p>
-              </div>
-
-              <span className="text-[10px] font-mono text-slate-400 bg-slate-950/60 px-2 py-1 rounded">
-                {emp.lastSeen}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom Legend */}
-        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-          <div className="flex items-center space-x-3">
-            <span className="flex items-center space-x-1 text-emerald-400 font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>ปกติ {employees.filter((e) => e.status === "WORKING").length}</span>
-            </span>
-            <span className="flex items-center space-x-1 text-amber-400 font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span>สาย {employees.filter((e) => e.status === "LATE").length}</span>
-            </span>
-            <span className="flex items-center space-x-1 text-rose-400 font-bold">
-              <span className="w-2 h-2 rounded-full bg-rose-400" />
-              <span>ยังไม่เช็คเอาท์ {employees.filter((e) => e.status === "MISSING").length}</span>
-            </span>
-          </div>
-
-          <span className="text-[10px] text-slate-400">อัปเดตตำแหน่งแบบ WebSocket Real-time</span>
-        </div>
+      {/* Real Interactive Map Canvas */}
+      <div className="w-full h-80 rounded-2xl relative overflow-hidden border border-surface-border">
+        <div ref={mapContainerRef} className="w-full h-full bg-slate-900 z-0" />
       </div>
+
+      {/* Selected Employee Info */}
+      {selectedEmp && (
+        <div className="p-3 bg-surface-subtle rounded-2xl border border-surface-border flex items-center justify-between text-xs">
+          <div>
+            <span className="font-bold text-content-primary">{selectedEmp.name}</span>
+            <span className="text-content-muted ml-2">ประจำที่ {selectedEmp.siteName}</span>
+          </div>
+          <span
+            className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+              selectedEmp.status === "WORKING"
+                ? "bg-emerald-500/10 text-emerald-600"
+                : selectedEmp.status === "LATE"
+                ? "bg-amber-500/10 text-amber-600"
+                : "bg-rose-500/10 text-rose-600"
+            }`}
+          >
+            {selectedEmp.status === "WORKING" ? "ปกติ" : selectedEmp.status === "LATE" ? "มาสาย" : "ยังไม่ลงชื่อออก"} (
+            {selectedEmp.lastSeen})
+          </span>
+        </div>
+      )}
     </div>
   );
 }
