@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth-jwt";
 
 const ROLES = ["SUPERADMIN", "ADMIN", "HR", "OPERATIONS"];
 export async function GET(req: NextRequest) {
-  const auth = requireRole(req, ROLES); if ("error" in auth) return auth.error;
+  const auth = await requireRole(req, ROLES); if ("error" in auth) return auth.error;
   const type = req.nextUrl.searchParams.get("type");
   if (type === "training") return NextResponse.json({ records: await prisma.trainingCourse.findMany({ where: { isActive: true }, include: { enrollments: true }, orderBy: { title: "asc" } }) });
   if (type === "compliance") return NextResponse.json({ records: await prisma.complianceRecord.findMany({ orderBy: [{ status: "asc" }, { dueDate: "asc" }] }) });
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const auth = requireRole(req, ROLES); if ("error" in auth) return auth.error;
+  const auth = await requireRole(req, ROLES); if ("error" in auth) return auth.error;
   const body = await req.json();
   if (body.type !== "alert" || !body.id || !body.resolution) return NextResponse.json({ error: "INVALID_RESOLUTION" }, { status: 400 });
   const record = await prisma.systemAlert.update({ where: { id: body.id }, data: { status: "RESOLVED", resolution: body.resolution, resolvedById: auth.session.sub, resolvedAt: new Date() } });

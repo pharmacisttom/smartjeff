@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../src/lib/password";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -19,10 +19,10 @@ async function main() {
       throw new Error("Password must include lowercase, uppercase, and a number");
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
     await prisma.user.upsert({
       where: { email },
-      update: { displayName: name, passwordHash, role: "ADMIN", isActive: true, isLocked: false },
+      update: { displayName: name, passwordHash, password: null, passwordChangedAt: new Date(), passwordExpiresAt: null, mustChangePassword: false, authzVersion: { increment: 1 }, role: "ADMIN", isActive: true, isLocked: false },
       create: { email, displayName: name, passwordHash, role: "ADMIN" },
     });
     stdout.write("Admin account created or updated securely.\n");

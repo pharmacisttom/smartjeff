@@ -6,10 +6,11 @@ import { AuditService } from "@/server/services/audit.service";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -19,7 +20,7 @@ export async function GET(
     if (!auth.allowed) return NextResponse.json({ message: auth.reason }, { status: 403 });
 
     const role = await prisma.role.findUnique({
-      where: { id: params.id },
+      where: { id: routeId },
       include: {
         permissions: { include: { permission: true } },
         userAssignments: {
@@ -43,10 +44,11 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -56,7 +58,7 @@ export async function PATCH(
     if (!auth.allowed) return NextResponse.json({ message: auth.reason }, { status: 403 });
 
     const role = await prisma.role.findUnique({
-      where: { id: params.id },
+      where: { id: routeId },
       include: { permissions: { select: { permissionId: true } } },
     });
     if (!role) return NextResponse.json({ message: "ไม่พบบทบาทที่ระบุ" }, { status: 404 });
@@ -66,7 +68,7 @@ export async function PATCH(
 
     // Update basic role fields
     await prisma.role.update({
-      where: { id: params.id },
+      where: { id: routeId },
       data: {
         nameTh: nameTh !== undefined ? nameTh : role.nameTh,
         nameEn: nameEn !== undefined ? nameEn : role.nameEn,
@@ -82,12 +84,12 @@ export async function PATCH(
     if (Array.isArray(permissionIds)) {
       permissionsChanged = true;
       // Remove current permissions
-      await prisma.rolePermission.deleteMany({ where: { roleId: params.id } });
+      await prisma.rolePermission.deleteMany({ where: { roleId: routeId } });
       // Insert new permissions
       if (permissionIds.length > 0) {
         await prisma.rolePermission.createMany({
           data: permissionIds.map((pId: string) => ({
-            roleId: params.id,
+            roleId: routeId,
             permissionId: pId,
           })),
           skipDuplicates: true,
@@ -98,7 +100,7 @@ export async function PATCH(
     // Invalidate sessions for all users holding this role
     if (permissionsChanged || isActive === false) {
       const assignedUsers = await prisma.userRoleAssignment.findMany({
-        where: { roleId: params.id, status: "ACTIVE" },
+        where: { roleId: routeId, status: "ACTIVE" },
         select: { userId: true },
       });
       const userIds = Array.from(new Set(assignedUsers.map((u) => u.userId)));
@@ -126,7 +128,7 @@ export async function PATCH(
     });
 
     const updatedRole = await prisma.role.findUnique({
-      where: { id: params.id },
+      where: { id: routeId },
       include: { permissions: { include: { permission: true } } },
     });
 
@@ -138,10 +140,11 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -150,19 +153,19 @@ export async function DELETE(
     });
     if (!auth.allowed) return NextResponse.json({ message: auth.reason }, { status: 403 });
 
-    const role = await prisma.role.findUnique({ where: { id: params.id } });
+    const role = await prisma.role.findUnique({ where: { id: routeId } });
     if (!role) return NextResponse.json({ message: "ไม่พบบทบาทที่ระบุ" }, { status: 404 });
     if (role.isSystem) {
       return NextResponse.json({ message: "ไม่สามารถลบบทบาทของระบบ (System Role) ได้" }, { status: 400 });
     }
 
-    await prisma.role.delete({ where: { id: params.id } });
+    await prisma.role.delete({ where: { id: routeId } });
 
     await AuditService.log({
       userId: session.sub,
       action: "ROLE_DELETED",
       entity: "Role",
-      entityId: params.id,
+      entityId: routeId,
       metadata: { code: role.code, nameTh: role.nameTh },
       req,
     });

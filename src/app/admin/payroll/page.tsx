@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShieldCheck,
   Calculator,
@@ -55,6 +55,8 @@ interface Payslip {
     lastName: string;
     position: string;
     idCardNo?: string | null;
+    bankAccount?: string | null;
+    bankName?: string | null;
     startDate?: string | null;
     site?: { id: string; name: string; code: string } | null;
   };
@@ -69,7 +71,7 @@ export default function AdminPayrollPage() {
   const [selectedSiteCode, setSelectedSiteCode] = useState("ALL");
   const [activeModalSlip, setActiveModalSlip] = useState<Payslip | null>(null);
 
-  const fetchPayroll = async () => {
+  const fetchPayroll = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/payroll?period=${period}`);
@@ -82,11 +84,11 @@ export default function AdminPayrollPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
   useEffect(() => {
     fetchPayroll();
-  }, [period]);
+  }, [fetchPayroll]);
 
   const handleRunPayroll = async () => {
     try {
@@ -145,11 +147,12 @@ export default function AdminPayrollPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, `Payroll_${period}`);
     XLSX.writeFile(workbook, `J2K_Payroll_${period}.xlsx`);
+  };
 
   const [showBankExportModal, setShowBankExportModal] = useState(false);
   const [showBatchPrintModal, setShowBatchPrintModal] = useState(false);
   const [selectedBankFormat, setSelectedBankFormat] = useState<"KBANK" | "SCB" | "BBL" | "GENERIC_CSV">("KBANK");
-  const [companyAccount, setCompanyAccount] = useState("058-1-98765-4");
+  const [companyAccount, setCompanyAccount] = useState("");
   const [transferDate, setTransferDate] = useState("2026-09-30");
 
   const handleDownloadBankFile = () => {

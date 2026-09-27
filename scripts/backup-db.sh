@@ -1,35 +1,14 @@
-#!/bin/bash
-# ============================================================
-# SmartJeff Enterprise — Automated MySQL Daily Backup Script
-# Place in /etc/cron.daily or crontab:
-# 0 4 * * * /var/www/smartjeff/scripts/backup-db.sh > /dev/null 2>&1
-# ============================================================
-
-set -e
-
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/smartjeff}"
-DATE=$(date +"%Y%m%d_%H%M%S")
-RETENTION_DAYS=30
-
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+# MYSQL_DEFAULTS_FILE is a private MySQL option file containing connection credentials.
+: "${MYSQL_DEFAULTS_FILE:?Set a private MySQL option file outside the repository}"
+: "${MYSQL_DATABASE:?Set the database name}"
+: "${BACKUP_DIR:?Set an encrypted backup destination outside the repository}"
+test -f "$MYSQL_DEFAULTS_FILE"
 mkdir -p "$BACKUP_DIR"
-
-echo "📦 Starting SmartJeff MySQL Backup on $DATE..."
-
-# Check if running in Docker or host
-if docker ps --format '{{.Names}}' | grep -q "smartjeff-mysql"; then
-  echo "Using Docker container: smartjeff-mysql"
-  docker exec smartjeff-mysql mysqldump -u root -p"${MYSQL_ROOT_PASSWORD:-SmartJeffRootPass2026!}" \
-    --single-transaction --quick --lock-tables=false smartjeff | gzip > "$BACKUP_DIR/smartjeff_backup_${DATE}.sql.gz"
-else
-  echo "Using host mysqldump"
-  mysqldump -u smartjeff -p"${MYSQL_PASSWORD}" --single-transaction --quick --lock-tables=false smartjeff | gzip > "$BACKUP_DIR/smartjeff_backup_${DATE}.sql.gz"
-fi
-
-BACKUP_SIZE=$(du -h "$BACKUP_DIR/smartjeff_backup_${DATE}.sql.gz" | cut -f1)
-echo "✅ Backup completed: $BACKUP_DIR/smartjeff_backup_${DATE}.sql.gz (Size: $BACKUP_SIZE)"
-
-# Cleanup backups older than RETENTION_DAYS
-echo "🧹 Cleaning up archives older than $RETENTION_DAYS days..."
-find "$BACKUP_DIR" -name "smartjeff_backup_*.sql.gz" -type f -mtime +$RETENTION_DAYS -delete
-
-echo "🎉 Backup maintenance completed successfully!"
+target="$BACKUP_DIR/smartjeff_$(date +%Y%m%d_%H%M%S).sql.gz"
+mysqldump --defaults-extra-file="$MYSQL_DEFAULTS_FILE" --single-transaction --quick --routines --triggers "$MYSQL_DATABASE" | gzip > "$target.partial"
+gzip -t "$target.partial"
+mv "$target.partial" "$target"
+echo 'Backup completed; verify recovery periodically. No automatic deletion is performed.'

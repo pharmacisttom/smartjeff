@@ -7,10 +7,11 @@ import { AuditService } from "@/server/services/audit.service";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -19,7 +20,7 @@ export async function POST(
     });
     if (!auth.allowed) return NextResponse.json({ message: auth.reason }, { status: 403 });
 
-    const targetUser = await prisma.user.findUnique({ where: { id: params.id } });
+    const targetUser = await prisma.user.findUnique({ where: { id: routeId } });
     if (!targetUser) return NextResponse.json({ message: "ไม่พบผู้ใช้ที่ระบุ" }, { status: 404 });
 
     const body = await req.json();
@@ -33,7 +34,7 @@ export async function POST(
     if (!role) return NextResponse.json({ message: "ไม่พบบทบาทที่ระบุ" }, { status: 404 });
 
     // Check Separation of Duties (SoD) conflicts
-    const conflicts = await RoleConflictService.checkRoleAssignmentConflicts(params.id, roleId);
+    const conflicts = await RoleConflictService.checkRoleAssignmentConflicts(routeId, roleId);
     const hasBlock = conflicts.some((c) => c.severity === "BLOCK");
 
     if (hasBlock) {
@@ -103,10 +104,11 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -127,7 +129,7 @@ export async function DELETE(
       include: { role: true },
     });
 
-    if (!assignment || assignment.userId !== params.id) {
+    if (!assignment || assignment.userId !== routeId) {
       return NextResponse.json({ message: "ไม่พบข้อมูลการมอบหมายสิทธิ์" }, { status: 404 });
     }
 
@@ -137,14 +139,14 @@ export async function DELETE(
     });
 
     // Invalidate sessions
-    await AuthorizationService.invalidateUserSessions(params.id);
+    await AuthorizationService.invalidateUserSessions(routeId);
 
     await AuditService.log({
       userId: session.sub,
       action: "USER_ROLE_REVOKED",
       entity: "UserRoleAssignment",
       entityId: assignmentId,
-      metadata: { targetUserId: params.id, roleCode: assignment.role.code },
+      metadata: { targetUserId: routeId, roleCode: assignment.role.code },
       req,
     });
 

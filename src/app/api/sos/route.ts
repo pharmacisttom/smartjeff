@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth-jwt";
+import { getSessionFromRequest, requireRole } from "@/lib/auth-jwt";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = getSession(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       ],
     };
 
+    if (session.role === "EMPLOYEE") where.reportedById = session.sub;
     if (status && status !== "ALL") {
       where.status = status;
     }
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = getSession(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
@@ -161,8 +162,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN", "SUPERVISOR"]);
+  if ("error" in auth) return auth.error;
   try {
-    const session = getSession(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }

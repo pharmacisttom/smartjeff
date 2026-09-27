@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth-jwt";
 const OPERATIONS_ROLES = ["SUPERADMIN", "ADMIN", "OPERATIONS"];
 
 export async function GET(req: NextRequest) {
-  const authorization = requireRole(req, OPERATIONS_ROLES);
+  const authorization = await requireRole(req, OPERATIONS_ROLES);
   if ("error" in authorization) return authorization.error;
   const lat = Number(req.nextUrl.searchParams.get("lat"));
   const lng = Number(req.nextUrl.searchParams.get("lng"));

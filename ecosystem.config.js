@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "smartjeff",
       script: "node_modules/next/dist/bin/next",
-      args: "start",
+      args: "start -H 127.0.0.1",
       instances: "max", // Scale across all available CPU cores
       exec_mode: "cluster",
       autorestart: true,

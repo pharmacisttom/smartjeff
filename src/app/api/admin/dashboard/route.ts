@@ -5,7 +5,7 @@ import { generateDailyExecutiveReport } from "@/lib/automation/daily-report";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  const session = getSessionFromRequest(req);
+  const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
 
   // Central Authorization Check

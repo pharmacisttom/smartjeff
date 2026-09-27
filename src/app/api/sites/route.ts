@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-jwt";
+import { NextRequest, NextResponse } from "next/server";
 import { SiteService } from "@/server/services/site.service";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN", "HR", "SUPERVISOR", "COORDINATOR", "EMPLOYEE"]);
+  if ("error" in auth) return auth.error;
   try {
     const sites = await SiteService.getAll();
     return NextResponse.json({ sites });
@@ -10,7 +13,9 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     const body = await req.json();
     if (!body.code || !body.name) {

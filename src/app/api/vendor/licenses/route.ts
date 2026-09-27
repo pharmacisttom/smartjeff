@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-jwt";
 
 export async function GET(req: NextRequest) {
-  const auth = requireRole(req, ["SUPERADMIN"]);
+  const auth = await requireRole(req, ["SUPERADMIN"]);
   if ("error" in auth) return auth.error;
   const [organizations, employees] = await prisma.$transaction([
     prisma.organization.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = requireRole(req, ["SUPERADMIN"]);
+  const auth = await requireRole(req, ["SUPERADMIN"]);
   if ("error" in auth) return auth.error;
   return NextResponse.json({ success: false, error: "PERSISTENT_LICENSE_PROVIDER_NOT_CONFIGURED" }, { status: 503 });
 }

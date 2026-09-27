@@ -36,6 +36,12 @@ public/photos/
 /backups/
 *.backup
 *.dump
+*.sql.bak
+*.sql
+!database/schema.sql
+!database/demo-data.sql
+!prisma/migrations/**/migration.sql
+backup/
 *.sql.gz
 
 # Sensitive spreadsheets

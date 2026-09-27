@@ -7,15 +7,16 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
     }
 
-    const employee = await EmployeeService.getById(params.id);
+    const employee = await EmployeeService.getById(routeId);
     if (!employee) {
       return NextResponse.json({ message: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
     }
@@ -48,10 +49,11 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
     }
@@ -65,7 +67,7 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const updated = await EmployeeService.update(params.id, body);
+    const updated = await EmployeeService.update(routeId, body);
     const viewerContext = await AuthorizationService.getUserContext(session.sub);
     const serialized = EmployeeSerializer.serialize(updated, viewerContext);
 
@@ -77,10 +79,11 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
     }
@@ -93,7 +96,7 @@ export async function DELETE(
       return NextResponse.json({ message: authResult.reason }, { status: 403 });
     }
 
-    await EmployeeService.delete(params.id);
+    await EmployeeService.delete(routeId);
     return NextResponse.json({ message: "ลบข้อมูลพนักงานเรียบร้อยแล้ว" });
   } catch (error: any) {
     return NextResponse.json({ message: error.message }, { status: 500 });

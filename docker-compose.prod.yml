@@ -14,17 +14,17 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --max_connections=250
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-SmartJeffRootPass2026!}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-smartjeff}
       MYSQL_USER: ${MYSQL_USER:-smartjeff}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-SmartJeffAppPass2026!}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/mysql-init:/docker-entrypoint-initdb.d
     ports:
       - "127.0.0.1:3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-SmartJeffRootPass2026!}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,13 +39,13 @@ services:
     image: redis:7-alpine
     container_name: smartjeff-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-SmartJeffRedis2026!}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-SmartJeffRedis2026!}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -55,6 +55,16 @@ services:
   # ------------------------------------------------------------
   # SmartJeff Next.js Application Service
   # ------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      target: deps
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
+    networks:
+      - smartjeff-net
+
   app:
     build:
       context: .
@@ -69,8 +79,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:-SmartJeffAppPass2026!}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-SmartJeffRedis2026!}@redis:6379/0
+      - DATABASE_URL=mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0
       - AUTH_SECRET=${AUTH_SECRET:-SmartJeffProductionSecretRandomGeneratedKeyMustBeChanged64HexCharacters}
       - NEXTAUTH_URL=${APP_URL:-http://localhost}
       - APP_URL=${APP_URL:-http://localhost}

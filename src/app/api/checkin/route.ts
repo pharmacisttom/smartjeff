@@ -7,7 +7,7 @@ const TYPES = new Set(["CHECK_IN", "CHECK_OUT", "OT_IN", "OT_OUT"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
     const user = await prisma.user.findUnique({ where: { id: auth.session.sub }, select: { employeeId: true } });
     if (!user?.employeeId) return NextResponse.json({ error: "EMPLOYEE_PROFILE_REQUIRED" }, { status: 403 });

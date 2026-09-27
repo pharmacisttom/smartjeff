@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-jwt";
+import { NextRequest, NextResponse } from "next/server";
 import { DlpService } from "@/server/services/dlp.service";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     const body = await req.json();
     const rawInput = body.input;

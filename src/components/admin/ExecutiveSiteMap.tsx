@@ -367,7 +367,7 @@ export function ExecutiveSiteMap({
     if (!selectedSiteId && filteredSites.length > 1 && bounds.isValid()) {
       mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     }
-  }, [filteredSites, sosIncidents, isLeafletLoaded, activeSite, selectedSiteId]);
+  }, [filteredSites, sosIncidents, isLeafletLoaded, activeSite, selectedSiteId, onSelectSite]);
 
   // Handle external selected site pan/zoom
   useEffect(() => {

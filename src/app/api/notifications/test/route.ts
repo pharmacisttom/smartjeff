@@ -6,7 +6,7 @@ import { generateDailyExecutiveReport } from "@/lib/automation/daily-report";
 import { requireRole } from "@/lib/auth-jwt";
 
 export async function GET(req: NextRequest) {
-  const auth = requireRole(req, ["SUPERADMIN", "ADMIN", "HR", "EXECUTIVE"]);
+  const auth = await requireRole(req, ["SUPERADMIN", "ADMIN", "HR", "EXECUTIVE"]);
   if ("error" in auth) return auth.error;
   return NextResponse.json({ channels: {
     line: Boolean(process.env.LINE_NOTIFY_TOKEN),
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = requireRole(req, ["SUPERADMIN", "ADMIN", "HR", "EXECUTIVE"]);
+    const auth = await requireRole(req, ["SUPERADMIN", "ADMIN", "HR", "EXECUTIVE"]);
     if ("error" in auth) return auth.error;
     const body = await req.json();
     const { type, token, chatId, email, message } = body;

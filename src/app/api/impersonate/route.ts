@@ -1,22 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireRole } from '@/lib/auth-jwt';
 
 export async function POST(req: NextRequest) {
-  try {
-    const { tenantId, userId, adminUser } = await req.json();
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Missing tenantId' }, { status: 400 });
-    }
-
-    const impersonationToken = `imp_${Buffer.from(JSON.stringify({ tenantId, userId, adminUser, timestamp: Date.now() })).toString('base64url')}`;
-
-    return NextResponse.json({
-      success: true,
-      tenantId,
-      impersonationToken,
-      redirectUrl: `/admin/dashboard?impersonate_token=${impersonationToken}`,
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const auth = await requireRole(req, ['SUPERADMIN']);
+  if ('error' in auth) return auth.error;
+  // Impersonation must not mint unsigned pseudo-tokens.
+  return NextResponse.json({ error: 'Impersonation is not configured' }, { status: 501 });
 }

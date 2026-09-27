@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-jwt";
+import { NextRequest, NextResponse } from "next/server";
 import { LicenseService } from "@/server/services/license.service";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     const info = await LicenseService.getLicenseStatus();
     return NextResponse.json({ license: info });
@@ -10,7 +13,9 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     const body = await req.json();
     const { key } = body;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { prisma } from "./prisma";
 
 function getJwtSecret(): string {
   const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
@@ -30,7 +31,9 @@ export function signToken(payload: Omit<SessionPayload, "iat" | "exp">): string 
 
 export function verifyToken(token: string): SessionPayload | null {
   try {
-    return jwt.verify(token, getJwtSecret()) as SessionPayload;
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ["HS256"] }) as SessionPayload;
+    if (!payload.sub || !payload.role || !payload.type || !payload.exp) return null;
+    return payload;
   } catch {
     return null;
   }
@@ -57,16 +60,27 @@ export function clearAuthCookie(response: NextResponse): NextResponse {
   return response;
 }
 
-export function getSessionFromRequest(req: NextRequest): SessionPayload | null {
+export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
   const token = req.cookies.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  const session = verifyToken(token);
+  if (!session?.sessionId) return null;
+  try {
+    const stored = await prisma.userSession.findUnique({ where: { sessionId: session.sessionId }, include: { user: true } });
+    if (!stored || stored.userId !== session.sub || stored.status !== "ACTIVE" || stored.expiresAt <= new Date()) return null;
+    const user = stored.user;
+    if (!user.isActive || user.isLocked || user.deletedAt || user.mustChangePassword ||
+        user.passwordExpiresAt && user.passwordExpiresAt <= new Date() ||
+        user.authzVersion !== session.authzVersion || stored.authzVersion !== user.authzVersion ||
+        user.role !== session.role || user.mfaEnabled && stored.authStrength !== "MFA") return null;
+    return session;
+  } catch { return null; }
 }
 
-export function requireSession(
+export async function requireSession(
   req: NextRequest
-): { session: SessionPayload } | { error: NextResponse } {
-  const session = getSessionFromRequest(req);
+): Promise<{ session: SessionPayload } | { error: NextResponse }> {
+  const session = await getSessionFromRequest(req);
   if (!session) {
     return {
       error: NextResponse.json(
@@ -78,11 +92,11 @@ export function requireSession(
   return { session };
 }
 
-export function requireRole(
+export async function requireRole(
   req: NextRequest,
   roles: string[]
-): { session: SessionPayload } | { error: NextResponse } {
-  const result = requireSession(req);
+): Promise<{ session: SessionPayload } | { error: NextResponse }> {
+  const result = await requireSession(req);
   if ("error" in result) return result;
   if (!roles.includes(result.session.role)) {
     return {

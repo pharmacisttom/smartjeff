@@ -8,19 +8,21 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "node --env-file=.env --import tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "create-admin": "tsx scripts/create-admin.ts",
+    "create-admin": "node --env-file=.env --import tsx scripts/create-admin.ts",
     "setup-mfa": "tsx scripts/setup-mfa.ts",
-    "check:routes": "npx --yes tsx scripts/check-navigation-routes.ts",
-    "test": "vitest run"
+    "check:routes": "tsx scripts/check-navigation-routes.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",
     "@tanstack/react-query": "^5.56.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/leaflet": "^1.9.22",
+    "argon2": "0.44.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -31,7 +33,7 @@
     "jsonwebtoken": "^9.0.3",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.439.0",
-    "next": "^14.2.10",
+    "next": "15.5.24",
     "next-auth": "^5.0.0-beta.20",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",
@@ -40,11 +42,12 @@
     "sweetalert2": "^11.26.25",
     "tailwind-merge": "^2.5.2",
     "uuid": "^14.0.2",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.23.8",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.16.5",
     "@types/qrcode": "^1.5.6",
@@ -53,11 +56,24 @@
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.10",
+    "eslint-config-next": "15.5.24",
     "postcss": "^8.4.45",
     "prisma": "^5.19.0",
     "tailwindcss": "^3.4.11",
+    "tsx": "4.20.6",
     "typescript": "^5.6.2",
-    "vitest": "^2.1.1"
+    "vitest": "4.1.11",
+    "vite": "6.4.3"
+  },
+  "engines": {
+    "node": ">=20.17.0"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.28"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "9.0.9"
+    }
   }
 }

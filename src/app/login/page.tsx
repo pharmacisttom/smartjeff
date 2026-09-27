@@ -10,6 +10,7 @@ export default function LoginPage() {
   const { t, locale } = useLanguage();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -33,8 +34,8 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           identifier: identifier.trim(),
-          password: password.trim(),
-          humanToken: "dev-human-token-ok",
+          password,
+          mfaCode: mfaCode || undefined,
         }),
       });
 
@@ -126,7 +127,7 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="admin@j2k.co.th / 210993"
+                  placeholder="user@example.local / DEMO-3"
                   className="w-full pl-11 pr-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white/10 placeholder-slate-400 transition-all font-mono"
                   required
                 />
@@ -159,6 +160,10 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div>
+              <label htmlFor="mfa-code" className="block text-xs font-bold text-slate-300 mb-1.5">MFA / Recovery code (ถ้าเปิดใช้งาน)</label>
+              <input id="mfa-code" autoComplete="one-time-code" value={mfaCode} onChange={e => setMfaCode(e.target.value)} className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm" />
+            </div>
             {/* Hint for Employees */}
             <div className="p-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-200 text-xs leading-relaxed">
               💡 {t("login.employee_hint")}

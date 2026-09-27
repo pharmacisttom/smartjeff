@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-jwt";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     const { searchParams } = new URL(req.url);
     const employeeId = searchParams.get("employeeId");

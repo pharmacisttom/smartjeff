@@ -10,7 +10,7 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
     const user = await prisma.user.findUnique({ where: { id: auth.session.sub }, select: { employeeId: true } });
     if (!user?.employeeId) return NextResponse.json({ error: "EMPLOYEE_PROFILE_REQUIRED" }, { status: 403 });

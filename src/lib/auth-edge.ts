@@ -53,7 +53,7 @@ export async function verifyTokenAtEdge(token: string): Promise<SessionPayload |
       console.error("[EDGE AUTH] Missing payload fields", payload);
       return null;
     }
-    if (payload.exp && payload.exp <= Math.floor(Date.now() / 1000)) {
+    if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) {
       console.error("[EDGE AUTH] Token expired", payload.exp);
       return null;
     }

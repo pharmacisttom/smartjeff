@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth-jwt";
 
 export const runtime = "nodejs";
 
@@ -22,13 +23,15 @@ const DICTIONARY_FALLBACK: Record<string, { th: string; my: string; km: string; 
 };
 
 export async function POST(req: NextRequest) {
+  const auth = await requireSession(req);
+  if ("error" in auth) return auth.error;
   try {
     const body = await req.json();
     const text = body.text ? String(body.text).trim() : "";
     let targetLang = body.targetLang as "th" | "my" | "km" | "en" | undefined;
     let sourceLang = body.sourceLang as string | undefined;
 
-    if (!text) {
+    if (!text || text.length > 5000) {
       return NextResponse.json({ success: false, error: "Missing text" }, { status: 400 });
     }
 

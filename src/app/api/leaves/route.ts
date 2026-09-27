@@ -6,7 +6,7 @@ const MANAGEMENT_ROLES = new Set(["SUPERADMIN", "ADMIN", "HR"]);
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
     const requestedEmployee = req.nextUrl.searchParams.get("employeeId");
     const employeeId = MANAGEMENT_ROLES.has(auth.session.role)
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
     const employeeId = await resolveEmployeeId(auth.session.sub);
     if (!employeeId) return NextResponse.json({ error: "EMPLOYEE_PROFILE_REQUIRED" }, { status: 403 });
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
     if (!MANAGEMENT_ROLES.has(auth.session.role)) {
       return NextResponse.json({ error: "FORBIDDEN_MANAGEMENT_ONLY" }, { status: 403 });
@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = requireSession(req);
+    const auth = await requireSession(req);
     if ("error" in auth) return auth.error;
 
     const { searchParams } = new URL(req.url);

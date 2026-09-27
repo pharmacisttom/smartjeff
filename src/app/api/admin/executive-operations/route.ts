@@ -6,7 +6,7 @@ import { fromZonedTime } from "date-fns-tz";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) {
       return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     }

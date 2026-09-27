@@ -1,11 +1,14 @@
-import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth-jwt";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AuditService } from "@/server/services/audit.service";
 import { DlpService } from "@/server/services/dlp.service";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ["ADMIN", "SUPERADMIN"]);
+  if ("error" in auth) return auth.error;
   try {
     // 1. Count logs and recent activity
     const totalLogs = await prisma.auditLog.count().catch(() => 0);

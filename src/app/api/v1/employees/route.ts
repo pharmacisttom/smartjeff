@@ -1,48 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import { validateApiKeyRequest } from "@/lib/apikey/middleware";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer sk_')) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Valid SMARTO API Key required.' },
-      { status: 401 }
-    );
-  }
-
-  const sampleEmployees = [
-    { id: 'EMP-001', name: 'สมชาย สายซิ่ง', role: 'DRIVER', site: 'มาบตาพุด', status: 'ACTIVE' },
-    { id: 'EMP-002', name: 'วิภา ตรงเวลา', role: 'ACCOUNTANT', site: 'สำนักงานใหญ่', status: 'ACTIVE' },
-  ];
-
-  return NextResponse.json({
-    object: 'list',
-    data: sampleEmployees,
-    has_more: false,
-  });
+  try {
+    const key = await validateApiKeyRequest(req, "employees:read");
+    if (!key) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    // Employee has no tenant relation; do not expose cross-tenant data to tenant keys.
+    if (key.tenantId) return NextResponse.json({ error: "TENANT_SCOPE_UNSUPPORTED" }, { status: 403 });
+    const data = await prisma.employee.findMany({ take: 100, orderBy: { id: "asc" },
+      select: { id: true, code: true, firstName: true, lastName: true, position: true, isActive: true } });
+    return NextResponse.json({ object: "list", data, has_more: data.length === 100 });
+  } catch { return NextResponse.json({ error: "SERVICE_UNAVAILABLE" }, { status: 503 }); }
 }
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer sk_')) {
-    return NextResponse.json(
-      { error: 'Unauthorized. Valid SMARTO API Key required.' },
-      { status: 401 }
-    );
-  }
-
-  try {
-    const body = await req.json();
-    return NextResponse.json(
-      {
-        id: `EMP-${Date.now()}`,
-        name: body.name,
-        role: body.role || 'USER',
-        site: body.site || 'MAIN',
-        created_at: new Date().toISOString(),
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
-  }
+  const key = await validateApiKeyRequest(req, "employees:write").catch(() => null);
+  if (!key) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  return NextResponse.json({ error: "Use the authorized employee management API" }, { status: 501 });
 }

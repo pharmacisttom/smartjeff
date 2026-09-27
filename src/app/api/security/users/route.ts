@@ -6,7 +6,7 @@ import { EmployeeSerializer } from "@/lib/serializers/employee.serializer";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({

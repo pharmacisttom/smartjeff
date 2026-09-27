@@ -6,10 +6,11 @@ import { AuditService } from "@/server/services/audit.service";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: routeId } = await params;
   try {
-    const session = getSessionFromRequest(req);
+    const session = await getSessionFromRequest(req);
     if (!session) return NextResponse.json({ message: "กรุณาเข้าสู่ระบบ" }, { status: 401 });
 
     const auth = await AuthorizationService.authorize({
@@ -19,7 +20,7 @@ export async function POST(
     if (!auth.allowed) return NextResponse.json({ message: auth.reason }, { status: 403 });
 
     const targetSession = await prisma.userSession.findFirst({
-      where: { OR: [{ id: params.id }, { sessionId: params.id }] },
+      where: { OR: [{ id: routeId }, { sessionId: routeId }] },
     });
 
     if (!targetSession) {

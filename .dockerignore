@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+node_modules
+.next
+uploads
+backups
+backup
+tmp
+*.xlsx
+*.xls
+*.csv
+*.dump
+*.pem
+*.key
+!public/templates/*.xlsx

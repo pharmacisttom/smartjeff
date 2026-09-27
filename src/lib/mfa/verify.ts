@@ -9,8 +9,8 @@ export async function verifyMfaCode(userId: string, encryptedSecret: string | nu
   const codes = await prisma.mfaRecoveryCode.findMany({ where: { userId, usedAt: null } });
   for (const recovery of codes) {
     if (await bcrypt.compare(normalized, recovery.codeHash)) {
-      await prisma.mfaRecoveryCode.update({ where: { id: recovery.id }, data: { usedAt: new Date() } });
-      return true;
+      const consumed = await prisma.mfaRecoveryCode.updateMany({ where: { id: recovery.id, usedAt: null }, data: { usedAt: new Date() } });
+      return consumed.count === 1;
     }
   }
   return false;

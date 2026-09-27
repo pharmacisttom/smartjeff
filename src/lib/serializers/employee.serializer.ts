@@ -49,8 +49,7 @@ export class EmployeeSerializer {
    */
   static maskCode(code: string | null | undefined): string | null {
     if (!code) return null;
-    if (code.length <= 4) return "EMP****";
-    return `${code.slice(0, 3)}****`;
+    return "EMP******";
   }
 
   /**
@@ -91,10 +90,10 @@ export class EmployeeSerializer {
     const isSuperAdmin = Boolean(viewerContext?.isSuperAdmin);
 
     const hasCodePerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.code.read"));
-    const hasPhonePerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.phone.read")) || Boolean(viewerContext?.permissions.has("employee.read"));
+    const hasPhonePerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.phone.read"));
     const hasBankPerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.bank.read"));
     const hasSalaryPerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.salary.read"));
-    const hasIdCardPerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.read"));
+    const hasIdCardPerm = isSelf || isSuperAdmin || Boolean(viewerContext?.permissions.has("employee.idcard.read"));
 
     const age = this.calculateAge(employee.birthDate);
 

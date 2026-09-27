@@ -3,7 +3,7 @@ import { clearAuthCookie, getSessionFromRequest } from "@/lib/auth-jwt";
 import { AuditService } from "@/server/services/audit.service";
 
 export async function POST(req: NextRequest) {
-  const session = getSessionFromRequest(req);
+  const session = await getSessionFromRequest(req);
   if (session?.sub) {
     if (session.sessionId) {
       try {

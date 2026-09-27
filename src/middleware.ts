@@ -9,8 +9,8 @@ const PUBLIC_PATHS = [
   "/api/auth/logout",
   "/api/auth/session",
   "/api/auth/debug-session",
-  "/api/translate",
   "/api/ping",
+  "/api/v1/employees",
   "/_next",
   "/favicon",
   "/manifest",
@@ -25,7 +25,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.includes(".")) {
+  if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/")) || pathname === "/favicon.ico" || pathname === "/manifest.json") {
     return NextResponse.next();
   }
 
@@ -40,6 +40,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!token) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);
@@ -57,6 +58,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!session) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("from", pathname);
     const response = NextResponse.redirect(loginUrl);
@@ -67,6 +69,7 @@ export async function middleware(req: NextRequest) {
   // Route protection: admin paths require management / non-employee roles
   const isEmployeeOnly = session.role === "EMPLOYEE" || session.type === "EMPLOYEE";
   if ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin") || pathname.startsWith("/api/security")) && isEmployeeOnly) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     return NextResponse.redirect(new URL(getDefaultRouteForRole(session.role), req.url));
   }
 

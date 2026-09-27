@@ -1,5 +1,4 @@
 import { prisma } from "../../lib/prisma";
-import { findJ2KDirectoryUser } from "../../lib/j2k-directory";
 
 export interface AuthorizeOptions {
   userId: string;
@@ -66,6 +65,8 @@ export class AuthorizationService {
           authzVersion: true,
           isActive: true,
           isLocked: true,
+          deletedAt: true,
+          employee: { select: { siteId: true } },
           roleAssignments: {
             where: {
               status: "ACTIVE",
@@ -97,13 +98,11 @@ export class AuthorizationService {
       console.warn("[AUTHZ] Database lookup warning:", err instanceof Error ? err.message : err);
     }
 
-    if (user && (!user.isActive || user.isLocked)) {
+    if (!user || !user.isActive || user.isLocked || user.deletedAt) {
       return null;
     }
 
-    const dirUser = findJ2KDirectoryUser(user?.email || userId);
-    const effectiveRole = (user?.role || dirUser?.role || "EMPLOYEE").toUpperCase();
-    const effectiveEmail = user?.email || dirUser?.email || userId;
+    const effectiveRole = user.role.toUpperCase();
 
     const permissions = new Set<string>();
     const rolesMap = new Map<string, any>();
@@ -119,10 +118,7 @@ export class AuthorizationService {
 
     let isSuperAdmin =
       effectiveRole === "ADMIN" ||
-      effectiveRole === "SUPERADMIN" ||
-      effectiveRole === "EXECUTIVE" ||
-      effectiveEmail === "admin@j2k.co.th" ||
-      effectiveEmail === "panithan@j2k.co.th";
+      effectiveRole === "SUPERADMIN";
     let isSecurityAdmin = isSuperAdmin;
     let isPlatformAdmin = isSuperAdmin;
 
@@ -238,7 +234,7 @@ export class AuthorizationService {
       assignments.push({
         roleCode: "SITE_SUPERVISOR",
         scopeType: "SITE",
-        scopeId: dirUser?.siteCode || null,
+        scopeId: user.employee?.siteId || null,
         permissions: Array.from(permissions),
         startAt: null,
         endAt: null,
