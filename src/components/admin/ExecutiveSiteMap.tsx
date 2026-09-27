@@ -56,12 +56,14 @@ export interface SiteOperationalData {
 
 interface ExecutiveSiteMapProps {
   sites: SiteOperationalData[];
+  sosIncidents?: any[];
   onSelectSite?: (site: SiteOperationalData) => void;
   selectedSiteId?: string | null;
 }
 
 export function ExecutiveSiteMap({
   sites,
+  sosIncidents = [],
   onSelectSite,
   selectedSiteId,
 }: ExecutiveSiteMapProps) {
@@ -314,11 +316,58 @@ export function ExecutiveSiteMap({
       markersGroup.addLayer(marker);
     });
 
+    // Render Live Emergency SOS Incident Markers
+    if (sosIncidents && sosIncidents.length > 0) {
+      sosIncidents.forEach((sos) => {
+        if (sos.status === "RESOLVED" || sos.status === "CLOSED") return;
+        let lat = 12.6828;
+        let lng = 101.2813;
+        try {
+          if (sos.photoUrls) {
+            const parsed = JSON.parse(sos.photoUrls);
+            if (parsed.lat && parsed.lng) {
+              lat = parsed.lat;
+              lng = parsed.lng;
+            }
+          }
+        } catch (_) {}
+
+        const sosIcon = L.divIcon({
+          className: "custom-sos-marker",
+          html: `
+            <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+              <span style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; background: rgba(239, 68, 68, 0.4); animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+              <div style="position: relative; width: 34px; height: 34px; border-radius: 9999px; background: #dc2626; border: 2.5px solid #ffffff; box-shadow: 0 0 16px rgba(220, 38, 38, 0.9); display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 16px;">
+                🚨
+              </div>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+        });
+
+        const sosMarker = L.marker([lat, lng], { icon: sosIcon, zIndexOffset: 1000 });
+        sosMarker.bindPopup(`
+          <div style="padding: 10px; font-family: sans-serif; min-width: 220px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 800; color: #dc2626; font-size: 12px;">🚨 SOS ฉุกเฉิน</span>
+              <span style="font-size: 10px; font-weight: 700; background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 9999px;">${sos.status}</span>
+            </div>
+            <div style="font-weight: 700; color: #0f172a; font-size: 12px; margin-bottom: 4px;">${sos.title}</div>
+            <div style="font-size: 11px; color: #475569;">ผู้แจ้ง: <b>${sos.affectedPerson || "-"}</b></div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">พิกัด: ${sos.location || "-"}</div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 2px;">เวลา: ${new Date(sos.occurredAt || sos.createdAt).toLocaleTimeString("th-TH")}</div>
+          </div>
+        `);
+        markersGroup.addLayer(sosMarker);
+      });
+    }
+
     // Auto-fit bounds if we have multiple sites and no single site focused
     if (!selectedSiteId && filteredSites.length > 1 && bounds.isValid()) {
       mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     }
-  }, [filteredSites, isLeafletLoaded, activeSite, selectedSiteId]);
+  }, [filteredSites, sosIncidents, isLeafletLoaded, activeSite, selectedSiteId]);
 
   // Handle external selected site pan/zoom
   useEffect(() => {

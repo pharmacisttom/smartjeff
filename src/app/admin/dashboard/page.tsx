@@ -93,15 +93,17 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"all" | "map" | "charts" | "reports">("all");
+  const [sosIncidents, setSosIncidents] = useState<any[]>([]);
 
   const mapSectionRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [opRes, dashRes] = await Promise.all([
+      const [opRes, dashRes, sosRes] = await Promise.all([
         fetch("/api/admin/executive-operations", { cache: "no-store" }),
         fetch("/api/admin/dashboard", { cache: "no-store" }),
+        fetch("/api/sos", { cache: "no-store" }),
       ]);
 
       if (opRes.ok) {
@@ -115,6 +117,11 @@ export default function AdminDashboardPage() {
         if (dashJson.security) setSecurity(dashJson.security);
       }
 
+      if (sosRes.ok) {
+        const sosJson = await sosRes.json();
+        setSosIncidents(sosJson.incidents || []);
+      }
+
       setError(null);
     } catch (err: any) {
       console.error("[EXECUTIVE DASHBOARD ERROR]:", err);
@@ -126,7 +133,37 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     loadData();
+
+    // Auto-poll SOS alerts every 20 seconds
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/sos", { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          setSosIncidents(json.incidents || []);
+        }
+      } catch (_) {}
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  const handleUpdateSosStatus = async (id: string, status: "ACKNOWLEDGED" | "RESOLVED") => {
+    try {
+      const res = await fetch("/api/sos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      if (res.ok) {
+        setSosIncidents((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, status } : item))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to update SOS status:", err);
+    }
+  };
 
   const handleSelectSite = (site: SiteOperationalData) => {
     setSelectedSiteId(site.id);
@@ -175,8 +212,76 @@ export default function AdminDashboardPage() {
     estimatedOtCost: 7176,
   };
 
+  const activeSos = sosIncidents.filter((s) => s.status === "OPEN" || s.status === "IN_PROGRESS" || s.status === "ACKNOWLEDGED");
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto font-sans pb-20">
+      {/* Real-time SOS Emergency Incident Banner */}
+      {activeSos.length > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-red-950 via-rose-950 to-red-900 border-2 border-red-500 text-white shadow-2xl shadow-red-900/50 space-y-4 animate-pulse">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <span className="relative flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+              </span>
+              <span className="text-sm font-black tracking-wide text-red-200 uppercase bg-red-900/60 px-3 py-1 rounded-full border border-red-500/50">
+                🚨 ตรวจพบสัญญาณขอความช่วยเหลือฉุกเฉิน ({activeSos.length} เหตุการณ์)
+              </span>
+            </div>
+            <Link
+              href="/sos"
+              className="text-xs font-semibold text-red-200 hover:text-white underline"
+            >
+              เปิดหน้า SOS สำหรับพนักงาน
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {activeSos.map((sos) => (
+              <div
+                key={sos.id}
+                className="bg-black/50 border border-red-500/40 rounded-2xl p-4 flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-mono text-red-300 font-bold">{sos.refNo}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/30 text-red-200 text-[10px] font-bold">
+                      {sos.status}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-base text-white">{sos.title}</h3>
+                  <p className="text-xs text-slate-300 mt-1 whitespace-pre-line">{sos.description}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">📍 {sos.location || "ไม่ระบุตำแหน่ง"}</p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-red-500/30 text-xs">
+                  <span className="text-slate-400 text-[10px]">
+                    ⏱️ {new Date(sos.occurredAt || sos.createdAt).toLocaleString("th-TH")}
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    {sos.status === "OPEN" && (
+                      <button
+                        onClick={() => handleUpdateSosStatus(sos.id, "ACKNOWLEDGED")}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition"
+                      >
+                        รับทราบเหตุ
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleUpdateSosStatus(sos.id, "RESOLVED")}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition"
+                    >
+                      ปิดเหตุ (ช่วยเหลือแล้ว)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Top Executive Header Banner */}
       <div className="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white overflow-hidden shadow-2xl border border-white/10">
         <div className="absolute -right-10 -bottom-10 w-72 h-72 rounded-full bg-brand-500/10 blur-3xl pointer-events-none" />
@@ -343,6 +448,7 @@ export default function AdminDashboardPage() {
         <div ref={mapSectionRef} className="space-y-3">
           <ExecutiveSiteMap
             sites={data?.sites || []}
+            sosIncidents={sosIncidents}
             onSelectSite={handleSelectSite}
             selectedSiteId={selectedSiteId}
           />

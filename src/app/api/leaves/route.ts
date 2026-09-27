@@ -43,8 +43,66 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PATCH(req: NextRequest) {
+  try {
+    const auth = requireSession(req);
+    if ("error" in auth) return auth.error;
+    if (!MANAGEMENT_ROLES.has(auth.session.role)) {
+      return NextResponse.json({ error: "FORBIDDEN_MANAGEMENT_ONLY" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id, status } = body;
+
+    if (!id || !status || !["APPROVED", "REJECTED", "PENDING"].includes(status)) {
+      return NextResponse.json({ message: "Valid id and status (APPROVED, REJECTED, PENDING) are required" }, { status: 400 });
+    }
+
+    const leave = await LeaveService.updateStatus(
+      id,
+      status as "APPROVED" | "REJECTED",
+      auth.session.email || "HR Admin"
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: `อัปเดตสถานะคำขอเป็น ${status} เรียบร้อยแล้ว`,
+      leave,
+    });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Unable to update leave request" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = requireSession(req);
+    if ("error" in auth) return auth.error;
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ message: "Leave ID is required" }, { status: 400 });
+    }
+
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.leave.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, message: "ลบคำขอเรียบร้อยแล้ว" });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Unable to delete leave request" },
+      { status: 500 }
+    );
+  }
+}
+
 async function resolveEmployeeId(userId: string): Promise<string | null> {
   const { prisma } = await import("@/lib/prisma");
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { employeeId: true } });
   return user?.employeeId ?? null;
 }
+

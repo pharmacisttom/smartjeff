@@ -17,6 +17,7 @@ import {
   Printer,
   X,
   Building,
+  CreditCard,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
@@ -145,7 +146,86 @@ export default function AdminPayrollPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, `Payroll_${period}`);
     XLSX.writeFile(workbook, `J2K_Payroll_${period}.xlsx`);
 
-    showToast("ส่งออกไฟล์ Excel สรุปเงินเดือนเรียบร้อยแล้ว", "success");
+  const [showBankExportModal, setShowBankExportModal] = useState(false);
+  const [showBatchPrintModal, setShowBatchPrintModal] = useState(false);
+  const [selectedBankFormat, setSelectedBankFormat] = useState<"KBANK" | "SCB" | "BBL" | "GENERIC_CSV">("KBANK");
+  const [companyAccount, setCompanyAccount] = useState("058-1-98765-4");
+  const [transferDate, setTransferDate] = useState("2026-09-30");
+
+  const handleDownloadBankFile = () => {
+    if (filteredPayslips.length === 0) return;
+
+    let content = "";
+    let filename = "";
+    let mimeType = "text/plain;charset=utf-8";
+
+    const cleanAcc = (acc?: string | null) => (acc || "0000000000").replace(/[^0-9]/g, "");
+    const cleanId = (id?: string | null) => (id || "0000000000000").replace(/[^0-9]/g, "");
+
+    if (selectedBankFormat === "KBANK") {
+      const dateKbank = transferDate.replace(/-/g, "");
+      const header = `H|004|${cleanAcc(companyAccount)}|${dateKbank}|${filteredPayslips.length}|${totalNet.toFixed(2)}\r\n`;
+      const rows = filteredPayslips
+        .map((p) => {
+          const empName = `${p.employee.prefix || ""} ${p.employee.firstName} ${p.employee.lastName}`.trim();
+          return `D|004|${cleanAcc(p.employee.bankAccount).padEnd(10, "0")}|${Number(p.netPay).toFixed(2)}|${cleanId(p.employee.idCardNo).padEnd(13, "0")}|${empName}|${p.employee.code}`;
+        })
+        .join("\r\n");
+      content = header + rows;
+      filename = `KBANK_PAYROLL_${period}_${dateKbank}.txt`;
+    } else if (selectedBankFormat === "SCB") {
+      const dateScb = transferDate.replace(/-/g, "");
+      const header = `01${cleanAcc(companyAccount).padStart(10, "0")}${dateScb}${filteredPayslips.length.toString().padStart(6, "0")}${Math.round(totalNet * 100).toString().padStart(13, "0")}\r\n`;
+      const rows = filteredPayslips
+        .map((p) => {
+          const acc = cleanAcc(p.employee.bankAccount).padEnd(10, " ");
+          const amt = Math.round(Number(p.netPay) * 100).toString().padStart(10, "0");
+          const idCard = cleanId(p.employee.idCardNo).padEnd(13, " ");
+          const empName = `${p.employee.firstName} ${p.employee.lastName}`.substring(0, 50).padEnd(50, " ");
+          return `02${acc}${amt}${idCard}${empName}`;
+        })
+        .join("\r\n");
+      content = header + rows;
+      filename = `SCB_PAYROLL_${period}_${dateScb}.txt`;
+    } else if (selectedBankFormat === "BBL") {
+      const dateBbl = transferDate.replace(/-/g, "");
+      const header = `H${cleanAcc(companyAccount).padEnd(10, " ")}${dateBbl}${filteredPayslips.length.toString().padStart(6, "0")}${Math.round(totalNet * 100).toString().padStart(12, "0")}\r\n`;
+      const rows = filteredPayslips
+        .map((p) => {
+          const acc = cleanAcc(p.employee.bankAccount).padEnd(10, " ");
+          const amt = Math.round(Number(p.netPay) * 100).toString().padStart(11, "0");
+          const idCard = cleanId(p.employee.idCardNo).padEnd(13, " ");
+          const empName = `${p.employee.firstName} ${p.employee.lastName}`.substring(0, 40).padEnd(40, " ");
+          return `D${acc}${amt}${idCard}${empName}`;
+        })
+        .join("\r\n");
+      content = header + rows;
+      filename = `BBL_PAYROLL_${period}_${dateBbl}.txt`;
+    } else {
+      mimeType = "text/csv;charset=utf-8";
+      const bom = "\uFEFF";
+      const header = "ลำดับ,รหัสพนักงาน,คำนำหน้า,ชื่อ,นามสกุล,เลขประจำตัวประชาชน,ธนาคาร,เลขที่บัญชี,ยอดเงินสุทธิ,งวดเดือน,โรงงาน\r\n";
+      const rows = filteredPayslips
+        .map((p, idx) => {
+          return `${idx + 1},"${p.employee.code}","${p.employee.prefix || ""}","${p.employee.firstName}","${p.employee.lastName}","${p.employee.idCardNo || ""}","${p.employee.bankName || "กสิกรไทย"}","${p.employee.bankAccount || ""}","${Number(p.netPay).toFixed(2)}","${period}","${p.employee.site?.code || "AAM"}"`;
+        })
+        .join("\r\n");
+      content = bom + header + rows;
+      filename = `BANK_PAYROLL_TRANSFER_${period}.csv`;
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setShowBankExportModal(false);
+    showToast(`ดาวน์โหลดไฟล์โอนเงินธนาคาร (${selectedBankFormat}) เรียบร้อยแล้ว`, "success");
   };
 
   // Distinct sites for filter
@@ -263,15 +343,34 @@ export default function AdminPayrollPage() {
           />
         </div>
 
-        {/* Export Button */}
-        <div className="flex items-end">
+        {/* Export & Print Buttons */}
+        <div className="flex items-end gap-1.5 flex-wrap sm:flex-nowrap">
           <button
             onClick={handleExportExcel}
             disabled={filteredPayslips.length === 0}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl border border-surface-border bg-surface-bg hover:bg-surface-subtle text-content-primary font-bold text-xs transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+            className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2.5 rounded-xl border border-surface-border bg-surface-bg hover:bg-surface-subtle text-content-primary font-bold text-xs transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+            title="ส่งออกไฟล์ Excel"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>ส่งออก Excel ({filteredPayslips.length})</span>
+            <span>Excel</span>
+          </button>
+          <button
+            onClick={() => setShowBankExportModal(true)}
+            disabled={filteredPayslips.length === 0}
+            className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+            title="ส่งออกไฟล์โอนเงินธนาคาร KBank / SCB / BBL / PromptPay"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>โอนธนาคาร</span>
+          </button>
+          <button
+            onClick={() => setShowBatchPrintModal(true)}
+            disabled={filteredPayslips.length === 0}
+            className="flex-1 flex items-center justify-center space-x-1.5 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all disabled:opacity-40 cursor-pointer shadow-sm"
+            title="พิมพ์สลิปเงินเดือนคาร์บอนทั้งหมด"
+          >
+            <Printer className="w-4 h-4" />
+            <span>สลิปรวม</span>
           </button>
         </div>
       </div>
@@ -551,6 +650,287 @@ export default function AdminPayrollPage() {
               >
                 ปิด
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BANK PAYROLL TRANSFER EXPORT MODAL */}
+      {showBankExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900 dark:text-white">
+                    ส่งออกไฟล์โอนเงินเดือนธนาคาร (Direct Credit)
+                  </h3>
+                  <p className="text-xs text-slate-500">สำหรับส่งระบบโอนเงินพนักงานอัตโนมัติ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBankExportModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  เลือกมาตรฐานรูปแบบธนาคาร:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: "KBANK", name: "กสิกรไทย (KBank)", desc: "Direct Credit .txt" },
+                    { id: "SCB", name: "ไทยพาณิชย์ (SCB)", desc: "Business Anywhere .txt" },
+                    { id: "BBL", name: "กรุงเทพ (BBL)", desc: "Corporate iCash .txt" },
+                    { id: "GENERIC_CSV", name: "PromptPay / ทุกธนาคาร", desc: "Universal CSV" },
+                  ].map((bank) => (
+                    <button
+                      key={bank.id}
+                      type="button"
+                      onClick={() => setSelectedBankFormat(bank.id as any)}
+                      className={`p-3 rounded-2xl border text-left transition ${
+                        selectedBankFormat === bank.id
+                          ? "bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300 font-bold shadow-sm"
+                          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <div className="font-bold">{bank.name}</div>
+                      <div className="text-[10px] opacity-75">{bank.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  เลขที่บัญชีบริษัทต้นทาง (Company Account No.):
+                </label>
+                <input
+                  type="text"
+                  value={companyAccount}
+                  onChange={(e) => setCompanyAccount(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  วันที่ตัดยอดโอนเงิน (Transfer Effective Date):
+                </label>
+                <input
+                  type="date"
+                  value={transferDate}
+                  onChange={(e) => setTransferDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/80 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">จำนวนรายการที่โอน:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{filteredPayslips.length} พนักงาน</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ยอดเงินโอนสุทธิรวม:</span>
+                  <span className="font-black text-blue-600 dark:text-blue-400 text-sm">
+                    ฿{totalNet.toLocaleString()} บาท
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">งวดเงินเดือน:</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">{period}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBankExportModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadBankFile}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-500/30 flex items-center space-x-1.5"
+              >
+                <Download className="w-4 h-4" />
+                <span>ดาวน์โหลดไฟล์โอนเงิน</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BATCH PAYSLIP CARBON PRINT MODAL */}
+      {showBatchPrintModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white text-slate-900 rounded-3xl p-6 max-w-5xl w-full shadow-2xl my-8 space-y-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 print:hidden">
+              <div>
+                <h3 className="font-black text-lg text-slate-900">
+                  แบบฟอร์มสลิปเงินเดือนคาร์บอน (Batch Slip Print Preview)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  งวดประจำเดือน {period} • แสดงทั้งหมด {filteredPayslips.length} ฉบับ
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>สั่งพิมพ์ทันที (Print All)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBatchPrintModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer"
+                >
+                  ปิด
+                </button>
+              </div>
+            </div>
+
+            {/* List of Printable Payslips */}
+            <div className="space-y-8">
+              {filteredPayslips.map((slip, idx) => (
+                <div
+                  key={slip.id}
+                  className="p-6 border-2 border-slate-300 rounded-2xl bg-white shadow-sm space-y-4 break-after-page"
+                  style={{ pageBreakInside: "avoid" }}
+                >
+                  {/* Slip Header */}
+                  <div className="flex items-center justify-between border-b border-slate-300 pb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-700 text-white font-black text-lg flex items-center justify-center">
+                        J2K
+                      </div>
+                      <div>
+                        <h4 className="font-black text-base text-slate-900 leading-tight">
+                          บริษัท เจทูเค เฮ้าส์คีพปิ้ง เซอร์วิส จำกัด
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          ใบแจ้งยอดเงินเดือนและค่าจ้าง (Payslip) • งวด {period}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs">
+                      <span className="font-mono font-bold text-slate-800">ลำดับที่: {idx + 1}</span>
+                      <p className="text-[10px] text-slate-500">โรงงาน: {slip.employee.site?.code || "AAM"}</p>
+                    </div>
+                  </div>
+
+                  {/* Employee Details Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">รหัสพนักงาน</span>
+                      <strong className="font-mono text-slate-800">{slip.employee.code}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ชื่อ-นามสกุล</span>
+                      <strong className="text-slate-800">
+                        {slip.employee.prefix || ""} {slip.employee.firstName} {slip.employee.lastName}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">ตำแหน่ง</span>
+                      <strong className="text-slate-800">{slip.employee.position}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">เลขบัญชีธนาคาร</span>
+                      <strong className="font-mono text-slate-800">{slip.employee.bankAccount || "-"}</strong>
+                    </div>
+                  </div>
+
+                  {/* Income vs Deduction Grid */}
+                  <div className="grid grid-cols-2 divide-x divide-slate-200 text-xs border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="p-3 space-y-1.5">
+                      <div className="font-bold text-blue-800 pb-1 border-b border-slate-200 uppercase text-[11px]">
+                        รายการรับ (Earnings)
+                      </div>
+                      <div className="flex justify-between">
+                        <span>เงินเดือน / ฐานค่าจ้าง:</span>
+                        <span className="font-semibold">{Number(slip.baseSalary).toLocaleString()} ฿</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ค่าล่วงเวลา (OT 1.5):</span>
+                        <span className="font-semibold text-amber-700">
+                          {Number(slip.ot15Amount || slip.otAmount || 0).toLocaleString()} ฿
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ค่าเดินทาง / น้ำมัน:</span>
+                        <span className="font-semibold">{Number(slip.travelAllow || 0).toLocaleString()} ฿</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>เบี้ยขยัน:</span>
+                        <span className="font-semibold text-emerald-700">{Number(slip.diligence || 0).toLocaleString()} ฿</span>
+                      </div>
+                      {slip.positionAllow ? (
+                        <div className="flex justify-between">
+                          <span>ค่าตำแหน่ง:</span>
+                          <span className="font-semibold">{Number(slip.positionAllow).toLocaleString()} ฿</span>
+                        </div>
+                      ) : null}
+                      <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold text-slate-900">
+                        <span>รวมเงินรับ:</span>
+                        <span className="text-blue-700">
+                          {Number(
+                            slip.grossIncome || (slip.baseSalary + slip.otAmount + slip.travelAllow + slip.diligence)
+                          ).toLocaleString()} ฿
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 space-y-1.5">
+                      <div className="font-bold text-rose-800 pb-1 border-b border-slate-200 uppercase text-[11px]">
+                        รายการหัก (Deductions)
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ประกันสังคม 5%:</span>
+                        <span className="font-semibold text-rose-600">-{Number(slip.socialSec).toLocaleString()} ฿</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>ภาษีหัก ณ ที่จ่าย:</span>
+                        <span className="font-semibold text-rose-600">-{Number(slip.tax).toLocaleString()} ฿</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>เงินสงเคราะห์:</span>
+                        <span className="font-semibold text-rose-600">-{Number(slip.welfareDeduct || 30).toLocaleString()} ฿</span>
+                      </div>
+                      <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold text-slate-900">
+                        <span>รวมเงินหัก:</span>
+                        <span className="text-rose-700">
+                          -{Number(slip.totalDeduct || (slip.socialSec + slip.tax + (slip.welfareDeduct || 30))).toLocaleString()} ฿
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Net Pay Bar */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-blue-900 uppercase">ยอดรับสุทธิ (Net Pay)</span>
+                      <p className="text-[10px] text-blue-600">รับเงินผ่านการโอนบัญชีธนาคาร</p>
+                    </div>
+                    <div className="text-xl font-black text-blue-700">
+                      ฿{Number(slip.netPay).toLocaleString()} บาท
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

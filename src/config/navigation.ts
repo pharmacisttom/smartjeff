@@ -158,6 +158,13 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         permission: "attendance.approve",
       },
       {
+        id: "leave-approval",
+        labelTh: "อนุมัติการลา & ขอทำ OT",
+        href: "/admin/leaves",
+        icon: CalendarOff,
+        permission: "attendance.approve",
+      },
+      {
         id: "payroll-mgmt",
         labelTh: "ระบบคำนวณเงินเดือน",
         href: "/admin/payroll",
