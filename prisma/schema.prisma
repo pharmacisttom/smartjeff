@@ -317,6 +317,7 @@ model User {
   roleAssignments        UserRoleAssignment[]
   sessions               UserSession[]
   accessRequests         AccessRequest[]
+  passwordHistory        PasswordHistory[]
 
   @@index([email])
   @@index([isActive])
@@ -331,6 +332,16 @@ model MfaRecoveryCode {
   createdAt DateTime  @default(now())
 
   @@index([userId, usedAt])
+}
+
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Role {
