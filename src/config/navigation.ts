@@ -144,6 +144,13 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         permission: "employee.read",
       },
       {
+        id: "excel-import-center",
+        labelTh: "ศูนย์นำเข้าข้อมูล Excel",
+        href: "/admin/import",
+        icon: Table,
+        permission: "employee.create",
+      },
+      {
         id: "workforce-schedule",
         labelTh: "จัดกำลังคนรายเดือน & ชั่วโมงทำงาน",
         href: "/admin/schedule",

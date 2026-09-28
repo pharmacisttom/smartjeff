@@ -14,8 +14,9 @@ build/
 # Environment variables — NEVER commit real secrets
 .env
 .env.local
-.env.*.local
-.env.production
+.env.*
+!.env.example
+!.env.production.example
 
 # Database files — dev only, never production
 prisma/dev.db
@@ -47,6 +48,9 @@ backup/
 # Sensitive spreadsheets
 *.xlsx
 *.xls
+customer-data/
+private-import/
+raw-import/
 *.csv
 !public/templates/*.xlsx
 

@@ -2,25 +2,95 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model PayrollPeriod {
+  id          String       @id @default(cuid())
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  month       Int
+  year        Int
+  status      String       @default("DRAFT")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  payrollRuns PayrollRun[]
+
+  @@unique([startDate, endDate])
+  @@index([year, month])
+}
+
+model PayrollComponent {
+  id                 String                   @id @default(cuid())
+  code               String                   @unique
+  name               String
+  type               String
+  calculationType    String
+  rate               Decimal?                 @db.Decimal(18, 4)
+  multiplier         Decimal?                 @db.Decimal(10, 4)
+  taxable            Boolean                  @default(false)
+  socialSecurityBase Boolean                  @default(false)
+  isActive           Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  policies           PayrollPolicyComponent[]
+}
+
+model PayrollPolicy {
+  id            String                   @id @default(cuid())
+  code          String                   @unique
+  name          String
+  status        String                   @default("DRAFT")
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  components    PayrollPolicyComponent[]
+  sites         SitePayrollPolicy[]
+}
+
+model PayrollPolicyComponent {
+  id          String           @id @default(cuid())
+  policyId    String
+  policy      PayrollPolicy    @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  componentId String
+  component   PayrollComponent @relation(fields: [componentId], references: [id])
+  config      Json?
+  isActive    Boolean          @default(true)
+
+  @@unique([policyId, componentId])
+}
+
+model SitePayrollPolicy {
+  id        String        @id @default(cuid())
+  siteId    String
+  site      Site          @relation(fields: [siteId], references: [id])
+  policyId  String
+  policy    PayrollPolicy @relation(fields: [policyId], references: [id])
+  startDate DateTime
+  endDate   DateTime?
+
+  @@unique([siteId, policyId, startDate])
+  @@index([siteId, startDate])
+}
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model Employee {
-  id                 String            @id @default(cuid())
-  code               String            @unique
+  id                 String               @id @default(cuid())
+  code               String               @unique
   prefix             String?
   firstName          String
   lastName           String
   position           String
   siteId             String
-  site               Site              @relation(fields: [siteId], references: [id])
+  site               Site                 @relation(fields: [siteId], references: [id])
   startDate          DateTime?
   birthDate          DateTime?
-  gender             String            @default("MALE")
-  nationality        String            @default("Thai")
-  idCardNo           String?           @unique
+  gender             String               @default("MALE")
+  nationality        String               @default("Thai")
+  idCardNo           String?              @unique
   phone              String?
   bankAccount        String?
   bankName           String?
@@ -28,10 +98,14 @@ model Employee {
   hospital           String?
   education          String?
   hometown           String?
-  salaryType         String            @default("MONTHLY")
-  baseSalary         Decimal           @default(12000) @db.Decimal(18, 2)
-  dailyRate          Decimal           @default(400) @db.Decimal(18, 2)
-  isActive           Boolean           @default(true)
+  salaryType         String               @default("MONTHLY")
+  baseSalary         Decimal              @default(12000) @db.Decimal(18, 2)
+  dailyRate          Decimal              @default(400) @db.Decimal(18, 2)
+  isActive           Boolean              @default(true)
+  employmentStatus   String               @default("ACTIVE")
+  preferredLanguage  String               @default("th")
+  departmentId       String?
+  department         Department?          @relation(fields: [departmentId], references: [id])
   user               User?
   attendances        Attendance[]
   leaves             Leave[]
@@ -39,18 +113,24 @@ model Employee {
   chats              ChatMessage[]
   shiftAssignments   ShiftAssignment[]
   assignedWorkOrders WorkOrder[]
-  drivenTrips        Trip[]            @relation("TripDriver")
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  drivenTrips        Trip[]               @relation("TripDriver")
+  deployments        EmployeeDeployment[]
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@index([siteId])
   @@index([code])
+  @@index([departmentId])
 }
 
 model Site {
-  id               String            @id @default(cuid())
-  code             String            @unique
+  id               String               @id @default(cuid())
+  code             String               @unique
   name             String
+  shortName        String?
+  clientId         String?
+  client           Client?              @relation(fields: [clientId], references: [id])
+  status           String               @default("ACTIVE")
   location         String?
   estateName       String?
   contactName      String?
@@ -58,15 +138,20 @@ model Site {
   contactPhone     String?
   lat              Float?
   lng              Float?
-  radius           Int               @default(200)
-  workStart        Float             @default(7)
-  workEnd          Float             @default(16)
-  otStart          Float?            @default(16)
-  otEnd            Float?            @default(17)
+  radius           Int                  @default(200)
+  workStart        Float                @default(7)
+  workEnd          Float                @default(16)
+  otStart          Float?               @default(16)
+  otEnd            Float?               @default(17)
   employees        Employee[]
   shiftAssignments ShiftAssignment[]
   config           PayrollConfig?
-  createdAt        DateTime          @default(now())
+  shiftTemplates   ShiftTemplate[]
+  payrollPolicies  SitePayrollPolicy[]
+  deployments      EmployeeDeployment[]
+  createdAt        DateTime             @default(now())
+
+  @@index([clientId])
 }
 
 model Attendance {
@@ -386,6 +471,30 @@ model AuditLog {
   @@index([entity, entityId])
 }
 
+model ImportJob {
+  id           String    @id @default(cuid())
+  fileName     String
+  fileHash     String
+  importType   String
+  status       String    @default("UPLOADED")
+  uploadedById String
+  totalRows    Int       @default(0)
+  validRows    Int       @default(0)
+  invalidRows  Int       @default(0)
+  createdRows  Int       @default(0)
+  updatedRows  Int       @default(0)
+  skippedRows  Int       @default(0)
+  errorRows    Int       @default(0)
+  mapping      Json?
+  report       Json?
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@unique([fileHash, importType])
+  @@index([uploadedById, createdAt])
+  @@index([status, createdAt])
+}
+
 model Organization {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -402,14 +511,15 @@ model Organization {
 }
 
 model Department {
-  id        String   @id @default(cuid())
-  code      String   @unique
+  id        String     @id @default(cuid())
+  code      String     @unique
   name      String
   nameTh    String?
   parentId  String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
 }
 
 model CostCenter {
@@ -422,16 +532,24 @@ model CostCenter {
 }
 
 model ShiftTemplate {
-  id           String            @id @default(cuid())
-  code         String            @unique
-  name         String
-  type         String            @default("DAY")
-  startTime    String
-  endTime      String
-  breakMinutes Int               @default(60)
-  isActive     Boolean           @default(true)
-  createdAt    DateTime          @default(now())
-  assignments  ShiftAssignment[]
+  id            String            @id @default(cuid())
+  code          String            @unique
+  name          String
+  siteId        String?
+  site          Site?             @relation(fields: [siteId], references: [id])
+  positionType  String?
+  type          String            @default("DAY")
+  startTime     String
+  endTime       String
+  otStartTime   String?
+  otEndTime     String?
+  crossMidnight Boolean           @default(false)
+  breakMinutes  Int               @default(60)
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  assignments   ShiftAssignment[]
+
+  @@index([siteId, isActive])
 }
 
 model ShiftAssignment {
@@ -461,26 +579,29 @@ model ShiftAssignment {
 }
 
 model PayrollRun {
-  id           String    @id @default(cuid())
-  period       String
-  siteId       String?
-  status       String    @default("DRAFT")
-  totalAmount  Decimal   @default(0) @db.Decimal(18, 2)
-  createdById  String?
-  approvedById String?
-  approvedAt   DateTime?
-  paidAt       DateTime?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  payslips     Payslip[]
+  id              String         @id @default(cuid())
+  period          String
+  siteId          String?
+  status          String         @default("DRAFT")
+  totalAmount     Decimal        @default(0) @db.Decimal(18, 2)
+  createdById     String?
+  approvedById    String?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  payslips        Payslip[]
+  payrollPeriodId String?
+  payrollPeriod   PayrollPeriod? @relation(fields: [payrollPeriodId], references: [id])
 
   @@unique([period, siteId])
+  @@index([payrollPeriodId])
 }
 
 model Client {
-  id            String        @id @default(cuid())
-  code          String        @unique
+  id            String          @id @default(cuid())
+  code          String          @unique
   name          String
   nameTh        String?
   taxId         String?
@@ -489,13 +610,50 @@ model Client {
   contactPhone  String?
   contactEmail  String?
   industry      String?
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   projects      Project[]
   contracts     Contract[]
   invoices      Invoice[]
   opportunities Opportunity[]
+  contacts      ClientContact[]
+  sites         Site[]
+}
+
+model ClientContact {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  position  String?
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+}
+
+model EmployeeDeployment {
+  id            String    @id @default(cuid())
+  employeeId    String
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  siteId        String
+  site          Site      @relation(fields: [siteId], references: [id])
+  effectiveDate DateTime
+  position      String
+  supervisorId  String?
+  documentRefs  Json?
+  status        String    @default("PENDING")
+  approvedById  String?
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([employeeId, siteId, effectiveDate])
+  @@index([siteId, effectiveDate])
+  @@index([status, effectiveDate])
 }
 
 model Opportunity {
