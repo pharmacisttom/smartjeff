@@ -7,6 +7,7 @@ import { getDefaultRouteForRole } from "@/lib/role-routing";
 import { verifyPassword } from "@/lib/password";
 import { verifyMfaCode } from "@/lib/mfa/verify";
 import { consumeLoginAttempt } from "@/lib/login-rate-limit";
+import { ACTIVATION_PIN_MAX_ATTEMPTS, verifyActivationPin } from "@/lib/activation-pin";
 
 const loginSchema = z.object({
   identifier: z.string().trim().min(1).max(191),
@@ -43,19 +44,37 @@ export async function POST(req: Request) {
     if (user.passwordExpiresAt && user.passwordExpiresAt <= new Date() || user.mustChangePassword) {
       return fail("PASSWORD_RESET_REQUIRED", 403, "กรุณาติดต่อผู้ดูแลระบบเพื่อเปลี่ยนรหัสผ่าน");
     }
-    if (user.mfaEnabled && (!mfaCode || !(await verifyMfaCode(user.id, user.mfaSecret, mfaCode)))) {
+    const requiresActivationPin = Boolean(user.activationPinHash && !user.activationPinUsedAt);
+    if (requiresActivationPin) {
+      const expired = !user.activationPinExpiresAt || user.activationPinExpiresAt <= new Date();
+      const attemptsExceeded = user.activationPinAttempts >= ACTIVATION_PIN_MAX_ATTEMPTS;
+      const validPin = !expired && !attemptsExceeded && Boolean(mfaCode) &&
+        await verifyActivationPin(user.activationPinHash!, mfaCode!);
+      if (!validPin) {
+        await prisma.user.update({ where: { id: user.id }, data: { activationPinAttempts: { increment: 1 } } });
+        return fail(expired ? "ACTIVATION_PIN_EXPIRED" : "ACTIVATION_PIN_REQUIRED", 401,
+          expired ? "PIN หมดอายุ กรุณาติดต่อผู้ดูแลระบบ" : "กรุณากรอก PIN 6 หลักที่ผู้ดูแลระบบออกให้");
+      }
+    } else if (user.mfaEnabled && (!mfaCode || !(await verifyMfaCode(user.id, user.mfaSecret, mfaCode)))) {
       return fail("MFA_REQUIRED", 401, "กรุณากรอกรหัสยืนยัน MFA ที่ถูกต้อง");
     }
     const sessionId = crypto.randomUUID();
     const authStrength = user.mfaEnabled ? "MFA" : "PASSWORD";
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: clientIp } }),
-      prisma.userSession.create({ data: {
+    await prisma.$transaction(async (tx) => {
+      if (requiresActivationPin) {
+        const consumed = await tx.user.updateMany({
+          where: { id: user.id, activationPinHash: user.activationPinHash, activationPinUsedAt: null },
+          data: { activationPinHash: null, activationPinExpiresAt: null, activationPinUsedAt: new Date(), activationPinAttempts: 0 },
+        });
+        if (consumed.count !== 1) throw new Error("ACTIVATION_PIN_ALREADY_USED");
+      }
+      await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: clientIp } });
+      await tx.userSession.create({ data: {
         sessionId, userId: user.id, ipAddress: clientIp, userAgent: req.headers.get("user-agent")?.slice(0, 191),
         status: "ACTIVE", authStrength, authzVersion: user.authzVersion,
         expiresAt: new Date(Date.now() + 7 * 86400000),
-      } }),
-    ]);
+      } });
+    });
     await AuditService.log({ userId: user.id, action: "LOGIN_SUCCESS", entity: "User", entityId: user.id, req });
     const name = user.displayName || user.email;
     return setAuthCookie(NextResponse.json({ success: true,

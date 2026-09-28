@@ -212,6 +212,10 @@ model User {
   lockedAt               DateTime?
   mfaEnabled             Boolean              @default(false)
   mfaSecret              String?
+  activationPinHash      String?
+  activationPinExpiresAt DateTime?
+  activationPinUsedAt    DateTime?
+  activationPinAttempts  Int                  @default(0)
   lastLoginAt            DateTime?
   lastLoginIp            String?
   mustChangePassword     Boolean              @default(false)

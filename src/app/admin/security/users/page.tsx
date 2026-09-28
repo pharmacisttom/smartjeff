@@ -15,6 +15,7 @@ import {
   Building,
   Key,
   Home,
+  Printer,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,8 @@ interface UserItem {
   isActive: boolean;
   isLocked: boolean;
   mfaEnabled: boolean;
+  activationPinPending: boolean;
+  activationPinExpiresAt: string | null;
   lastLoginAt: string | null;
   authzVersion: number;
   createdAt: string;
@@ -65,6 +68,11 @@ export default function SecurityUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [hasCodePermission, setHasCodePermission] = useState(false);
+  const [pinDocument, setPinDocument] = useState<{
+    user: { displayName: string; email: string; employeeCode: string | null };
+    activationPin: string;
+    expiresAt: string;
+  } | null>(null);
 
   // Assign Role Modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -200,6 +208,23 @@ export default function SecurityUsersPage() {
       setShowExplainModal(true);
     } catch (err: any) {
       showError("ข้อผิดพลาด", err.message);
+    }
+  };
+
+  const issueActivationPin = async (user: UserItem) => {
+    const confirmed = await showConfirm(
+      "ออก PIN ใหม่?",
+      `PIN เดิมและ MFA ของ ${user.displayName} จะถูกยกเลิก และ session เดิมจะออกจากระบบ`
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`/api/security/users/${user.id}/activation-pin`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message || "ไม่สามารถออก PIN ได้");
+      setPinDocument(body);
+      await loadData();
+    } catch (error) {
+      showError("ออก PIN ไม่สำเร็จ", error instanceof Error ? error.message : "เกิดข้อผิดพลาด");
     }
   };
 
@@ -366,7 +391,12 @@ export default function SecurityUsersPage() {
 
                     {/* MFA */}
                     <td className="py-3.5 px-4">
-                      {u.mfaEnabled ? (
+                      {u.activationPinPending ? (
+                        <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md">
+                          <Clock className="w-3 h-3" />
+                          <span>รอใช้ PIN</span>
+                        </span>
+                      ) : u.mfaEnabled ? (
                         <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>เปิดแล้ว</span>
@@ -391,6 +421,14 @@ export default function SecurityUsersPage() {
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => issueActivationPin(u)}
+                          title="ออก PIN เปิดใช้งาน 6 หลัก"
+                          className="px-2.5 py-1 rounded-xl text-[11px] font-bold text-amber-700 bg-amber-500/10 hover:bg-amber-500/20 transition-colors flex items-center space-x-1"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          <span>ออก PIN</span>
+                        </button>
                         <button
                           onClick={() => handleExplainAccess(u)}
                           title="ทำไมผู้ใช้นี้จึงมีสิทธิ์?"
@@ -417,6 +455,33 @@ export default function SecurityUsersPage() {
           </table>
         </div>
       </div>
+
+      {pinDocument && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print:static print:bg-white print:p-0">
+          <style>{`@media print { body * { visibility: hidden; } #activation-pin-print, #activation-pin-print * { visibility: visible; } #activation-pin-print { position: absolute; inset: 0; width: 100%; max-width: none; } }`}</style>
+          <div className="w-full max-w-md bg-white text-slate-900 rounded-3xl p-8 shadow-2xl space-y-5 print:shadow-none print:rounded-none" id="activation-pin-print">
+            <div className="text-center border-b border-slate-200 pb-4">
+              <p className="text-xs font-bold tracking-widest text-slate-500">SMARTO J2K</p>
+              <h2 className="text-xl font-black">ใบรหัสเปิดใช้งานระบบ</h2>
+            </div>
+            <dl className="text-sm space-y-2">
+              <div><dt className="font-bold">ชื่อ</dt><dd>{pinDocument.user.displayName}</dd></div>
+              <div><dt className="font-bold">อีเมล</dt><dd>{pinDocument.user.email}</dd></div>
+              <div><dt className="font-bold">รหัสพนักงาน</dt><dd>{pinDocument.user.employeeCode || "-"}</dd></div>
+            </dl>
+            <div className="rounded-2xl border-2 border-slate-900 p-5 text-center">
+              <p className="text-xs font-bold text-slate-500">PIN 6 หลัก (ใช้ได้ครั้งเดียว)</p>
+              <p className="font-mono text-4xl font-black tracking-[0.35em] ml-[0.35em]">{pinDocument.activationPin}</p>
+            </div>
+            <p className="text-xs">หมดอายุ: {new Date(pinDocument.expiresAt).toLocaleString("th-TH")}</p>
+            <p className="text-xs text-slate-600">กรอก PIN นี้พร้อมรหัสผ่านในการเข้าสู่ระบบครั้งถัดไป ระบบจะยกเลิก PIN หลังใช้งานสำเร็จ</p>
+            <div className="flex gap-2 print:hidden">
+              <button onClick={() => window.print()} className="flex-1 py-2.5 rounded-xl bg-brand-600 text-white font-bold flex items-center justify-center gap-2"><Printer className="w-4 h-4" />พิมพ์</button>
+              <button onClick={() => setPinDocument(null)} className="px-5 py-2.5 rounded-xl border border-slate-300 font-bold">ปิด</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Assign Role */}
       {showAssignModal && selectedUser && (

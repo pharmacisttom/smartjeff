@@ -161,8 +161,8 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="mfa-code" className="block text-xs font-bold text-slate-300 mb-1.5">MFA / Recovery code (ถ้าเปิดใช้งาน)</label>
-              <input id="mfa-code" autoComplete="one-time-code" value={mfaCode} onChange={e => setMfaCode(e.target.value)} className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm" />
+              <label htmlFor="mfa-code" className="block text-xs font-bold text-slate-300 mb-1.5">PIN 6 หลัก / MFA / Recovery code (ถ้ามี)</label>
+              <input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="PIN ที่ผู้ดูแลระบบออกให้" className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm" />
             </div>
             {/* Hint for Employees */}
             <div className="p-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-200 text-xs leading-relaxed">
