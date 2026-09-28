@@ -1,7 +1,8 @@
 module.exports = {
   apps: [
     {
-      name: "smartjeff",
+      name: "smartop",
+      cwd: "/var/www/smartop",
       script: "node_modules/next/dist/bin/next",
       args: "start -H 127.0.0.1",
       instances: "max", // Scale across all available CPU cores
@@ -11,11 +12,11 @@ module.exports = {
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
-        PORT: 3000,
+        PORT: 3001,
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 3000,
+        PORT: 3001,
       },
       error_file: "./logs/pm2-error.log",
       out_file: "./logs/pm2-out.log",
