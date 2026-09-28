@@ -186,7 +186,10 @@ export default function LoginPage() {
             </div>
             {/* Hint for Employees */}
             <div className="p-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-200 text-xs leading-relaxed">
-              💡 {t("login.employee_hint")}
+              <p className="font-bold">💡 เข้าสู่ระบบด้วยอีเมลหรือรหัสพนักงานและรหัสผ่านตามปกติ</p>
+              <p className="mt-1">
+                หากผู้ดูแลระบบออก Activation PIN ให้คุณ กรุณากรอก PIN 6 หลักในช่อง Activation PIN เฉพาะการเปิดใช้งานครั้งแรก หลังเปิดใช้งานสำเร็จจะไม่ต้องใช้ PIN ในการเข้าสู่ระบบครั้งถัดไป
+              </p>
             </div>
 
             {/* Submit Button */}
