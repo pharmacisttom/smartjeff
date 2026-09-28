@@ -196,7 +196,6 @@ model User {
   id                     String               @id @default(cuid())
   email                  String               @unique
   passwordHash           String?
-  password               String?
   role                   String               @default("EMPLOYEE")
   permissions            String?              @db.Text
   assignedSiteCode       String?

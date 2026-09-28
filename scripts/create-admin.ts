@@ -22,7 +22,7 @@ async function main() {
     const passwordHash = await hashPassword(password);
     await prisma.user.upsert({
       where: { email },
-      update: { displayName: name, passwordHash, password: null, passwordChangedAt: new Date(), passwordExpiresAt: null, mustChangePassword: false, authzVersion: { increment: 1 }, role: "ADMIN", isActive: true, isLocked: false },
+      update: { displayName: name, passwordHash, passwordChangedAt: new Date(), passwordExpiresAt: null, mustChangePassword: false, authzVersion: { increment: 1 }, role: "ADMIN", isActive: true, isLocked: false },
       create: { email, displayName: name, passwordHash, role: "ADMIN" },
     });
     stdout.write("Admin account created or updated securely.\n");
