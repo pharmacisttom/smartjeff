@@ -1,6 +1,8 @@
 # SmartOP Demo Accounts
 
-All identities and operational records in demo mode are synthetic. The password is configured only through `DEMO_DEFAULT_PASSWORD`; it is never stored in this document or committed to Git.
+All identities and operational records in demo mode are synthetic.
+
+All demo accounts use the password configured by `DEMO_DEFAULT_PASSWORD`.
 
 | Role | Email | Employee code | Purpose |
 |---|---|---|---|
@@ -11,4 +13,6 @@ All identities and operational records in demo mode are synthetic. The password 
 | SITE_SUPERVISOR | supervisor@demo.smartop.local | — | Site staff, approvals and daily operations |
 | EMPLOYEE | employee@demo.smartop.local | EMP-DEMO-001 | Employee self-service |
 
-Provision with `npm run demo:seed` only when `DEMO_MODE=true`, `DEMO_SEED_ALLOWED=true`, and the database name ends with `_demo`.
+Create the synthetic data with `npm run demo:seed`, then safely provision or refresh only the six accounts with `npm run demo:users`. Passwords alone can be rotated with `npm run demo:passwords`.
+
+All commands require `DEMO_MODE=true`, `DEMO_SEED_ALLOWED=true`, and a database name ending with `_demo`.

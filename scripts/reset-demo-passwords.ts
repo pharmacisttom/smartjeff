@@ -9,13 +9,14 @@ async function main() {
   const prisma = new PrismaClient();
   try {
     for (const [, email] of DEMO_ACCOUNTS) {
-      await prisma.user.update({ where: { email }, data: {
+      const user = await prisma.user.update({ where: { email }, data: {
         passwordHash: hash, mfaEnabled: false, mfaSecret: null,
         activationPinHash: null, activationPinExpiresAt: null, activationPinUsedAt: null,
         activationPinAttempts: 0, isLocked: false, lockedAt: null,
       } });
+      await prisma.mfaRecoveryCode.deleteMany({ where: { userId: user.id } });
     }
-    console.log("Demo password reset completed for 6 accounts");
+    console.log("Demo passwords reset successfully for 6 accounts.");
   } finally { await prisma.$disconnect(); }
 }
 main().catch((error) => { console.error(error instanceof Error ? error.message : "Demo password reset failed"); process.exitCode = 1; });

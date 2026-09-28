@@ -215,6 +215,9 @@ export default function LoginPage() {
         {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
           <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-white shadow-xl">
             <h2 className="text-sm font-bold">บัญชีสาธิต</h2>
+            {process.env.NEXT_PUBLIC_DEMO_SHOW_PASSWORD_HINT === "true" && (
+              <p className="mt-2 rounded-lg bg-black/20 px-3 py-2 text-[11px] text-emerald-50">ใช้รหัสผ่าน Demo ที่ผู้สาธิตได้รับ</p>
+            )}
             <p className="mt-1 text-[11px] text-emerald-100">เลือกเพื่อกรอกอีเมลเท่านั้น ระบบจะไม่กรอกรหัสผ่านและไม่ข้ามการยืนยันตัวตน</p>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {demoAccounts.map(([role, email]) => (
