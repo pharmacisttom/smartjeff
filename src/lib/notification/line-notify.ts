@@ -3,6 +3,7 @@ export async function sendLineNotify(
   message: string,
   imageUrl?: string
 ): Promise<{ success: boolean; status: number; message: string }> {
+  if (process.env.DEMO_MODE === "true") return { success: true, status: 200, message: "[DEMO] LINE notification simulated; nothing was sent" };
   try {
     const params = new URLSearchParams({ message });
     if (imageUrl) {

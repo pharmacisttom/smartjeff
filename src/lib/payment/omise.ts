@@ -2,6 +2,7 @@ export interface ChargeOptions { tenantId: string; amount: number; token: string
 export interface ChargeResult { chargeId: string; amount: number; currency: string; status: "SUCCEEDED" | "PENDING" | "FAILED"; cardLast4?: string; cardBrand?: string; paidAt: string }
 
 export async function processOmiseCharge(opts: ChargeOptions): Promise<ChargeResult> {
+  if (process.env.DEMO_MODE === "true") return { chargeId: `demo-${Date.now()}`, amount: opts.amount, currency: "THB", status: "SUCCEEDED", paidAt: new Date().toISOString() };
   const secret = process.env.OMISE_SECRET_KEY;
   if (!secret) throw new Error("OMISE_SECRET_KEY is not configured");
   if (!Number.isFinite(opts.amount) || opts.amount <= 0) throw new Error("Charge amount must be positive");

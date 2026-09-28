@@ -1,4 +1,5 @@
 export async function sendEmailDigest(recipients: string[], subject: string, htmlBody: string) {
+  if (process.env.DEMO_MODE === "true") return { success: true, status: 200, message: "[DEMO] Email simulated; nothing was sent" };
   const endpoint = process.env.EMAIL_API_URL;
   const apiKey = process.env.EMAIL_API_KEY;
   const from = process.env.EMAIL_FROM;

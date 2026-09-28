@@ -1,6 +1,7 @@
 export const ROLE_DEFAULT_ROUTES: Record<string, string> = {
   EMPLOYEE: "/check-in",
   SUPERVISOR: "/operations",
+  SITE_SUPERVISOR: "/operations",
   OPERATIONS: "/operations",
   EXECUTIVE: "/admin/dashboard",
   ADMIN: "/admin/dashboard",

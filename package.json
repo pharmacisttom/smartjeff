@@ -13,6 +13,9 @@
     "db:studio": "prisma studio",
     "create-admin": "node --env-file=.env --import tsx scripts/create-admin.ts",
     "setup-mfa": "tsx scripts/setup-mfa.ts",
+    "demo:seed": "node --env-file=.env --import tsx scripts/seed-demo-users.ts",
+    "demo:reset": "node --env-file=.env --import tsx scripts/reset-demo.ts",
+    "demo:reset-passwords": "node --env-file=.env --import tsx scripts/reset-demo-passwords.ts",
     "check:routes": "tsx scripts/check-navigation-routes.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

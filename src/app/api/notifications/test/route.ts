@@ -8,10 +8,11 @@ import { requireRole } from "@/lib/auth-jwt";
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ["SUPERADMIN", "ADMIN", "HR", "EXECUTIVE"]);
   if ("error" in auth) return auth.error;
+  const demo = process.env.DEMO_MODE === "true";
   return NextResponse.json({ channels: {
-    line: Boolean(process.env.LINE_NOTIFY_TOKEN),
-    telegram: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-    email: Boolean(process.env.EMAIL_API_URL && process.env.EMAIL_API_KEY && process.env.EMAIL_FROM),
+    line: demo || Boolean(process.env.LINE_NOTIFY_TOKEN),
+    telegram: demo || Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+    email: demo || Boolean(process.env.EMAIL_API_URL && process.env.EMAIL_API_KEY && process.env.EMAIL_FROM),
   } });
 }
 
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     if ("error" in auth) return auth.error;
     const body = await req.json();
     const { type, token, chatId, email, message } = body;
+    const demo = process.env.DEMO_MODE === "true";
 
     const report = await generateDailyExecutiveReport();
 
@@ -36,14 +38,14 @@ export async function POST(req: NextRequest) {
 
     if (type === "LINE_NOTIFY") {
       const credential = token || process.env.LINE_NOTIFY_TOKEN;
-      if (!credential) return NextResponse.json({ success: false, message: "LINE_NOTIFY_TOKEN is not configured" }, { status: 503 });
-      result = await sendLineNotify(credential, formattedMessage);
+      if (!credential && !demo) return NextResponse.json({ success: false, message: "LINE_NOTIFY_TOKEN is not configured" }, { status: 503 });
+      result = await sendLineNotify(credential || "demo-token", formattedMessage);
     } else if (type === "TELEGRAM") {
       const htmlMsg = `<b>📊 SMARTO Executive Daily Report</b>\n<code>${report.reportDate}</code>\n\n👥 <b>เข้างาน:</b> ${report.presentCount}/${report.totalEmployees} คน\n⏰ <b>มาสาย:</b> ${report.lateCount} คน\n⏱️ <b>OT รวม:</b> ${report.otHours} ชม.\n💰 <b>ค่าใช้จ่ายรวม:</b> ฿${report.estimatedLaborCost.toLocaleString()}\n⚠️ <b>นอกพื้นที่:</b> ${report.outsideGeofenceAlerts} รายการ\n\n💡 <i>${report.aiSummaryText}</i>`;
       const botToken = token || process.env.TELEGRAM_BOT_TOKEN;
       const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID;
-      if (!botToken || !targetChatId) return NextResponse.json({ success: false, message: "Telegram credentials are not configured" }, { status: 503 });
-      result = await sendTelegramBotMessage(botToken, targetChatId, htmlMsg);
+      if ((!botToken || !targetChatId) && !demo) return NextResponse.json({ success: false, message: "Telegram credentials are not configured" }, { status: 503 });
+      result = await sendTelegramBotMessage(botToken || "demo-token", targetChatId || "demo-chat", htmlMsg);
     } else if (type === "EMAIL") {
       if (!email) return NextResponse.json({ success: false, message: "Recipient email is required" }, { status: 400 });
       result = await sendEmailDigest([email], `Daily summary ${report.reportDate}`, formattedMessage);

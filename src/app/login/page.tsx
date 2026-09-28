@@ -14,6 +14,14 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const demoAccounts = [
+    ["Admin", "admin@demo.smartop.local"],
+    ["Executive", "executive@demo.smartop.local"],
+    ["HR / Payroll", "hr@demo.smartop.local"],
+    ["Coordinator", "coordinator@demo.smartop.local"],
+    ["Supervisor", "supervisor@demo.smartop.local"],
+    ["Employee", "employee@demo.smartop.local"],
+  ];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +211,21 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+
+        {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
+          <section className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-white shadow-xl">
+            <h2 className="text-sm font-bold">บัญชีสาธิต</h2>
+            <p className="mt-1 text-[11px] text-emerald-100">เลือกเพื่อกรอกอีเมลเท่านั้น ระบบจะไม่กรอกรหัสผ่านและไม่ข้ามการยืนยันตัวตน</p>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {demoAccounts.map(([role, email]) => (
+                <button key={email} type="button" onClick={() => setIdentifier(email)} className="rounded-xl border border-white/15 bg-white/10 p-2 text-left hover:bg-white/15">
+                  <span className="block text-xs font-bold">ทดลอง {role}</span>
+                  <span className="block truncate text-[10px] text-slate-300">{email}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

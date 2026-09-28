@@ -3,8 +3,7 @@ module.exports = {
     {
       name: "smartop",
       cwd: "/var/www/smartop",
-      script: "node_modules/next/dist/bin/next",
-      args: "start -H 127.0.0.1",
+      script: ".next/standalone/server.js",
       instances: "max", // Scale across all available CPU cores
       exec_mode: "cluster",
       autorestart: true,

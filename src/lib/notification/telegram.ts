@@ -3,6 +3,7 @@ export async function sendTelegramBotMessage(
   chatId: string,
   htmlText: string
 ): Promise<{ success: boolean; status: number; message: string }> {
+  if (process.env.DEMO_MODE === "true") return { success: true, status: 200, message: "[DEMO] Telegram notification simulated; nothing was sent" };
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
