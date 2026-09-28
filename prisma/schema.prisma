@@ -351,6 +351,7 @@ model Role {
 
   @@index([code])
   @@index([isActive])
+  @@map("role")
 }
 
 model Permission {
@@ -379,6 +380,7 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@index([roleId])
   @@index([permissionId])
+  @@map("rolepermission")
 }
 
 model UserRoleAssignment {
@@ -415,6 +417,7 @@ model ApprovalAuthority {
   createdAt DateTime @default(now())
 
   @@index([roleId, module])
+  @@map("approvalauthority")
 }
 
 model UserSession {
@@ -455,6 +458,7 @@ model AccessRequest {
   updatedAt      DateTime  @updatedAt
 
   @@index([userId, status])
+  @@map("accessrequest")
 }
 
 model AuditLog {
