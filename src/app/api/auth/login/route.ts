@@ -7,24 +7,26 @@ import { getDefaultRouteForRole } from "@/lib/role-routing";
 import { verifyPassword } from "@/lib/password";
 import { verifyMfaCode } from "@/lib/mfa/verify";
 import { consumeLoginAttempt } from "@/lib/login-rate-limit";
-import { ACTIVATION_PIN_MAX_ATTEMPTS, verifyActivationPin } from "@/lib/activation-pin";
+import { getActivationPinState, verifyActivationPin } from "@/lib/activation-pin";
 
 const loginSchema = z.object({
   identifier: z.string().trim().min(1).max(191),
   password: z.string().min(1).max(1024),
+  activationPin: z.string().max(6).optional(),
   mfaCode: z.string().max(128).optional(),
   humanToken: z.string().max(4096).optional(),
 });
-const fail = (code: string, status: number, message = "ไม่สามารถเข้าสู่ระบบได้ กรุณาตรวจสอบข้อมูล") =>
+const fail = (code: string, status: number, message = "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง") =>
   NextResponse.json({ success: false, error: { code, message } }, { status });
 
 export async function POST(req: Request) {
   try {
     const clientIp = AuditService.getClientIp(req);
-    if (!consumeLoginAttempt(clientIp)) return fail("RATE_LIMITED", 429);
+    if (!consumeLoginAttempt(clientIp)) return fail("RATE_LIMITED", 429, "กรุณารอสักครู่แล้วลองใหม่");
     const parsed = loginSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return fail("VALIDATION", 400);
-    const { identifier, password, mfaCode, humanToken } = parsed.data;
+    const { identifier, password, activationPin, mfaCode, humanToken } = parsed.data;
+
     const secret = process.env.TURNSTILE_SECRET_KEY;
     if (secret) {
       if (!humanToken) return fail("BOT_VERIFICATION_FAILED", 400);
@@ -35,6 +37,7 @@ export async function POST(req: Request) {
       const result = await verification.json();
       if (!verification.ok || result.success !== true) return fail("BOT_VERIFICATION_FAILED", 400);
     }
+
     const user = await prisma.user.findFirst({
       where: { OR: [{ email: identifier.toLowerCase() }, { employee: { code: identifier } }] },
       include: { employee: { include: { site: true } } },
@@ -44,20 +47,39 @@ export async function POST(req: Request) {
     if (user.passwordExpiresAt && user.passwordExpiresAt <= new Date() || user.mustChangePassword) {
       return fail("PASSWORD_RESET_REQUIRED", 403, "กรุณาติดต่อผู้ดูแลระบบเพื่อเปลี่ยนรหัสผ่าน");
     }
-    const requiresActivationPin = Boolean(user.activationPinHash && !user.activationPinUsedAt);
+
+    const pinState = getActivationPinState(user);
+    if (pinState === "EXPIRED" || pinState === "LOCKED") {
+      await AuditService.log({ userId: user.id,
+        action: pinState === "EXPIRED" ? "ACTIVATION_PIN_EXPIRED" : "ACTIVATION_PIN_LOCKED",
+        entity: "User", entityId: user.id, metadata: { attempts: user.activationPinAttempts }, req });
+      return fail(pinState === "EXPIRED" ? "ACTIVATION_PIN_EXPIRED" : "ACTIVATION_PIN_LOCKED", 401,
+        pinState === "EXPIRED"
+          ? "Activation PIN หมดอายุ กรุณาติดต่อผู้ดูแลระบบเพื่อขอ PIN ใหม่"
+          : "Activation PIN ถูกระงับเนื่องจากกรอกผิดเกินจำนวนที่กำหนด กรุณาติดต่อผู้ดูแลระบบ");
+    }
+
+    const requiresActivationPin = pinState === "ACTIVE";
     if (requiresActivationPin) {
-      const expired = !user.activationPinExpiresAt || user.activationPinExpiresAt <= new Date();
-      const attemptsExceeded = user.activationPinAttempts >= ACTIVATION_PIN_MAX_ATTEMPTS;
-      const validPin = !expired && !attemptsExceeded && Boolean(mfaCode) &&
-        await verifyActivationPin(user.activationPinHash!, mfaCode!);
-      if (!validPin) {
-        await prisma.user.update({ where: { id: user.id }, data: { activationPinAttempts: { increment: 1 } } });
-        return fail(expired ? "ACTIVATION_PIN_EXPIRED" : "ACTIVATION_PIN_REQUIRED", 401,
-          expired ? "PIN หมดอายุ กรุณาติดต่อผู้ดูแลระบบ" : "กรุณากรอก PIN 6 หลักที่ผู้ดูแลระบบออกให้");
+      if (!activationPin) return fail("ACTIVATION_PIN_REQUIRED", 401, "กรุณากรอก Activation PIN");
+      if (!(await verifyActivationPin(user.activationPinHash!, activationPin))) {
+        const updated = await prisma.user.update({ where: { id: user.id },
+          data: { activationPinAttempts: { increment: 1 } }, select: { activationPinAttempts: true } });
+        const locked = updated.activationPinAttempts >= 5;
+        await AuditService.log({ userId: user.id,
+          action: locked ? "ACTIVATION_PIN_LOCKED" : "ACTIVATION_PIN_FAILED",
+          entity: "User", entityId: user.id, metadata: { attempts: updated.activationPinAttempts }, req });
+        return fail(locked ? "ACTIVATION_PIN_LOCKED" : "ACTIVATION_PIN_INVALID", 401,
+          locked
+            ? "Activation PIN ถูกระงับเนื่องจากกรอกผิดเกินจำนวนที่กำหนด กรุณาติดต่อผู้ดูแลระบบ"
+            : "Activation PIN ไม่ถูกต้อง");
       }
-    } else if (user.mfaEnabled && (!mfaCode || !(await verifyMfaCode(user.id, user.mfaSecret, mfaCode)))) {
+    }
+
+    if (user.mfaEnabled && (!mfaCode || !(await verifyMfaCode(user.id, user.mfaSecret, mfaCode)))) {
       return fail("MFA_REQUIRED", 401, "กรุณากรอกรหัสยืนยัน MFA ที่ถูกต้อง");
     }
+
     const sessionId = crypto.randomUUID();
     const authStrength = user.mfaEnabled ? "MFA" : "PASSWORD";
     await prisma.$transaction(async (tx) => {
@@ -75,6 +97,9 @@ export async function POST(req: Request) {
         expiresAt: new Date(Date.now() + 7 * 86400000),
       } });
     });
+    if (requiresActivationPin) {
+      await AuditService.log({ userId: user.id, action: "ACTIVATION_PIN_USED", entity: "User", entityId: user.id, req });
+    }
     await AuditService.log({ userId: user.id, action: "LOGIN_SUCCESS", entity: "User", entityId: user.id, req });
     const name = user.displayName || user.email;
     return setAuthCookie(NextResponse.json({ success: true,

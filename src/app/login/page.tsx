@@ -10,6 +10,7 @@ export default function LoginPage() {
   const { t, locale } = useLanguage();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [activationPin, setActivationPin] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,7 @@ export default function LoginPage() {
         body: JSON.stringify({
           identifier: identifier.trim(),
           password,
+          activationPin: activationPin || undefined,
           mfaCode: mfaCode || undefined,
         }),
       });
@@ -161,8 +163,26 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="mfa-code" className="block text-xs font-bold text-slate-300 mb-1.5">PIN 6 หลัก / MFA / Recovery code (ถ้ามี)</label>
-              <input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="PIN ที่ผู้ดูแลระบบออกให้" className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm" />
+              <label htmlFor="activation-pin" className="block text-xs font-bold text-slate-300 mb-1.5">Activation PIN</label>
+              <input
+                id="activation-pin"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="one-time-code"
+                value={activationPin}
+                onChange={(event) => setActivationPin(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="กรอกเฉพาะกรณีได้รับ PIN จากผู้ดูแลระบบ"
+                className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm"
+              />
+              <p className="mt-1.5 text-[10px] leading-relaxed text-slate-400">
+                กรอก Activation PIN เฉพาะครั้งแรกหลังผู้ดูแลระบบออก PIN ให้คุณ หลังเปิดใช้งานสำเร็จ การเข้าสู่ระบบครั้งถัดไปใช้รหัสผ่านตามปกติ
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="mfa-code" className="block text-xs font-bold text-slate-300 mb-1.5">MFA / Recovery code (ถ้าเปิดใช้งาน)</label>
+              <input id="mfa-code" type="text" autoComplete="one-time-code" value={mfaCode} onChange={e => setMfaCode(e.target.value)} placeholder="รหัสจาก Authenticator หรือ Recovery code" className="w-full px-4 py-3 rounded-2xl border border-white/15 bg-white/5 text-white text-sm" />
             </div>
             {/* Hint for Employees */}
             <div className="p-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-200 text-xs leading-relaxed">

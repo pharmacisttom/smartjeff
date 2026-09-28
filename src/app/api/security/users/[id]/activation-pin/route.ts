@@ -49,12 +49,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       req,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       user: { id: target.id, email: target.email, displayName: target.displayName || target.email, employeeCode: target.employee?.code || null },
       activationPin: pin,
       expiresAt: expiresAt.toISOString(),
       message: "สร้าง PIN สำเร็จ PIN จะแสดงเพียงครั้งเดียว",
     });
+    response.headers.set("Cache-Control", "no-store");
+    return response;
   } catch (error) {
     return NextResponse.json({ message: error instanceof Error ? error.message : "ไม่สามารถสร้าง PIN ได้" }, { status: 500 });
   }
