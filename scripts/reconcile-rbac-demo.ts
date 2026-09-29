@@ -31,7 +31,8 @@ export type RecoveryReport = {
   currentOrphanPermissionCount: number;
   permissionMasterCount: number;
   permissionsToCreate: number;
-  desiredRolePermissionCount: number;
+  desiredRawRolePermissionCount: number;
+  desiredUniqueRolePermissionCount: number;
   plannedMissingRolesCount: number;
   plannedMissingPermissionsCount: number;
   expectedPostApplyOrphanRoleCount: number;
@@ -42,7 +43,8 @@ export type PlannedState = Pick<
   RecoveryReport,
   | "permissionMasterCount"
   | "permissionsToCreate"
-  | "desiredRolePermissionCount"
+  | "desiredRawRolePermissionCount"
+  | "desiredUniqueRolePermissionCount"
   | "plannedMissingRolesCount"
   | "plannedMissingPermissionsCount"
   | "expectedPostApplyOrphanRoleCount"
@@ -83,30 +85,19 @@ export function calculatePlannedState(
   const referencedPermissionCodes = [...new Set(ROLES.flatMap(({ permissions }) => permissions))];
   const plannedMissingRoles = findMissingCodes(ROLES.map(({ code }) => code), databaseRoleCodes);
   const plannedMissingPermissions = findMissingCodes(referencedPermissionCodes, masterPermissionCodes);
+  const rawMappings = ROLES.flatMap((role) => role.permissions.map((permissionCode) => `${role.code}:${permissionCode}`));
 
   return {
     permissionMasterCount: PERMISSIONS.length,
     permissionsToCreate: findMissingCodes(masterPermissionCodes, databasePermissionCodes).length,
-    desiredRolePermissionCount: ROLES.reduce((total, role) => total + role.permissions.length, 0),
+    desiredRawRolePermissionCount: rawMappings.length,
+    desiredUniqueRolePermissionCount: new Set(rawMappings).size,
     plannedMissingRolesCount: plannedMissingRoles.length,
     plannedMissingPermissionsCount: plannedMissingPermissions.length,
     expectedPostApplyOrphanRoleCount: plannedMissingRoles.length === 0 ? 0 : plannedMissingRoles.length,
     expectedPostApplyOrphanPermissionCount:
       plannedMissingPermissions.length === 0 ? 0 : plannedMissingPermissions.length,
   };
-}
-
-export function decideBackupAction(existingBackupCount: number, currentCount: number): "reuse" | "initialize" {
-  if (existingBackupCount === EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
-    return "reuse";
-  }
-  if (existingBackupCount !== 0) {
-    throw new Error("Existing RolePermission backup is not the reviewed 246-row snapshot");
-  }
-  if (currentCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
-    throw new Error("Cannot initialize backup because the source is not the reviewed 246-row legacy set");
-  }
-  return "initialize";
 }
 
 export function buildDesiredMappings(
@@ -128,26 +119,29 @@ export function buildDesiredMappings(
   );
 }
 
+export function uniqueMappings(mappings: DesiredMapping[]): DesiredMapping[] {
+  const unique = new Map(mappings.map((mapping) => [`${mapping.roleId}:${mapping.permissionId}`, mapping]));
+  return [...unique.values()];
+}
+
 async function readCount(prisma: PrismaClient, table: "rolepermission" | typeof BACKUP_TABLE): Promise<number> {
   const rows = await prisma.$queryRawUnsafe<CountRow[]>(`SELECT COUNT(*) AS count FROM \`${table}\``);
   return Number(rows[0]?.count ?? 0);
 }
 
-async function ensureVerifiedBackup(prisma: PrismaClient, currentCount: number): Promise<number> {
-  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS \`${BACKUP_TABLE}\` LIKE \`rolepermission\``);
-  const existingBackupCount = await readCount(prisma, BACKUP_TABLE);
-  const action = decideBackupAction(existingBackupCount, currentCount);
-
-  if (action === "reuse") {
-    return existingBackupCount;
+async function verifyRequiredTable(prisma: PrismaClient, tableName: string): Promise<void> {
+  const rows = await prisma.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND BINARY TABLE_NAME = ${tableName}
+  `;
+  if (Number(rows[0]?.count ?? 0) !== 1) {
+    throw new Error(`Required table ${tableName} is missing`);
   }
+}
 
-  if (currentCount > 0) {
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO \`${BACKUP_TABLE}\` SELECT * FROM \`rolepermission\``,
-    );
-  }
-
+async function verifyExistingBackup(prisma: PrismaClient): Promise<number> {
+  await verifyRequiredTable(prisma, BACKUP_TABLE);
   const backupCount = await readCount(prisma, BACKUP_TABLE);
   if (backupCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
     throw new Error("RolePermission backup is not the reviewed 246-row snapshot");
@@ -242,6 +236,9 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
 
   try {
     await verifyPermissionTable(prisma);
+    await verifyRequiredTable(prisma, "role");
+    await verifyRequiredTable(prisma, "rolepermission");
+    const backupRolePermissionCount = await verifyExistingBackup(prisma);
 
     const currentPermissions = await prisma.permission.findMany({ select: { code: true } });
     const currentPermissionCount = currentPermissions.length;
@@ -254,8 +251,6 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
       FROM rolepermission rp LEFT JOIN Permission p ON p.id = rp.permissionId
       WHERE p.id IS NULL
     `;
-    const backupRolePermissionCount = await ensureVerifiedBackup(prisma, oldRolePermissionCount);
-
     for (const permission of PERMISSIONS) {
       await prisma.permission.upsert({
         where: { code: permission.code },
@@ -294,9 +289,10 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
     }
 
     const desiredMappings = buildDesiredMappings(roles, permissions);
+    const desiredUniqueMappings = uniqueMappings(desiredMappings);
     await prisma.$transaction(
       async (tx) => {
-        await replaceRolePermissionMappings(tx, desiredMappings);
+        await replaceRolePermissionMappings(tx, desiredUniqueMappings);
       },
       { maxWait: 10_000, timeout: 60_000 },
     );
@@ -318,7 +314,8 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
       currentOrphanPermissionCount: Number(currentOrphanPermissions[0]?.count ?? 0),
       permissionMasterCount: planned.permissionMasterCount,
       permissionsToCreate: planned.permissionsToCreate,
-      desiredRolePermissionCount: newRolePermissionCount,
+      desiredRawRolePermissionCount: desiredMappings.length,
+      desiredUniqueRolePermissionCount: newRolePermissionCount,
       plannedMissingRolesCount: missingRoles.length,
       plannedMissingPermissionsCount: missingMasterPermissions.length,
       expectedPostApplyOrphanRoleCount: Number(orphanRoles[0]?.count ?? 0),
@@ -388,7 +385,8 @@ function printReport(report: RecoveryReport): void {
   console.log("PLANNED STATE:");
   console.log(`Permission master count: ${report.permissionMasterCount}`);
   console.log(`Permissions to create: ${report.permissionsToCreate}`);
-  console.log(`Desired RolePermission count: ${report.desiredRolePermissionCount}`);
+  console.log(`Desired raw RolePermission count: ${report.desiredRawRolePermissionCount}`);
+  console.log(`Desired unique RolePermission count: ${report.desiredUniqueRolePermissionCount}`);
   console.log(`Missing Role codes: ${report.plannedMissingRolesCount}`);
   console.log(`Missing Permission codes referenced by Roles: ${report.plannedMissingPermissionsCount}`);
   console.log(`Expected post-apply orphan role count: ${report.expectedPostApplyOrphanRoleCount}`);

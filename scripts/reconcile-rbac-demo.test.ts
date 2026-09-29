@@ -8,17 +8,18 @@ import {
   assertDemoMode,
   buildDesiredMappings,
   calculatePlannedState,
-  decideBackupAction,
   findMissingCodes,
   inspectRbacDemo,
   parseRecoveryMode,
   replaceRolePermissionMappings,
   sanitizeErrorMessage,
+  uniqueMappings,
 } from "./reconcile-rbac-demo";
 
 describe("DEMO RBAC recovery safety", () => {
   const phase1Sql = readFileSync(new URL("./recovery/sync-schema-phase1.sql", import.meta.url), "utf8");
   const phase2Sql = readFileSync(new URL("./recovery/sync-schema-phase2.sql", import.meta.url), "utf8");
+  const bridgeSql = readFileSync(new URL("./recovery/sync-schema-rbac-bridge.sql", import.meta.url), "utf8");
 
   it("requires the explicit DEMO_MODE guard", () => {
     expect(() => assertDemoMode(undefined)).toThrow();
@@ -64,24 +65,17 @@ describe("DEMO RBAC recovery safety", () => {
     const plan = calculatePlannedState(ROLES.map(({ code }) => code), []);
     expect(plan.permissionMasterCount).toBe(65);
     expect(plan.permissionsToCreate).toBe(65);
-    expect(plan.desiredRolePermissionCount).toBe(249);
+    expect(plan.desiredRawRolePermissionCount).toBe(249);
+    expect(plan.desiredUniqueRolePermissionCount).toBe(249);
     expect(plan.plannedMissingRolesCount).toBe(0);
     expect(plan.plannedMissingPermissionsCount).toBe(0);
     expect(plan.expectedPostApplyOrphanPermissionCount).toBe(0);
   });
 
-  it("reuses the immutable 246-row backup during resume", () => {
-    expect(decideBackupAction(246, 246)).toBe("reuse");
-    expect(decideBackupAction(246, 249)).toBe("reuse");
-    expect(decideBackupAction(0, 246)).toBe("initialize");
-    expect(() => decideBackupAction(245, 246)).toThrow();
-    expect(() => decideBackupAction(0, 249)).toThrow();
-  });
-
   it("replaces a resumed 246-row orphan set with 249 verified mappings", async () => {
     const roles = ROLES.map(({ code }, index) => ({ code, id: `role-${index}` }));
     const permissions = PERMISSIONS.map(({ code }, index) => ({ code, id: `permission-${index}` }));
-    const desired = buildDesiredMappings(roles, permissions);
+    const desired = uniqueMappings(buildDesiredMappings(roles, permissions));
     let mappings = Array.from({ length: 246 }, (_, index) => ({
       roleId: roles[index % roles.length].id,
       permissionId: `legacy-orphan-${index}`,
@@ -147,7 +141,8 @@ describe("DEMO RBAC recovery safety", () => {
     expect(report.currentOrphanPermissionCount).toBe(246);
     expect(report.permissionsToCreate).toBe(65);
     expect(report.plannedMissingPermissionsCount).toBe(0);
-    expect(report.desiredRolePermissionCount).toBe(249);
+    expect(report.desiredRawRolePermissionCount).toBe(249);
+    expect(report.desiredUniqueRolePermissionCount).toBe(249);
   });
 
   it("builds mappings from Role.code and Permission.code", () => {
@@ -171,7 +166,8 @@ describe("DEMO RBAC recovery safety", () => {
     const forbidden = /DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE|DELETE\s+FROM\s+`?(?:User|role|PasswordHistory)`?/i;
     expect(phase1Sql).not.toMatch(forbidden);
     expect(phase2Sql).not.toMatch(forbidden);
-    expect(`${phase1Sql}\n${phase2Sql}`).not.toContain("passwordHash");
+    expect(bridgeSql).not.toMatch(forbidden);
+    expect(`${phase1Sql}\n${phase2Sql}\n${bridgeSql}`).not.toContain("passwordHash");
   });
 
   it("keeps future-migration ownership out of sync_schema recovery", () => {
@@ -198,5 +194,16 @@ describe("DEMO RBAC recovery safety", () => {
     expect(phase2Sql).toContain("@smartop_orphan_count");
     expect(phase2Sql).toContain("rolepermission_roleId_fkey");
     expect(phase2Sql).toContain("rolepermission_permissionId_fkey");
+    expect(phase2Sql).toContain("REFERENCES `Permission`(`id`)");
+    expect(phase2Sql).toContain("Run sync-schema-rbac-bridge.sql before phase 2");
+  });
+
+  it("bridges only the legacy lowercase permission foreign key", () => {
+    expect(bridgeSql).toContain("DATABASE() INTO v_database");
+    expect(bridgeSql).toContain("rolepermission_backup_20260929");
+    expect(bridgeSql).toContain("v_backup_count <> 246");
+    expect(bridgeSql).toContain("BINARY v_referenced_table = BINARY 'permission'");
+    expect(bridgeSql).toContain("DROP FOREIGN KEY `RolePermission_permissionId_fkey`");
+    expect(bridgeSql).not.toContain("DROP FOREIGN KEY `RolePermission_roleId_fkey`");
   });
 });
