@@ -14,16 +14,31 @@ type NameRow = { name: string };
 type DuplicateRow = { count: bigint | number };
 
 export type RecoveryReport = {
+  currentPermissionCount: number;
+  currentRoleCount: number;
+  currentBackupRolePermissionCount: number;
+  currentRolePermissionCount: number;
+  currentOrphanRoleCount: number;
+  currentOrphanPermissionCount: number;
   permissionMasterCount: number;
-  roleCount: number;
-  backupRolePermissionCount: number;
-  oldRolePermissionCount: number;
-  newRolePermissionCount: number;
-  missingRolesCount: number;
-  missingPermissionsCount: number;
-  orphanRolesCount: number;
-  orphanPermissionsCount: number;
+  permissionsToCreate: number;
+  desiredRolePermissionCount: number;
+  plannedMissingRolesCount: number;
+  plannedMissingPermissionsCount: number;
+  expectedPostApplyOrphanRoleCount: number;
+  expectedPostApplyOrphanPermissionCount: number;
 };
+
+export type PlannedState = Pick<
+  RecoveryReport,
+  | "permissionMasterCount"
+  | "permissionsToCreate"
+  | "desiredRolePermissionCount"
+  | "plannedMissingRolesCount"
+  | "plannedMissingPermissionsCount"
+  | "expectedPostApplyOrphanRoleCount"
+  | "expectedPostApplyOrphanPermissionCount"
+>;
 
 export function assertDemoMode(demoMode: string | undefined): void {
   if (demoMode !== "true") {
@@ -49,6 +64,27 @@ export function parseRecoveryMode(args: readonly string[]): RecoveryMode {
 export function findMissingCodes(required: readonly string[], found: readonly string[]): string[] {
   const foundSet = new Set(found);
   return [...new Set(required)].filter((code) => !foundSet.has(code)).sort();
+}
+
+export function calculatePlannedState(
+  databaseRoleCodes: readonly string[],
+  databasePermissionCodes: readonly string[],
+): PlannedState {
+  const masterPermissionCodes = PERMISSIONS.map(({ code }) => code);
+  const referencedPermissionCodes = [...new Set(ROLES.flatMap(({ permissions }) => permissions))];
+  const plannedMissingRoles = findMissingCodes(ROLES.map(({ code }) => code), databaseRoleCodes);
+  const plannedMissingPermissions = findMissingCodes(referencedPermissionCodes, masterPermissionCodes);
+
+  return {
+    permissionMasterCount: PERMISSIONS.length,
+    permissionsToCreate: findMissingCodes(masterPermissionCodes, databasePermissionCodes).length,
+    desiredRolePermissionCount: ROLES.reduce((total, role) => total + role.permissions.length, 0),
+    plannedMissingRolesCount: plannedMissingRoles.length,
+    plannedMissingPermissionsCount: plannedMissingPermissions.length,
+    expectedPostApplyOrphanRoleCount: plannedMissingRoles.length === 0 ? 0 : plannedMissingRoles.length,
+    expectedPostApplyOrphanPermissionCount:
+      plannedMissingPermissions.length === 0 ? 0 : plannedMissingPermissions.length,
+  };
 }
 
 export function buildDesiredMappings(
@@ -138,12 +174,23 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
   }
 
   try {
+    await verifyPermissionTable(prisma);
+
+    const currentPermissions = await prisma.permission.findMany({ select: { code: true } });
+    const currentPermissionCount = currentPermissions.length;
     const oldRolePermissionCount = await readCount(prisma, "rolepermission");
+    const currentOrphanRoles = await prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*) AS count FROM rolepermission rp LEFT JOIN role r ON r.id = rp.roleId WHERE r.id IS NULL
+    `;
+    const currentOrphanPermissions = await prisma.$queryRaw<CountRow[]>`
+      SELECT COUNT(*) AS count
+      FROM rolepermission rp LEFT JOIN Permission p ON p.id = rp.permissionId
+      WHERE p.id IS NULL
+    `;
     if (oldRolePermissionCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
       throw new Error("Legacy RolePermission count is not the reviewed value");
     }
     const backupRolePermissionCount = await ensureVerifiedBackup(prisma, oldRolePermissionCount);
-    await verifyPermissionTable(prisma);
 
     for (const permission of PERMISSIONS) {
       await prisma.permission.upsert({
@@ -166,39 +213,19 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
       });
     }
 
-    for (const role of ROLES) {
-      await prisma.role.upsert({
-        where: { code: role.code },
-        update: {
-          nameTh: role.nameTh,
-          nameEn: role.nameEn,
-          description: role.description,
-          level: role.level,
-          departmentType: role.departmentType,
-          isSystem: role.isSystem,
-          isActive: true,
-        },
-        create: {
-          code: role.code,
-          nameTh: role.nameTh,
-          nameEn: role.nameEn,
-          description: role.description,
-          level: role.level,
-          departmentType: role.departmentType,
-          isSystem: role.isSystem,
-          isActive: true,
-        },
-      });
-    }
-
-    const roles = await prisma.role.findMany({ select: { id: true, code: true } });
     const permissions = await prisma.permission.findMany({ select: { id: true, code: true } });
+    const roles = await prisma.role.findMany({ select: { id: true, code: true } });
+    const planned = calculatePlannedState(
+      roles.map(({ code }) => code),
+      currentPermissions.map(({ code }) => code),
+    );
     const requiredRoleCodes = ROLES.map(({ code }) => code);
     const requiredPermissionCodes = [...new Set(ROLES.flatMap(({ permissions: codes }) => codes))];
     const missingRoles = findMissingCodes(requiredRoleCodes, roles.map(({ code }) => code));
-    const missingPermissions = findMissingCodes(requiredPermissionCodes, permissions.map(({ code }) => code));
+    const missingMasterPermissions = findMissingCodes(requiredPermissionCodes, PERMISSIONS.map(({ code }) => code));
+    const missingDatabasePermissions = findMissingCodes(requiredPermissionCodes, permissions.map(({ code }) => code));
 
-    if (missingRoles.length > 0 || missingPermissions.length > 0) {
+    if (missingRoles.length > 0 || missingMasterPermissions.length > 0 || missingDatabasePermissions.length > 0) {
       throw new Error("Required Role or Permission master data is missing");
     }
 
@@ -249,15 +276,19 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
     `;
 
     return {
-      permissionMasterCount: PERMISSIONS.length,
-      roleCount: await prisma.role.count(),
-      backupRolePermissionCount,
-      oldRolePermissionCount,
-      newRolePermissionCount,
-      missingRolesCount: missingRoles.length,
-      missingPermissionsCount: missingPermissions.length,
-      orphanRolesCount: Number(orphanRoles[0]?.count ?? 0),
-      orphanPermissionsCount: Number(orphanPermissions[0]?.count ?? 0),
+      currentPermissionCount,
+      currentRoleCount: roles.length,
+      currentBackupRolePermissionCount: backupRolePermissionCount,
+      currentRolePermissionCount: oldRolePermissionCount,
+      currentOrphanRoleCount: Number(currentOrphanRoles[0]?.count ?? 0),
+      currentOrphanPermissionCount: Number(currentOrphanPermissions[0]?.count ?? 0),
+      permissionMasterCount: planned.permissionMasterCount,
+      permissionsToCreate: planned.permissionsToCreate,
+      desiredRolePermissionCount: newRolePermissionCount,
+      plannedMissingRolesCount: missingRoles.length,
+      plannedMissingPermissionsCount: missingMasterPermissions.length,
+      expectedPostApplyOrphanRoleCount: Number(orphanRoles[0]?.count ?? 0),
+      expectedPostApplyOrphanPermissionCount: Number(orphanPermissions[0]?.count ?? 0),
     };
   } finally {
     await prisma.$queryRaw`SELECT RELEASE_LOCK('smartop_demo_reconcile_rbac')`;
@@ -296,32 +327,46 @@ export async function inspectRbacDemo(prisma: PrismaClient): Promise<RecoveryRep
         WHERE p.id IS NULL
       `
     : [{ count: oldRolePermissionCount }];
-  const missingRoles = findMissingCodes(ROLES.map(({ code }) => code), roles.map(({ code }) => code));
-  const missingPermissions = findMissingCodes(PERMISSIONS.map(({ code }) => code), permissions.map(({ code }) => code));
+  const planned = calculatePlannedState(
+    roles.map(({ code }) => code),
+    permissions.map(({ code }) => code),
+  );
 
   return {
-    permissionMasterCount: PERMISSIONS.length,
-    roleCount: roles.length,
-    backupRolePermissionCount,
-    oldRolePermissionCount,
-    newRolePermissionCount: ROLES.reduce((total, role) => total + role.permissions.length, 0),
-    missingRolesCount: missingRoles.length,
-    missingPermissionsCount: missingPermissions.length,
-    orphanRolesCount: Number(orphanRoles[0]?.count ?? 0),
-    orphanPermissionsCount: Number(orphanPermissions[0]?.count ?? 0),
+    currentPermissionCount: permissions.length,
+    currentRoleCount: roles.length,
+    currentBackupRolePermissionCount: backupRolePermissionCount,
+    currentRolePermissionCount: oldRolePermissionCount,
+    currentOrphanRoleCount: Number(orphanRoles[0]?.count ?? 0),
+    currentOrphanPermissionCount: Number(orphanPermissions[0]?.count ?? 0),
+    ...planned,
   };
 }
 
 function printReport(report: RecoveryReport): void {
+  console.log("CURRENT DATABASE:");
+  console.log(`Current permission count: ${report.currentPermissionCount}`);
+  console.log(`Current role count: ${report.currentRoleCount}`);
+  console.log(`Current backup RolePermission count: ${report.currentBackupRolePermissionCount}`);
+  console.log(`Old RolePermission count: ${report.currentRolePermissionCount}`);
+  console.log(`Current orphan role count: ${report.currentOrphanRoleCount}`);
+  console.log(`Current orphan permission count: ${report.currentOrphanPermissionCount}`);
+  console.log("PLANNED STATE:");
   console.log(`Permission master count: ${report.permissionMasterCount}`);
-  console.log(`Role count: ${report.roleCount}`);
-  console.log(`Backup RolePermission count: ${report.backupRolePermissionCount}`);
-  console.log(`Old RolePermission count: ${report.oldRolePermissionCount}`);
-  console.log(`New RolePermission count: ${report.newRolePermissionCount}`);
-  console.log(`Missing roles count: ${report.missingRolesCount}`);
-  console.log(`Missing permissions count: ${report.missingPermissionsCount}`);
-  console.log(`Orphan roles count: ${report.orphanRolesCount}`);
-  console.log(`Orphan permissions count: ${report.orphanPermissionsCount}`);
+  console.log(`Permissions to create: ${report.permissionsToCreate}`);
+  console.log(`Desired RolePermission count: ${report.desiredRolePermissionCount}`);
+  console.log(`Missing Role codes: ${report.plannedMissingRolesCount}`);
+  console.log(`Missing Permission codes referenced by Roles: ${report.plannedMissingPermissionsCount}`);
+  console.log(`Expected post-apply orphan role count: ${report.expectedPostApplyOrphanRoleCount}`);
+  console.log(`Expected post-apply orphan permission count: ${report.expectedPostApplyOrphanPermissionCount}`);
+}
+
+export function sanitizeErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : "Unknown recovery error";
+  return message
+    .replace(/(?:mysql|mariadb):\/\/[^\s]+/gi, "[database-url-redacted]")
+    .replace(/password\s*[=:]\s*[^\s,;]+/gi, "password=[redacted]")
+    .slice(0, 500);
 }
 
 async function main(): Promise<void> {
@@ -338,8 +383,8 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
-    console.error("RBAC recovery aborted");
+  main().catch((error: unknown) => {
+    console.error(`RBAC recovery aborted: ${sanitizeErrorMessage(error)}`);
     process.exitCode = 1;
   });
 }

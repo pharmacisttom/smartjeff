@@ -7,8 +7,11 @@ import {
   assertDemoDatabase,
   assertDemoMode,
   buildDesiredMappings,
+  calculatePlannedState,
   findMissingCodes,
+  inspectRbacDemo,
   parseRecoveryMode,
+  sanitizeErrorMessage,
 } from "./reconcile-rbac-demo";
 
 describe("DEMO RBAC recovery safety", () => {
@@ -45,8 +48,50 @@ describe("DEMO RBAC recovery safety", () => {
     expect(BACKUP_TABLE).toBe("rolepermission_backup_20260929");
   });
 
+  it("redacts database URLs from CLI errors", () => {
+    expect(sanitizeErrorMessage(new Error("failed mysql://user:secret@db/smartop_demo"))).toBe(
+      "failed [database-url-redacted]",
+    );
+  });
+
   it("detects missing business keys before destructive work", () => {
     expect(findMissingCodes(["A", "B", "A"], ["A"])).toEqual(["B"]);
+  });
+
+  it("treats empty database permissions as planned inserts, not missing master codes", () => {
+    const plan = calculatePlannedState(ROLES.map(({ code }) => code), []);
+    expect(plan.permissionMasterCount).toBe(65);
+    expect(plan.permissionsToCreate).toBe(65);
+    expect(plan.desiredRolePermissionCount).toBe(249);
+    expect(plan.plannedMissingRolesCount).toBe(0);
+    expect(plan.plannedMissingPermissionsCount).toBe(0);
+    expect(plan.expectedPostApplyOrphanPermissionCount).toBe(0);
+  });
+
+  it("inspects the pre-reconciliation database without invoking mutation methods", async () => {
+    const queryRaw = async (strings: TemplateStringsArray) => {
+      const sql = strings.join("?");
+      if (sql.includes("SELECT DATABASE()")) return [{ databaseName: "smartop_demo" }];
+      if (sql.includes("information_schema.TABLES") && sql.includes("Permission")) return [{ count: 1 }];
+      if (sql.includes("information_schema.TABLES")) return [{ count: 0 }];
+      if (sql.includes("LEFT JOIN role")) return [{ count: 0 }];
+      if (sql.includes("LEFT JOIN Permission")) return [{ count: 246 }];
+      throw new Error(`Unexpected read query: ${sql}`);
+    };
+    const prisma = {
+      $queryRaw: queryRaw,
+      $queryRawUnsafe: async () => [{ count: 246 }],
+      role: { findMany: async () => ROLES.map(({ code }) => ({ code })) },
+      permission: { findMany: async () => [] },
+    } as never;
+
+    const report = await inspectRbacDemo(prisma);
+    expect(report.currentPermissionCount).toBe(0);
+    expect(report.currentRolePermissionCount).toBe(246);
+    expect(report.currentOrphanPermissionCount).toBe(246);
+    expect(report.permissionsToCreate).toBe(65);
+    expect(report.plannedMissingPermissionsCount).toBe(0);
+    expect(report.desiredRolePermissionCount).toBe(249);
   });
 
   it("builds mappings from Role.code and Permission.code", () => {
