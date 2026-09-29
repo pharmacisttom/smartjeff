@@ -42,6 +42,7 @@ public/photos/
 !database/schema.sql
 !database/demo-data.sql
 !prisma/migrations/**/migration.sql
+!scripts/recovery/*.sql
 backup/
 *.sql.gz
 

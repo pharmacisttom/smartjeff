@@ -4,24 +4,9 @@ import { pathToFileURL } from "node:url";
 import { PERMISSIONS, ROLES } from "./seed-roles";
 
 export const EXPECTED_DATABASE = "smartop_demo";
-export const BACKUP_TABLE = "rolepermission_backup_20260928";
-
-export const CREATE_PERMISSION_TABLE_SQL = `
-CREATE TABLE IF NOT EXISTS \`Permission\` (
-  \`id\` VARCHAR(191) NOT NULL,
-  \`code\` VARCHAR(191) NOT NULL,
-  \`module\` VARCHAR(191) NOT NULL,
-  \`action\` VARCHAR(191) NOT NULL,
-  \`description\` TEXT NULL,
-  \`sensitivity\` VARCHAR(191) NOT NULL DEFAULT 'NORMAL',
-  \`isActive\` BOOLEAN NOT NULL DEFAULT true,
-  \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE INDEX \`Permission_code_key\`(\`code\`),
-  INDEX \`Permission_code_idx\`(\`code\`),
-  INDEX \`Permission_module_idx\`(\`module\`),
-  PRIMARY KEY (\`id\`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
-`;
+export const BACKUP_TABLE = "rolepermission_backup_20260929";
+export const EXPECTED_LEGACY_ROLE_PERMISSION_COUNT = 246;
+export type RecoveryMode = "dry-run" | "apply";
 
 type CountRow = { count: bigint | number };
 type DatabaseRow = { databaseName: string | null };
@@ -50,6 +35,15 @@ export function assertDemoDatabase(databaseName: string | null): void {
   if (databaseName !== EXPECTED_DATABASE) {
     throw new Error(`Database must be exactly ${EXPECTED_DATABASE}`);
   }
+}
+
+export function parseRecoveryMode(args: readonly string[]): RecoveryMode {
+  const modes = args.filter((arg) => arg === "--dry-run" || arg === "--apply");
+  const unknown = args.filter((arg) => arg.startsWith("--") && arg !== "--dry-run" && arg !== "--apply");
+  if (unknown.length > 0 || modes.length > 1) {
+    throw new Error("Use exactly one of --dry-run or --apply");
+  }
+  return modes[0] === "--apply" ? "apply" : "dry-run";
 }
 
 export function findMissingCodes(required: readonly string[], found: readonly string[]): string[] {
@@ -98,9 +92,7 @@ async function ensureVerifiedBackup(prisma: PrismaClient, currentCount: number):
   return backupCount;
 }
 
-async function ensurePermissionTable(prisma: PrismaClient): Promise<void> {
-  await prisma.$executeRawUnsafe(CREATE_PERMISSION_TABLE_SQL);
-
+async function verifyPermissionTable(prisma: PrismaClient): Promise<void> {
   const columns = await prisma.$queryRaw<NameRow[]>`
     SELECT COLUMN_NAME AS name
     FROM information_schema.COLUMNS
@@ -147,8 +139,11 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
 
   try {
     const oldRolePermissionCount = await readCount(prisma, "rolepermission");
+    if (oldRolePermissionCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
+      throw new Error("Legacy RolePermission count is not the reviewed value");
+    }
     const backupRolePermissionCount = await ensureVerifiedBackup(prisma, oldRolePermissionCount);
-    await ensurePermissionTable(prisma);
+    await verifyPermissionTable(prisma);
 
     for (const permission of PERMISSIONS) {
       await prisma.permission.upsert({
@@ -254,7 +249,7 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
     `;
 
     return {
-      permissionMasterCount: await prisma.permission.count(),
+      permissionMasterCount: PERMISSIONS.length,
       roleCount: await prisma.role.count(),
       backupRolePermissionCount,
       oldRolePermissionCount,
@@ -267,6 +262,54 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
   } finally {
     await prisma.$queryRaw`SELECT RELEASE_LOCK('smartop_demo_reconcile_rbac')`;
   }
+}
+
+export async function inspectRbacDemo(prisma: PrismaClient): Promise<RecoveryReport> {
+  const databaseRows = await prisma.$queryRaw<DatabaseRow[]>`SELECT DATABASE() AS databaseName`;
+  assertDemoDatabase(databaseRows[0]?.databaseName ?? null);
+
+  const oldRolePermissionCount = await readCount(prisma, "rolepermission");
+  const roles = await prisma.role.findMany({ select: { code: true } });
+  const permissionTable = await prisma.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND BINARY TABLE_NAME = ${"Permission"}
+  `;
+  const permissions = Number(permissionTable[0]?.count ?? 0) === 1
+    ? await prisma.permission.findMany({ select: { code: true } })
+    : [];
+  const backupTable = await prisma.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND BINARY TABLE_NAME = ${BACKUP_TABLE}
+  `;
+  const backupRolePermissionCount = Number(backupTable[0]?.count ?? 0) === 1
+    ? await readCount(prisma, BACKUP_TABLE)
+    : 0;
+  const orphanRoles = await prisma.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count FROM rolepermission rp LEFT JOIN role r ON r.id = rp.roleId WHERE r.id IS NULL
+  `;
+  const orphanPermissions = Number(permissionTable[0]?.count ?? 0) === 1
+    ? await prisma.$queryRaw<CountRow[]>`
+        SELECT COUNT(*) AS count
+        FROM rolepermission rp LEFT JOIN Permission p ON p.id = rp.permissionId
+        WHERE p.id IS NULL
+      `
+    : [{ count: oldRolePermissionCount }];
+  const missingRoles = findMissingCodes(ROLES.map(({ code }) => code), roles.map(({ code }) => code));
+  const missingPermissions = findMissingCodes(PERMISSIONS.map(({ code }) => code), permissions.map(({ code }) => code));
+
+  return {
+    permissionMasterCount: PERMISSIONS.length,
+    roleCount: roles.length,
+    backupRolePermissionCount,
+    oldRolePermissionCount,
+    newRolePermissionCount: ROLES.reduce((total, role) => total + role.permissions.length, 0),
+    missingRolesCount: missingRoles.length,
+    missingPermissionsCount: missingPermissions.length,
+    orphanRolesCount: Number(orphanRoles[0]?.count ?? 0),
+    orphanPermissionsCount: Number(orphanPermissions[0]?.count ?? 0),
+  };
 }
 
 function printReport(report: RecoveryReport): void {
@@ -282,10 +325,13 @@ function printReport(report: RecoveryReport): void {
 }
 
 async function main(): Promise<void> {
-  assertDemoMode(process.env.DEMO_MODE);
+  const mode = parseRecoveryMode(process.argv.slice(2));
+  if (mode === "apply") {
+    assertDemoMode(process.env.DEMO_MODE);
+  }
   const prisma = new PrismaClient();
   try {
-    printReport(await reconcileRbacDemo(prisma));
+    printReport(mode === "apply" ? await reconcileRbacDemo(prisma) : await inspectRbacDemo(prisma));
   } finally {
     await prisma.$disconnect();
   }

@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import { PERMISSIONS, ROLES } from "./seed-roles";
 import {
   BACKUP_TABLE,
-  CREATE_PERMISSION_TABLE_SQL,
   assertDemoDatabase,
   assertDemoMode,
   buildDesiredMappings,
   findMissingCodes,
+  parseRecoveryMode,
 } from "./reconcile-rbac-demo";
 
 describe("DEMO RBAC recovery safety", () => {
+  const phase1Sql = readFileSync(new URL("./recovery/sync-schema-phase1.sql", import.meta.url), "utf8");
+  const phase2Sql = readFileSync(new URL("./recovery/sync-schema-phase2.sql", import.meta.url), "utf8");
+
   it("requires the explicit DEMO_MODE guard", () => {
     expect(() => assertDemoMode(undefined)).toThrow();
     expect(() => assertDemoMode("false")).toThrow();
@@ -32,12 +36,13 @@ describe("DEMO RBAC recovery safety", () => {
     expect(ROLES.flatMap(({ permissions }) => permissions).every((code) => permissionCodes.has(code))).toBe(true);
   });
 
-  it("declares only the reviewed Permission table and required indexes", () => {
-    expect(CREATE_PERMISSION_TABLE_SQL).toContain("CREATE TABLE IF NOT EXISTS `Permission`");
-    expect(CREATE_PERMISSION_TABLE_SQL).toContain("`Permission_code_key`");
-    expect(CREATE_PERMISSION_TABLE_SQL).toContain("`Permission_code_idx`");
-    expect(CREATE_PERMISSION_TABLE_SQL).toContain("`Permission_module_idx`");
-    expect(BACKUP_TABLE).toBe("rolepermission_backup_20260928");
+  it("defaults to dry-run and requires an explicit apply mode", () => {
+    expect(parseRecoveryMode([])).toBe("dry-run");
+    expect(parseRecoveryMode(["--dry-run"])).toBe("dry-run");
+    expect(parseRecoveryMode(["--apply"])).toBe("apply");
+    expect(() => parseRecoveryMode(["--apply", "--dry-run"])).toThrow();
+    expect(() => parseRecoveryMode(["--unknown"])).toThrow();
+    expect(BACKUP_TABLE).toBe("rolepermission_backup_20260929");
   });
 
   it("detects missing business keys before destructive work", () => {
@@ -59,5 +64,38 @@ describe("DEMO RBAC recovery safety", () => {
   it("refuses to build mappings when a required permission is absent", () => {
     const roles = ROLES.map(({ code }, index) => ({ code, id: `role-${index}` }));
     expect(() => buildDesiredMappings(roles, [])).toThrow();
+  });
+
+  it("keeps both recovery phases free of destructive SQL", () => {
+    const forbidden = /DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE|DELETE\s+FROM\s+`?(?:User|role|PasswordHistory)`?/i;
+    expect(phase1Sql).not.toMatch(forbidden);
+    expect(phase2Sql).not.toMatch(forbidden);
+    expect(`${phase1Sql}\n${phase2Sql}`).not.toContain("passwordHash");
+  });
+
+  it("keeps future-migration ownership out of sync_schema recovery", () => {
+    const futureOwned = [
+      "PayrollPeriod",
+      "PayrollComponent",
+      "PayrollPolicy",
+      "SitePayrollPolicy",
+      "ImportJob",
+      "ClientContact",
+      "EmployeeDeployment",
+      "payrollPeriodId",
+      "activationPin",
+      "ShiftTemplate",
+      "Employee",
+    ];
+    for (const name of futureOwned) {
+      expect(`${phase1Sql}\n${phase2Sql}`).not.toContain(name);
+    }
+  });
+
+  it("delays RolePermission foreign keys until guarded phase 2", () => {
+    expect(phase1Sql).not.toContain("rolepermission_permissionId_fkey");
+    expect(phase2Sql).toContain("@smartop_orphan_count");
+    expect(phase2Sql).toContain("rolepermission_roleId_fkey");
+    expect(phase2Sql).toContain("rolepermission_permissionId_fkey");
   });
 });
