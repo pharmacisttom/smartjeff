@@ -35,7 +35,7 @@ describe("DEMO RBAC recovery safety", () => {
   });
 
   it("uses the shared Permission and Role master", () => {
-    expect(PERMISSIONS).toHaveLength(65);
+    expect(PERMISSIONS).toHaveLength(66);
     expect(new Set(PERMISSIONS.map(({ code }) => code)).size).toBe(PERMISSIONS.length);
     expect(new Set(ROLES.map(({ code }) => code)).size).toBe(ROLES.length);
     const permissionCodes = new Set(PERMISSIONS.map(({ code }) => code));
@@ -63,10 +63,10 @@ describe("DEMO RBAC recovery safety", () => {
 
   it("treats empty database permissions as planned inserts, not missing master codes", () => {
     const plan = calculatePlannedState(ROLES.map(({ code }) => code), []);
-    expect(plan.permissionMasterCount).toBe(65);
-    expect(plan.permissionsToCreate).toBe(65);
-    expect(plan.desiredRawRolePermissionCount).toBe(249);
-    expect(plan.desiredUniqueRolePermissionCount).toBe(249);
+    expect(plan.permissionMasterCount).toBe(66);
+    expect(plan.permissionsToCreate).toBe(66);
+    expect(plan.desiredRawRolePermissionCount).toBe(250);
+    expect(plan.desiredUniqueRolePermissionCount).toBe(250);
     expect(plan.plannedMissingRolesCount).toBe(0);
     expect(plan.plannedMissingPermissionsCount).toBe(0);
     expect(plan.expectedPostApplyOrphanPermissionCount).toBe(0);
@@ -112,9 +112,9 @@ describe("DEMO RBAC recovery safety", () => {
       },
     } as never;
 
-    expect(desired).toHaveLength(249);
+    expect(desired).toHaveLength(250);
     await replaceRolePermissionMappings(tx, desired);
-    expect(mappings).toHaveLength(249);
+    expect(mappings).toHaveLength(250);
     expect(mappings.filter(({ permissionId }) => !permissionIds.has(permissionId))).toHaveLength(0);
   });
 
@@ -139,10 +139,10 @@ describe("DEMO RBAC recovery safety", () => {
     expect(report.currentPermissionCount).toBe(0);
     expect(report.currentRolePermissionCount).toBe(246);
     expect(report.currentOrphanPermissionCount).toBe(246);
-    expect(report.permissionsToCreate).toBe(65);
+    expect(report.permissionsToCreate).toBe(66);
     expect(report.plannedMissingPermissionsCount).toBe(0);
-    expect(report.desiredRawRolePermissionCount).toBe(249);
-    expect(report.desiredUniqueRolePermissionCount).toBe(249);
+    expect(report.desiredRawRolePermissionCount).toBe(250);
+    expect(report.desiredUniqueRolePermissionCount).toBe(250);
   });
 
   it("builds mappings from Role.code and Permission.code", () => {

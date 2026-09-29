@@ -99,6 +99,7 @@ export const PERMISSIONS: PermDef[] = [
   { code: "security.read", module: "Security", action: "VIEW", description: "ดูภาพรวมความปลอดภัยและ Audit Logs", sensitivity: "SENSITIVE" },
   { code: "security.role.manage", module: "Security", action: "CONFIGURE", description: "จัดการบทบาทและสิทธิ์ผู้ใช้งาน (Role Manager)", sensitivity: "CRITICAL" },
   { code: "security.user.manage", module: "Security", action: "CONFIGURE", description: "จัดการบัญชีผู้ใช้และมอบหมายสิทธิ์", sensitivity: "CRITICAL" },
+  { code: "security.demo.manage", module: "Security", action: "CONFIGURE", description: "จัดการบัญชีสำหรับ Demo และ UAT", sensitivity: "CRITICAL" },
   { code: "security.session.manage", module: "Security", action: "CONFIGURE", description: "จัดการ Session และสั่งบังคับออกจากระบบ", sensitivity: "CRITICAL" },
   { code: "security.audit.read", module: "Security", action: "VIEW", description: "ดูรายงาน Audit Trail เชิงลึก", sensitivity: "SENSITIVE" },
   { code: "security.access.request", module: "Security", action: "SUBMIT", description: "ยื่นคำขอสิทธิ์การเข้าถึงระบบชั่วคราว" },
@@ -178,7 +179,7 @@ export const ROLES: RoleDef[] = [
     level: 10,
     departmentType: "SECURITY",
     isSystem: true,
-    permissions: PERMISSIONS.map((p) => p.code),
+    permissions: PERMISSIONS.filter((p) => p.code !== "security.demo.manage").map((p) => p.code),
   },
   {
     code: "EXECUTIVE",

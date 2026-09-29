@@ -318,9 +318,28 @@ model User {
   sessions               UserSession[]
   accessRequests         AccessRequest[]
   passwordHistory        PasswordHistory[]
+  demoAccounts           DemoAccount[]        @relation("DemoAccountUser")
+  updatedDemoAccounts    DemoAccount[]        @relation("DemoAccountUpdater")
 
   @@index([email])
   @@index([isActive])
+}
+
+model DemoAccount {
+  id        String   @id @default(cuid())
+  demoRole  String   @unique
+  userId    String
+  user      User     @relation("DemoAccountUser", fields: [userId], references: [id], onDelete: Restrict)
+  isEnabled Boolean  @default(true)
+  label     String?
+  sortOrder Int      @default(0)
+  updatedBy String?
+  updater   User?    @relation("DemoAccountUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([updatedBy])
 }
 
 model MfaRecoveryCode {
