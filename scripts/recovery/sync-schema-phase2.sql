@@ -16,13 +16,31 @@ CREATE PROCEDURE smartop_add_fk_if_safe(
   IN p_ddl TEXT
 )
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
-    WHERE CONSTRAINT_SCHEMA = DATABASE()
-      AND BINARY TABLE_NAME = BINARY p_child_table
-      AND BINARY CONSTRAINT_NAME = BINARY p_constraint
-      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-  ) THEN
+  DECLARE v_semantic_fk_count INTEGER DEFAULT 0;
+  DECLARE v_column_fk_count INTEGER DEFAULT 0;
+
+  SELECT COUNT(*) INTO v_semantic_fk_count
+  FROM information_schema.KEY_COLUMN_USAGE
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND BINARY TABLE_NAME = BINARY p_child_table
+    AND BINARY COLUMN_NAME = BINARY p_child_column
+    AND BINARY REFERENCED_TABLE_NAME = BINARY p_parent_table
+    AND BINARY REFERENCED_COLUMN_NAME = BINARY p_parent_column;
+
+  SELECT COUNT(*) INTO v_column_fk_count
+  FROM information_schema.KEY_COLUMN_USAGE
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND BINARY TABLE_NAME = BINARY p_child_table
+    AND BINARY COLUMN_NAME = BINARY p_child_column
+    AND REFERENCED_TABLE_NAME IS NOT NULL;
+
+  IF v_semantic_fk_count > 1 OR v_column_fk_count > 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Unexpected multiple foreign keys on required column';
+  ELSEIF v_semantic_fk_count = 1 THEN
+    SELECT CONCAT('Foreign key already valid: ', p_child_table, '.', p_child_column) AS phase2_status;
+  ELSEIF v_column_fk_count = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Conflicting foreign key exists on required column';
+  ELSE
     SET @smartop_orphan_count = 0;
     SET @smartop_orphan_sql = CONCAT(
       'SELECT COUNT(*) INTO @smartop_orphan_count FROM `', p_child_table,
@@ -49,24 +67,42 @@ END$$
 
 CREATE PROCEDURE smartop_add_permission_fk_if_safe()
 BEGIN
-  DECLARE v_fk_count INTEGER DEFAULT 0;
-  DECLARE v_referenced_table VARCHAR(64);
+  DECLARE v_semantic_fk_count INTEGER DEFAULT 0;
+  DECLARE v_column_fk_count INTEGER DEFAULT 0;
+  DECLARE v_legacy_fk_count INTEGER DEFAULT 0;
 
-  SELECT COUNT(*), MAX(REFERENCED_TABLE_NAME)
-    INTO v_fk_count, v_referenced_table
+  SELECT COUNT(*) INTO v_semantic_fk_count
+  FROM information_schema.KEY_COLUMN_USAGE
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND BINARY TABLE_NAME = BINARY 'rolepermission'
+    AND BINARY COLUMN_NAME = BINARY 'permissionId'
+    AND BINARY REFERENCED_TABLE_NAME = BINARY 'Permission'
+    AND BINARY REFERENCED_COLUMN_NAME = BINARY 'id';
+
+  SELECT COUNT(*) INTO v_column_fk_count
   FROM information_schema.KEY_COLUMN_USAGE
   WHERE CONSTRAINT_SCHEMA = DATABASE()
     AND BINARY TABLE_NAME = BINARY 'rolepermission'
     AND BINARY COLUMN_NAME = BINARY 'permissionId'
     AND REFERENCED_TABLE_NAME IS NOT NULL;
 
-  IF v_fk_count > 1 THEN
+  SELECT COUNT(*) INTO v_legacy_fk_count
+  FROM information_schema.KEY_COLUMN_USAGE
+  WHERE CONSTRAINT_SCHEMA = DATABASE()
+    AND BINARY TABLE_NAME = BINARY 'rolepermission'
+    AND BINARY COLUMN_NAME = BINARY 'permissionId'
+    AND BINARY REFERENCED_TABLE_NAME = BINARY 'permission'
+    AND BINARY REFERENCED_COLUMN_NAME = BINARY 'id';
+
+  IF v_semantic_fk_count > 1 OR v_column_fk_count > 1 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Unexpected multiple permissionId foreign keys';
-  ELSEIF v_fk_count = 1 AND BINARY v_referenced_table = BINARY 'permission' THEN
+  ELSEIF v_semantic_fk_count = 1 THEN
+    SELECT 'Permission foreign key already valid: rolepermission.permissionId -> Permission.id' AS phase2_status;
+  ELSEIF v_legacy_fk_count = 1 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Run sync-schema-rbac-bridge.sql before phase 2';
-  ELSEIF v_fk_count = 1 AND BINARY v_referenced_table <> BINARY 'Permission' THEN
+  ELSEIF v_column_fk_count = 1 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'permissionId FK references an unexpected table';
-  ELSEIF v_fk_count = 0 THEN
+  ELSE
     SELECT COUNT(*) INTO @smartop_orphan_count
     FROM rolepermission rp
     LEFT JOIN Permission p ON p.id = rp.permissionId

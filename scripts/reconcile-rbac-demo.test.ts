@@ -198,6 +198,38 @@ describe("DEMO RBAC recovery safety", () => {
     expect(phase2Sql).toContain("Run sync-schema-rbac-bridge.sql before phase 2");
   });
 
+  it("detects existing foreign keys by relationship instead of constraint name", () => {
+    expect(phase2Sql).toContain("BINARY REFERENCED_TABLE_NAME = BINARY p_parent_table");
+    expect(phase2Sql).toContain("BINARY REFERENCED_COLUMN_NAME = BINARY p_parent_column");
+    expect(phase2Sql).toContain("ELSEIF v_semantic_fk_count = 1 THEN");
+    expect(phase2Sql).not.toContain("BINARY CONSTRAINT_NAME = BINARY p_constraint");
+  });
+
+  it("creates the uppercase Permission FK only after a zero-orphan check", () => {
+    const orphanCheck = phase2Sql.indexOf("LEFT JOIN Permission p ON p.id = rp.permissionId");
+    const orphanAbort = phase2Sql.indexOf("Permission foreign key blocked by orphan rows");
+    const addPermissionFk = phase2Sql.indexOf("ADD CONSTRAINT `rolepermission_permissionId_fkey`");
+    expect(orphanCheck).toBeGreaterThan(-1);
+    expect(orphanAbort).toBeGreaterThan(orphanCheck);
+    expect(addPermissionFk).toBeGreaterThan(orphanAbort);
+  });
+
+  it("skips an uppercase Permission FK and aborts a lowercase legacy FK", () => {
+    const uppercaseCheck = "BINARY REFERENCED_TABLE_NAME = BINARY 'Permission'";
+    const lowercaseCheck = "BINARY REFERENCED_TABLE_NAME = BINARY 'permission'";
+    expect(phase2Sql).toContain(uppercaseCheck);
+    expect(phase2Sql).toContain(lowercaseCheck);
+    expect(phase2Sql).toContain("Permission foreign key already valid");
+    expect(phase2Sql).toContain("Run sync-schema-rbac-bridge.sql before phase 2");
+  });
+
+  it("is resumable after partial or complete phase-2 execution", () => {
+    expect(phase2Sql).toContain("v_semantic_fk_count = 1");
+    expect(phase2Sql).toContain("Foreign key already valid");
+    expect(phase2Sql).toContain("Conflicting foreign key exists on required column");
+    expect(phase2Sql).toContain("Foreign key blocked by orphan rows");
+  });
+
   it("bridges only the legacy lowercase permission foreign key", () => {
     expect(bridgeSql).toContain("DATABASE() INTO v_database");
     expect(bridgeSql).toContain("rolepermission_backup_20260929");
