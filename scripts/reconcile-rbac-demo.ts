@@ -12,6 +12,15 @@ type CountRow = { count: bigint | number };
 type DatabaseRow = { databaseName: string | null };
 type NameRow = { name: string };
 type DuplicateRow = { count: bigint | number };
+type DesiredMapping = { roleId: string; permissionId: string };
+type RolePermissionTransaction = {
+  rolePermission: {
+    deleteMany(): Promise<{ count: number }>;
+    createMany(args: { data: DesiredMapping[]; skipDuplicates: boolean }): Promise<{ count: number }>;
+    count(): Promise<number>;
+  };
+  $queryRaw<T>(strings: TemplateStringsArray, ...values: unknown[]): Promise<T>;
+};
 
 export type RecoveryReport = {
   currentPermissionCount: number;
@@ -87,6 +96,19 @@ export function calculatePlannedState(
   };
 }
 
+export function decideBackupAction(existingBackupCount: number, currentCount: number): "reuse" | "initialize" {
+  if (existingBackupCount === EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
+    return "reuse";
+  }
+  if (existingBackupCount !== 0) {
+    throw new Error("Existing RolePermission backup is not the reviewed 246-row snapshot");
+  }
+  if (currentCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
+    throw new Error("Cannot initialize backup because the source is not the reviewed 246-row legacy set");
+  }
+  return "initialize";
+}
+
 export function buildDesiredMappings(
   roles: ReadonlyArray<{ id: string; code: string }>,
   permissions: ReadonlyArray<{ id: string; code: string }>,
@@ -114,18 +136,63 @@ async function readCount(prisma: PrismaClient, table: "rolepermission" | typeof 
 async function ensureVerifiedBackup(prisma: PrismaClient, currentCount: number): Promise<number> {
   await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS \`${BACKUP_TABLE}\` LIKE \`rolepermission\``);
   const existingBackupCount = await readCount(prisma, BACKUP_TABLE);
+  const action = decideBackupAction(existingBackupCount, currentCount);
 
-  if (existingBackupCount === 0 && currentCount > 0) {
+  if (action === "reuse") {
+    return existingBackupCount;
+  }
+
+  if (currentCount > 0) {
     await prisma.$executeRawUnsafe(
       `INSERT INTO \`${BACKUP_TABLE}\` SELECT * FROM \`rolepermission\``,
     );
   }
 
   const backupCount = await readCount(prisma, BACKUP_TABLE);
-  if (backupCount !== currentCount) {
-    throw new Error("RolePermission backup count does not match the current table");
+  if (backupCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
+    throw new Error("RolePermission backup is not the reviewed 246-row snapshot");
   }
   return backupCount;
+}
+
+export async function replaceRolePermissionMappings(
+  tx: RolePermissionTransaction,
+  desiredMappings: DesiredMapping[],
+): Promise<void> {
+  await tx.rolePermission.deleteMany();
+  await tx.rolePermission.createMany({ data: desiredMappings, skipDuplicates: false });
+
+  const count = await tx.rolePermission.count();
+  const duplicates = await tx.$queryRaw<DuplicateRow[]>`
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT roleId, permissionId
+      FROM rolepermission
+      GROUP BY roleId, permissionId
+      HAVING COUNT(*) > 1
+    ) AS duplicate_mappings
+  `;
+  const orphanRoles = await tx.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count
+    FROM rolepermission rp
+    LEFT JOIN role r ON r.id = rp.roleId
+    WHERE r.id IS NULL
+  `;
+  const orphanPermissions = await tx.$queryRaw<CountRow[]>`
+    SELECT COUNT(*) AS count
+    FROM rolepermission rp
+    LEFT JOIN Permission p ON p.id = rp.permissionId
+    WHERE p.id IS NULL
+  `;
+
+  if (
+    count !== desiredMappings.length ||
+    Number(duplicates[0]?.count ?? 0) !== 0 ||
+    Number(orphanRoles[0]?.count ?? 0) !== 0 ||
+    Number(orphanPermissions[0]?.count ?? 0) !== 0
+  ) {
+    throw new Error("Post-rebuild RolePermission verification failed");
+  }
 }
 
 async function verifyPermissionTable(prisma: PrismaClient): Promise<void> {
@@ -187,9 +254,6 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
       FROM rolepermission rp LEFT JOIN Permission p ON p.id = rp.permissionId
       WHERE p.id IS NULL
     `;
-    if (oldRolePermissionCount !== EXPECTED_LEGACY_ROLE_PERMISSION_COUNT) {
-      throw new Error("Legacy RolePermission count is not the reviewed value");
-    }
     const backupRolePermissionCount = await ensureVerifiedBackup(prisma, oldRolePermissionCount);
 
     for (const permission of PERMISSIONS) {
@@ -230,42 +294,12 @@ export async function reconcileRbacDemo(prisma: PrismaClient): Promise<RecoveryR
     }
 
     const desiredMappings = buildDesiredMappings(roles, permissions);
-    await prisma.$transaction(async (tx) => {
-      await tx.rolePermission.deleteMany();
-      await tx.rolePermission.createMany({ data: desiredMappings, skipDuplicates: true });
-
-      const count = await tx.rolePermission.count();
-      const duplicates = await tx.$queryRaw<DuplicateRow[]>`
-        SELECT COUNT(*) AS count
-        FROM (
-          SELECT roleId, permissionId
-          FROM rolepermission
-          GROUP BY roleId, permissionId
-          HAVING COUNT(*) > 1
-        ) AS duplicate_mappings
-      `;
-      const orphanRoles = await tx.$queryRaw<CountRow[]>`
-        SELECT COUNT(*) AS count
-        FROM rolepermission rp
-        LEFT JOIN role r ON r.id = rp.roleId
-        WHERE r.id IS NULL
-      `;
-      const orphanPermissions = await tx.$queryRaw<CountRow[]>`
-        SELECT COUNT(*) AS count
-        FROM rolepermission rp
-        LEFT JOIN Permission p ON p.id = rp.permissionId
-        WHERE p.id IS NULL
-      `;
-
-      if (
-        count !== desiredMappings.length ||
-        Number(duplicates[0]?.count ?? 0) !== 0 ||
-        Number(orphanRoles[0]?.count ?? 0) !== 0 ||
-        Number(orphanPermissions[0]?.count ?? 0) !== 0
-      ) {
-        throw new Error("Post-rebuild RolePermission verification failed");
-      }
-    });
+    await prisma.$transaction(
+      async (tx) => {
+        await replaceRolePermissionMappings(tx, desiredMappings);
+      },
+      { maxWait: 10_000, timeout: 60_000 },
+    );
 
     const newRolePermissionCount = await prisma.rolePermission.count();
     const orphanRoles = await prisma.$queryRaw<CountRow[]>`

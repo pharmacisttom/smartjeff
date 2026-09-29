@@ -8,9 +8,11 @@ import {
   assertDemoMode,
   buildDesiredMappings,
   calculatePlannedState,
+  decideBackupAction,
   findMissingCodes,
   inspectRbacDemo,
   parseRecoveryMode,
+  replaceRolePermissionMappings,
   sanitizeErrorMessage,
 } from "./reconcile-rbac-demo";
 
@@ -66,6 +68,60 @@ describe("DEMO RBAC recovery safety", () => {
     expect(plan.plannedMissingRolesCount).toBe(0);
     expect(plan.plannedMissingPermissionsCount).toBe(0);
     expect(plan.expectedPostApplyOrphanPermissionCount).toBe(0);
+  });
+
+  it("reuses the immutable 246-row backup during resume", () => {
+    expect(decideBackupAction(246, 246)).toBe("reuse");
+    expect(decideBackupAction(246, 249)).toBe("reuse");
+    expect(decideBackupAction(0, 246)).toBe("initialize");
+    expect(() => decideBackupAction(245, 246)).toThrow();
+    expect(() => decideBackupAction(0, 249)).toThrow();
+  });
+
+  it("replaces a resumed 246-row orphan set with 249 verified mappings", async () => {
+    const roles = ROLES.map(({ code }, index) => ({ code, id: `role-${index}` }));
+    const permissions = PERMISSIONS.map(({ code }, index) => ({ code, id: `permission-${index}` }));
+    const desired = buildDesiredMappings(roles, permissions);
+    let mappings = Array.from({ length: 246 }, (_, index) => ({
+      roleId: roles[index % roles.length].id,
+      permissionId: `legacy-orphan-${index}`,
+    }));
+    const roleIds = new Set(roles.map(({ id }) => id));
+    const permissionIds = new Set(permissions.map(({ id }) => id));
+
+    const tx = {
+      rolePermission: {
+        deleteMany: async () => {
+          const count = mappings.length;
+          mappings = [];
+          return { count };
+        },
+        createMany: async ({ data }: { data: typeof desired }) => {
+          mappings = [...data];
+          return { count: data.length };
+        },
+        count: async () => mappings.length,
+      },
+      $queryRaw: async (strings: TemplateStringsArray) => {
+        const sql = strings.join("?");
+        if (sql.includes("duplicate_mappings")) {
+          const keys = mappings.map(({ roleId, permissionId }) => `${roleId}:${permissionId}`);
+          return [{ count: keys.length - new Set(keys).size }];
+        }
+        if (sql.includes("LEFT JOIN role")) {
+          return [{ count: mappings.filter(({ roleId }) => !roleIds.has(roleId)).length }];
+        }
+        if (sql.includes("LEFT JOIN Permission")) {
+          return [{ count: mappings.filter(({ permissionId }) => !permissionIds.has(permissionId)).length }];
+        }
+        throw new Error(`Unexpected verification query: ${sql}`);
+      },
+    } as never;
+
+    expect(desired).toHaveLength(249);
+    await replaceRolePermissionMappings(tx, desired);
+    expect(mappings).toHaveLength(249);
+    expect(mappings.filter(({ permissionId }) => !permissionIds.has(permissionId))).toHaveLength(0);
   });
 
   it("inspects the pre-reconciliation database without invoking mutation methods", async () => {
