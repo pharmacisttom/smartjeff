@@ -1,8 +1,9 @@
 import { PrismaClient } from "@prisma/client";
+import { pathToFileURL } from "node:url";
 
 const prisma = new PrismaClient();
 
-interface PermDef {
+export interface PermDef {
   code: string;
   module: string;
   action: string;
@@ -10,7 +11,7 @@ interface PermDef {
   sensitivity?: "NORMAL" | "SENSITIVE" | "CRITICAL";
 }
 
-const PERMISSIONS: PermDef[] = [
+export const PERMISSIONS: PermDef[] = [
   // Dashboard
   { code: "dashboard.read", module: "Dashboard", action: "VIEW", description: "ดูภาพรวมแดชบอร์ดผู้บริหาร" },
   { code: "dashboard.export", module: "Dashboard", action: "EXPORT", description: "ส่งออกรายงานสรุปแดชบอร์ด" },
@@ -90,6 +91,7 @@ const PERMISSIONS: PermDef[] = [
 
   // Analytics & Automation & AI
   { code: "analytics.read", module: "Analytics", action: "VIEW", description: "ดูรายงานวิเคราะห์ขั้นสูงและ Business Intelligence" },
+  { code: "analytics.export", module: "Analytics", action: "EXPORT", description: "ส่งออกรายงานวิเคราะห์และ Business Intelligence" },
   { code: "automation.read", module: "Automation", action: "VIEW", description: "ดูระบบแจ้งเตือนและ Workflow อัตโนมัติ" },
   { code: "ai.read", module: "AI", action: "VIEW", description: "ใช้งาน SmartJeff AI Copilot Assistant" },
 
@@ -108,7 +110,7 @@ const PERMISSIONS: PermDef[] = [
   { code: "platform.config.manage", module: "Platform", action: "CONFIGURE", description: "ตั้งค่าระบบระดับโครงสร้างพื้นฐาน", sensitivity: "CRITICAL" },
 ];
 
-interface RoleDef {
+export interface RoleDef {
   code: string;
   nameTh: string;
   nameEn: string;
@@ -119,7 +121,7 @@ interface RoleDef {
   permissions: string[];
 }
 
-const ROLES: RoleDef[] = [
+export const ROLES: RoleDef[] = [
   {
     code: "SUPER_ADMIN",
     nameTh: "ผู้ดูแลระบบสูงสุด",
@@ -552,11 +554,13 @@ async function main() {
   console.log("🎉 Central IAM & Role Management Seeding Completed Successfully!");
 }
 
-main()
-  .catch((e) => {
-    console.error("❌ Error seeding roles:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((e) => {
+      console.error("❌ Error seeding roles:", e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
