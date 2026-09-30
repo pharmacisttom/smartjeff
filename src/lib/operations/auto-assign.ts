@@ -1,4 +1,5 @@
-import { LatLng, haversineDistance } from "../geo/haversine";
+import { LatLng } from "../geo/haversine";
+import { calculateDistanceMatrixLongdo } from "../longdo/matrix";
 
 export interface EmployeeCandidate {
   id: string;
@@ -7,6 +8,10 @@ export interface EmployeeCandidate {
   lng: number;
   currentSiteId?: string;
   currentSiteName?: string;
+  skills?: string[];
+  isAvailable?: boolean;
+  currentWorkloadCount?: number;
+  siteFamiliarityScore?: number; // 0 to 100
 }
 
 export interface SiteRequirement {
@@ -17,6 +22,15 @@ export interface SiteRequirement {
   lng: number;
   requiredCapacity: number;
   currentStaffCount: number;
+  requiredSkills?: string[];
+}
+
+export interface AutoAssignWeights {
+  skill: number; // default 0.35 (35%)
+  availability: number; // default 0.25 (25%)
+  travelTime: number; // default 0.20 (20%)
+  workload: number; // default 0.10 (10%)
+  siteFamiliarity: number; // default 0.10 (10%)
 }
 
 export interface AssignmentResult {
@@ -25,24 +39,33 @@ export interface AssignmentResult {
   assignedSiteId: string;
   assignedSiteName: string;
   distanceKm: number;
-  estimatedCost: number;
+  travelTimeMinutes: number;
+  totalScore: number;
   reasoning: string;
 }
 
-export function autoAssignWorkforce(
+export async function autoAssignWorkforce(
   employees: EmployeeCandidate[],
   sites: SiteRequirement[],
-  ratePerKm: number = 5
-): {
+  weightsConfig?: Partial<AutoAssignWeights>
+): Promise<{
   assignments: AssignmentResult[];
   totalSavedKm: number;
   totalSavedCost: number;
   unassignedEmployees: EmployeeCandidate[];
-} {
+}> {
+  const weights: AutoAssignWeights = {
+    skill: 0.35,
+    availability: 0.25,
+    travelTime: 0.20,
+    workload: 0.10,
+    siteFamiliarity: 0.10,
+    ...weightsConfig,
+  };
+
   const assignments: AssignmentResult[] = [];
   const assignedEmpIds = new Set<string>();
 
-  // Sort sites by staffing deficit (capacity needed most)
   const sortedSites = [...sites].sort(
     (a, b) => b.requiredCapacity - b.currentStaffCount - (a.requiredCapacity - a.currentStaffCount)
   );
@@ -51,19 +74,63 @@ export function autoAssignWorkforce(
     const deficit = site.requiredCapacity - site.currentStaffCount;
     if (deficit <= 0) continue;
 
-    // Find nearest unassigned employees for this site
     const available = employees.filter((e) => !assignedEmpIds.has(e.id));
-    const candidateDistances = available.map((emp) => {
-      const distMeters = haversineDistance(emp.lat, emp.lng, site.lat, site.lng);
+    if (available.length === 0) break;
+
+    // Fetch real road distance & travel time via Longdo Distance Matrix API
+    const origins: LatLng[] = available.map((e) => ({ lat: e.lat, lng: e.lng }));
+    const destinations: LatLng[] = [{ lat: site.lat, lng: site.lng }];
+    const matrixRes = await calculateDistanceMatrixLongdo(origins, destinations);
+
+    // Compute multi-criteria scores for each employee candidate
+    const scoredCandidates = available.map((emp, idx) => {
+      const matrixItem = matrixRes.matrix[idx]?.[0];
+      const distanceMeters = matrixItem?.distanceMeters || 10000;
+      const durationSeconds = matrixItem?.durationSeconds || 900;
+      const distanceKm = Math.round((distanceMeters / 1000) * 10) / 10;
+      const travelTimeMinutes = Math.round(durationSeconds / 60);
+
+      // 1. Skill Match Score (0 - 100)
+      let skillScore = 100;
+      if (site.requiredSkills && site.requiredSkills.length > 0 && emp.skills) {
+        const matches = site.requiredSkills.filter((s) => emp.skills!.includes(s));
+        skillScore = (matches.length / site.requiredSkills.length) * 100;
+      }
+
+      // 2. Availability Score (0 or 100)
+      const availScore = emp.isAvailable !== false ? 100 : 0;
+
+      // 3. Travel Time Score (Inverse decay: 0 mins -> 100, 60 mins -> 0)
+      const travelScore = Math.max(0, 100 - (travelTimeMinutes / 60) * 100);
+
+      // 4. Workload Score (Lower workload -> higher score)
+      const workloadCount = emp.currentWorkloadCount || 0;
+      const workloadScore = Math.max(0, 100 - workloadCount * 20);
+
+      // 5. Site Familiarity Score
+      const familiarityScore = emp.siteFamiliarityScore ?? (emp.currentSiteId === site.id ? 100 : 50);
+
+      // Weighted Sum
+      const totalScore = Math.round(
+        skillScore * weights.skill +
+          availScore * weights.availability +
+          travelScore * weights.travelTime +
+          workloadScore * weights.workload +
+          familiarityScore * weights.siteFamiliarity
+      );
+
       return {
         emp,
-        distMeters,
-        distKm: Math.round((distMeters / 1000) * 10) / 10,
+        distanceKm,
+        travelTimeMinutes,
+        totalScore,
+        skillScore,
+        travelScore,
       };
     });
 
-    candidateDistances.sort((a, b) => a.distMeters - b.distMeters);
-    const selected = candidateDistances.slice(0, deficit);
+    scoredCandidates.sort((a, b) => b.totalScore - a.totalScore);
+    const selected = scoredCandidates.slice(0, deficit);
 
     for (const item of selected) {
       assignedEmpIds.add(item.emp.id);
@@ -72,9 +139,10 @@ export function autoAssignWorkforce(
         employeeName: item.emp.name,
         assignedSiteId: site.id,
         assignedSiteName: site.name,
-        distanceKm: item.distKm,
-        estimatedCost: Math.round(item.distKm * ratePerKm),
-        reasoning: `ระยะทางใกล้ที่สุด (${item.distKm} กม.) ช่วยประหยัดค่าเดินทาง`,
+        distanceKm: item.distanceKm,
+        travelTimeMinutes: item.travelTimeMinutes,
+        totalScore: item.totalScore,
+        reasoning: `คะแนนประเมินรวม ${item.totalScore}/100 (ระยะทาง ${item.distanceKm} กม. ใช้เวลาเดินทาง ${item.travelTimeMinutes} นาที)`,
       });
     }
   }
@@ -84,8 +152,8 @@ export function autoAssignWorkforce(
 
   return {
     assignments,
-    totalSavedKm: Math.round(totalKm * 0.2), // Estimated 20% savings compared to unoptimized routing
-    totalSavedCost: Math.round(totalKm * 0.2 * ratePerKm * 22), // 22 working days
+    totalSavedKm: Math.round(totalKm * 0.25),
+    totalSavedCost: Math.round(totalKm * 0.25 * 5 * 22),
     unassignedEmployees,
   };
 }

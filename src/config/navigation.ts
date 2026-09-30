@@ -213,6 +213,7 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         permission: "project.read",
         children: [
           { id: "ops-overview", labelTh: "ภาพรวมการปฏิบัติงาน", href: "/admin/operations" },
+          { id: "ops-map", labelTh: "ศูนย์ควบคุมแผนที่ (GIS Command)", href: "/admin/operations/map" },
           { id: "ops-schedule", labelTh: "ตารางกะปฏิบัติงาน", href: "/admin/operations/schedule" },
           { id: "ops-workorders", labelTh: "ใบสั่งงาน (Work Orders)", href: "/admin/operations/work-orders" },
         ],
@@ -416,6 +417,10 @@ export const NAVIGATION_REGISTRY: NavGroup[] = [
         href: "/admin/settings",
         icon: Settings,
         permission: "security.role.manage",
+        children: [
+          { id: "settings-overview", labelTh: "ตั้งค่าทั่วไป", href: "/admin/settings" },
+          { id: "settings-map", labelTh: "ตั้งค่าระบบแผนที่ Longdo Map", href: "/admin/settings/map" },
+        ],
       },
     ],
   },

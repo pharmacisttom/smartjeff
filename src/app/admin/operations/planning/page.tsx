@@ -35,15 +35,16 @@ export default function OperationsPlanningPage() {
 
   const [assignmentPlan, setAssignmentPlan] = useState<any>(null);
 
-  const runAutoAssignment = () => {
-    showLoading("กำลังคำนวณแผนจัดสรรคนด้วย AI...", "ค้นหาพนักงานที่อยู่ใกล้ไซต์งานมากที่สุด");
-
-    setTimeout(() => {
-      const result = autoAssignWorkforce(employees, sites, 5);
+  const runAutoAssignment = async () => {
+    showLoading("กำลังคำนวณแผนจัดสรรคนด้วย AI & Distance Matrix...", "ค้นหาพนักงานที่อยู่ใกล้ไซต์งานและเหมาะสมที่สุด");
+    try {
+      const result = await autoAssignWorkforce(employees, sites);
       setAssignmentPlan(result);
       closeSwal();
       showSuccess("คำนวณแผนจัดสรรคนสำเร็จ! ⚡", `แนะนำจัดสรรใหม่ ช่วยประหยัดค่าเดินทาง ฿${result.totalSavedCost.toLocaleString()}/เดือน`);
-    }, 800);
+    } catch (_) {
+      closeSwal();
+    }
   };
 
   return (
