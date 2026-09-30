@@ -15,12 +15,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const demoAccounts = [
-    ["Admin", "admin@demo.smartop.local"],
-    ["Executive", "executive@demo.smartop.local"],
-    ["HR / Payroll", "hr@demo.smartop.local"],
-    ["Coordinator", "coordinator@demo.smartop.local"],
-    ["Supervisor", "supervisor@demo.smartop.local"],
-    ["Employee", "employee@demo.smartop.local"],
+    ["Admin", "pharmacisttom@gmail.com"],
+    ["Executive", "executive@j2k.com"],
+    ["HR / Payroll", "hr@j2k.com"],
+    ["Coordinator", "coordinator@j2k.com"],
+    ["Supervisor", "supervisor@j2k.com"],
+    ["Employee", "employee@j2k.com"],
   ];
 
   const handleLogin = async (e: React.FormEvent) => {

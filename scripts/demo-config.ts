@@ -1,10 +1,10 @@
 export const DEMO_ACCOUNTS = [
-  ["ADMIN", "admin@demo.smartop.local", "Demo Administrator"],
-  ["EXECUTIVE", "executive@demo.smartop.local", "Demo Executive"],
-  ["HR", "hr@demo.smartop.local", "Demo HR Payroll"],
-  ["COORDINATOR", "coordinator@demo.smartop.local", "Demo Coordinator"],
-  ["SITE_SUPERVISOR", "supervisor@demo.smartop.local", "Demo Site Supervisor"],
-  ["EMPLOYEE", "employee@demo.smartop.local", "Demo Employee"],
+  ["ADMIN", "pharmacisttom@gmail.com", "Demo Administrator"],
+  ["EXECUTIVE", "executive@j2k.com", "Demo Executive"],
+  ["HR", "hr@j2k.com", "Demo HR Payroll"],
+  ["COORDINATOR", "coordinator@j2k.com", "Demo Coordinator"],
+  ["SITE_SUPERVISOR", "supervisor@j2k.com", "Demo Site Supervisor"],
+  ["EMPLOYEE", "employee@j2k.com", "Demo Employee"],
 ] as const;
 
 export function validateDemoPassword(password: string | undefined): string {
