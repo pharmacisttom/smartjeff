@@ -1,13 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { requireDemoPassword } from "./demo-config";
-import { DEMO_ACCOUNTS_CONFIG, DemoAccountConfig } from "../src/config/demo-accounts";
+import { DEMO_ACCOUNTS, DemoAccountConfig } from "../src/config/demo-accounts";
 
 export interface VerificationRecord {
   email: string;
   roleCode: string;
   scopeType: string;
   scopeId: string | null;
+  userState: "CREATED" | "REUSED";
+  assignmentState: "CREATED" | "REUSED" | "RECONCILED";
   status: string;
   isActive: boolean;
   isLocked: boolean;
@@ -21,54 +23,35 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
   const password = requireDemoPassword();
   const passwordHash = await hashPassword(password);
 
-  // Safely find demo site / project if existing in DB
+  // Safely query existing demo site / project if present
   const firstSite = await prisma.site.findFirst({ select: { id: true } });
   const firstProject = await prisma.project.findFirst({ select: { id: true } });
 
   const verificationRecords: VerificationRecord[] = [];
 
-  // Build full list including alternate emails for Admin (e.g. pharmacisttom@gmail.com)
-  const targets: { spec: DemoAccountConfig; email: string }[] = [];
-  for (const spec of DEMO_ACCOUNTS_CONFIG) {
-    targets.push({ spec, email: spec.email });
-    if (spec.alternateEmails) {
-      for (const altEmail of spec.alternateEmails) {
-        targets.push({ spec, email: altEmail });
-      }
-    }
-  }
-
   await prisma.$transaction(
     async (tx) => {
-      for (const { spec, email } of targets) {
-        // 1. Resolve target Role code
-        let targetRoleCode = spec.roleCode;
+      for (const account of DEMO_ACCOUNTS) {
+        // 1. MUST lookup existing Master Role strictly. NEVER create or upsert Role master.
+        let targetRoleCode = account.roleCode;
         let roleRecord = await tx.role.findUnique({ where: { code: targetRoleCode } });
 
-        if (!roleRecord && spec.fallbackRoleCode) {
-          roleRecord = await tx.role.findUnique({ where: { code: spec.fallbackRoleCode } });
+        if (!roleRecord && account.fallbackRoleCode) {
+          roleRecord = await tx.role.findUnique({ where: { code: account.fallbackRoleCode } });
           if (roleRecord) {
-            targetRoleCode = spec.fallbackRoleCode;
+            targetRoleCode = account.fallbackRoleCode;
           }
         }
 
-        // If role doesn't exist yet in master data, upsert it safely
         if (!roleRecord) {
-          roleRecord = await tx.role.upsert({
-            where: { code: targetRoleCode },
-            update: { isActive: true },
-            create: {
-              code: targetRoleCode,
-              nameEn: spec.key,
-              nameTh: spec.titleTh,
-              level: spec.key === "ADMIN" ? 10 : 2,
-              isSystem: true,
-            },
-          });
+          throw new Error(
+            `Required master role code '${account.roleCode}' does not exist in role table. Provisioning aborted.`
+          );
         }
 
-        // 2. Find or Create User
-        let user = await tx.user.findUnique({ where: { email } });
+        // 2. Find or Create Demo User
+        let user = await tx.user.findUnique({ where: { email: account.email } });
+        let userState: "CREATED" | "REUSED" = "REUSED";
 
         if (user) {
           user = await tx.user.update({
@@ -76,7 +59,7 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
             data: {
               passwordHash,
               role: targetRoleCode,
-              displayName: user.displayName || spec.titleTh,
+              displayName: user.displayName || account.titleTh,
               isActive: true,
               isLocked: false,
               lockedAt: null,
@@ -92,10 +75,11 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
             },
           });
         } else {
+          userState = "CREATED";
           user = await tx.user.create({
             data: {
-              email,
-              displayName: spec.titleTh,
+              email: account.email,
+              displayName: account.titleTh,
               passwordHash,
               role: targetRoleCode,
               isActive: true,
@@ -105,37 +89,47 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
           });
         }
 
-        // 3. Determine safe scope
-        let scopeType: string = spec.scopeType;
+        // 3. Determine safe scope from actual schema / DB records
+        let scopeType: string = account.scopeType;
         let scopeId: string | null = null;
 
-        if (spec.scopeType === "PROJECT") {
+        if (account.scopeType === "PROJECT") {
           if (firstProject) {
             scopeId = firstProject.id;
           } else {
             scopeType = "GLOBAL";
           }
-        } else if (spec.scopeType === "SITE") {
+        } else if (account.scopeType === "SITE") {
           if (firstSite) {
             scopeId = firstSite.id;
           } else {
             scopeType = "GLOBAL";
           }
-        } else if (spec.scopeType === "OWN") {
+        } else if (account.scopeType === "OWN") {
           scopeId = user.employeeId || null;
         }
 
-        // 4. Ensure ACTIVE UserRoleAssignment exists
-        const existingAssignment = await tx.userRoleAssignment.findFirst({
-          where: {
-            userId: user.id,
-            roleId: roleRecord.id,
-            status: "ACTIVE",
-          },
+        // 4. Reconcile UserRoleAssignment for Demo User cleanly
+        const existingAssignments = await tx.userRoleAssignment.findMany({
+          where: { userId: user.id, status: "ACTIVE" },
         });
 
-        let activeAssignment = existingAssignment;
-        if (!activeAssignment) {
+        const exactAssignment = existingAssignments.find((a) => a.roleId === roleRecord!.id);
+        let assignmentState: "CREATED" | "REUSED" | "RECONCILED" = "REUSED";
+        let activeAssignment = exactAssignment;
+
+        if (!exactAssignment) {
+          // If demo user has old/incorrect active assignment, deactivate it safely for demo user
+          if (existingAssignments.length > 0) {
+            await tx.userRoleAssignment.updateMany({
+              where: { userId: user.id, status: "ACTIVE" },
+              data: { status: "REVOKED", reason: "Reconciled to canonical demo role" },
+            });
+            assignmentState = "RECONCILED";
+          } else {
+            assignmentState = "CREATED";
+          }
+
           activeAssignment = await tx.userRoleAssignment.create({
             data: {
               userId: user.id,
@@ -143,17 +137,18 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
               scopeType,
               scopeId,
               status: "ACTIVE",
-              reason: "Demo user provisioning",
+              reason: "Canonical demo user provisioning",
             },
           });
-        } else if (activeAssignment.scopeType !== scopeType || activeAssignment.scopeId !== scopeId) {
+        } else if (exactAssignment.scopeType !== scopeType || exactAssignment.scopeId !== scopeId) {
           activeAssignment = await tx.userRoleAssignment.update({
-            where: { id: activeAssignment.id },
+            where: { id: exactAssignment.id },
             data: { scopeType, scopeId, status: "ACTIVE" },
           });
+          assignmentState = "RECONCILED";
         }
 
-        // 5. Revoke sessions and MFA recovery
+        // 5. Deactivate active sessions for demo user
         await tx.mfaRecoveryCode.deleteMany({ where: { userId: user.id } });
         await tx.userSession.updateMany({
           where: { userId: user.id, status: "ACTIVE" },
@@ -163,9 +158,11 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
         verificationRecords.push({
           email: user.email,
           roleCode: targetRoleCode,
-          scopeType: activeAssignment.scopeType,
-          scopeId: activeAssignment.scopeId,
-          status: activeAssignment.status,
+          scopeType: activeAssignment!.scopeType,
+          scopeId: activeAssignment!.scopeId,
+          userState,
+          assignmentState,
+          status: activeAssignment!.status,
           isActive: user.isActive,
           isLocked: user.isLocked,
         });
@@ -182,7 +179,7 @@ async function main() {
   try {
     const results = await provisionDemoUsers(prisma);
     console.log("\n==================================================");
-    console.log("DEMO USERS PROVISIONED SUCCESSFULLY");
+    console.log("CANONICAL DEMO USERS PROVISIONED SUCCESSFULLY");
     console.log("==================================================");
     console.table(results);
   } catch (error) {

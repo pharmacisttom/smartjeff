@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, CheckSquare, Globe } from "lucide-react";
+import { User, ShieldCheck, ArrowRight, KeyRound, Eye, EyeOff, Globe } from "lucide-react";
 import { showSuccess, showError, showLoading, closeSwal } from "@/lib/swal";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { DEMO_ACCOUNTS } from "@/config/demo-accounts";
 
 export default function LoginPage() {
   const { t, locale } = useLanguage();
@@ -14,21 +15,13 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const demoAccounts = [
-    ["Admin", "pharmacisttom@gmail.com"],
-    ["Executive", "executive@j2k.com"],
-    ["HR / Payroll", "hr@j2k.com"],
-    ["Coordinator", "coordinator@j2k.com"],
-    ["Supervisor", "supervisor@j2k.com"],
-    ["Employee", "employee@j2k.com"],
-  ];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password.trim()) {
       showError(
         locale === "my" ? "အချက်အလက်မပြည့်စုံပါ" : locale === "km" ? "ព័ត៌មានមិនគ្រប់គ្រាន់" : "ข้อมูลไม่ครบถ้วน",
-        locale === "my" ? "ကျေးဇူးပြု၍ ဝန်ထမ်းကုဒ်နှင့် စကားဝှက်ကို ဖြည့်သွင်းပါ" : locale === "km" ? "សូមបញ្ចូលលេខកូដ និងពាក្យសម្ងាត់" : "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
+        locale === "my" ? "ကျေးဇူးပြု၍ ဝန်ထမ်းကုဒ်နှင့် စကားဝှက်ကို ဖြည့်သွင်းပါ" : locale === "km" ? "សូមបញ្ចូលលេខကូဒ និងពាក្យសម្ងាត់" : "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
       );
       return;
     }
@@ -52,9 +45,6 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // Session is securely managed via HttpOnly cookies and Server-side context
-
-        // Verify session cookie via Session API before redirecting
         const sessionRes = await fetch("/api/auth/session", {
           credentials: "include",
           cache: "no-store",
@@ -79,7 +69,7 @@ export default function LoginPage() {
         const errorMsg = data.error?.message || data.message || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
         showError(t("common.confirm"), errorMsg);
       }
-    } catch (err) {
+    } catch {
       closeSwal();
       showError(t("common.confirm"), "Cannot connect to server");
     } finally {
@@ -220,10 +210,15 @@ export default function LoginPage() {
             )}
             <p className="mt-1 text-[11px] text-emerald-100">เลือกเพื่อกรอกอีเมลเท่านั้น ระบบจะไม่กรอกรหัสผ่านและไม่ข้ามการยืนยันตัวตน</p>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {demoAccounts.map(([role, email]) => (
-                <button key={email} type="button" onClick={() => setIdentifier(email)} className="rounded-xl border border-white/15 bg-white/10 p-2 text-left hover:bg-white/15">
-                  <span className="block text-xs font-bold">ทดลอง {role}</span>
-                  <span className="block truncate text-[10px] text-slate-300">{email}</span>
+              {DEMO_ACCOUNTS.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  onClick={() => setIdentifier(acc.email)}
+                  className="rounded-xl border border-white/15 bg-white/10 p-2 text-left hover:bg-white/15 transition-all"
+                >
+                  <span className="block text-xs font-bold">ทดลอง {acc.label}</span>
+                  <span className="block truncate text-[10px] text-slate-300">{acc.email}</span>
                 </button>
               ))}
             </div>

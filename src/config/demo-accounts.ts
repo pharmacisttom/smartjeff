@@ -1,7 +1,7 @@
 export interface DemoAccountConfig {
   key: string;
+  label: string;
   email: string;
-  alternateEmails?: string[];
   roleCode: string;
   fallbackRoleCode?: string;
   titleTh: string;
@@ -14,11 +14,11 @@ export interface DemoAccountConfig {
   status: "READY" | "DEMO" | "IN_DEVELOPMENT" | "NOT_READY";
 }
 
-export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
+export const DEMO_ACCOUNTS: DemoAccountConfig[] = [
   {
-    key: "ADMIN",
+    key: "admin",
+    label: "Admin",
     email: "admin@j2k.com",
-    alternateEmails: ["pharmacisttom@gmail.com"],
     roleCode: "SUPER_ADMIN",
     titleTh: "ผู้ดูแลระบบ (Admin)",
     titleEn: "System Administrator",
@@ -37,7 +37,8 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
     status: "READY",
   },
   {
-    key: "EXECUTIVE",
+    key: "executive",
+    label: "Executive",
     email: "executive@j2k.com",
     roleCode: "EXECUTIVE",
     titleTh: "ผู้บริหารระดับสูง (Executive)",
@@ -56,7 +57,8 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
     status: "READY",
   },
   {
-    key: "HR",
+    key: "hr",
+    label: "HR/Payroll",
     email: "hr@j2k.com",
     roleCode: "HR_MANAGER",
     titleTh: "หัวหน้าฝ่าย HR / Payroll",
@@ -75,7 +77,8 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
     status: "READY",
   },
   {
-    key: "COORDINATOR",
+    key: "coordinator",
+    label: "Coordinator",
     email: "coordinator@j2k.com",
     roleCode: "PROJECT_MANAGER",
     titleTh: "ผู้ประสานงาน / โครงการ",
@@ -93,7 +96,8 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
     status: "READY",
   },
   {
-    key: "SUPERVISOR",
+    key: "supervisor",
+    label: "Site Supervisor",
     email: "supervisor@j2k.com",
     roleCode: "SUPERVISOR",
     fallbackRoleCode: "SITE_MANAGER",
@@ -112,7 +116,8 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
     status: "READY",
   },
   {
-    key: "EMPLOYEE",
+    key: "employee",
+    label: "Employee",
     email: "employee@j2k.com",
     roleCode: "EMPLOYEE",
     titleTh: "พนักงานทั่วไป (Employee)",
@@ -133,11 +138,9 @@ export const DEMO_ACCOUNTS_CONFIG: DemoAccountConfig[] = [
   },
 ];
 
+export const DEMO_ACCOUNTS_CONFIG = DEMO_ACCOUNTS;
+
 export function getDemoAccountByEmail(email: string): DemoAccountConfig | undefined {
   const normalized = email.toLowerCase().trim();
-  return DEMO_ACCOUNTS_CONFIG.find(
-    (account) =>
-      account.email.toLowerCase() === normalized ||
-      account.alternateEmails?.some((alt) => alt.toLowerCase() === normalized)
-  );
+  return DEMO_ACCOUNTS.find((account) => account.email.toLowerCase() === normalized);
 }

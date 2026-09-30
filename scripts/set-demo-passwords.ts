@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { provisionDemoUsers } from "./provision-demo-users";
+import { DEMO_ACCOUNTS } from "../src/config/demo-accounts";
 
 async function main() {
   if (process.env.DEMO_MODE !== "true") {
@@ -17,6 +18,8 @@ async function main() {
         email: r.email,
         roleCode: r.roleCode,
         scopeType: r.scopeType,
+        userState: r.userState,
+        assignmentState: r.assignmentState,
         status: r.status,
         isActive: r.isActive,
         isLocked: r.isLocked,
