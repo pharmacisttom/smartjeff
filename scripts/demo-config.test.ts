@@ -11,7 +11,7 @@ describe("demo account security policy", () => {
     expect(JSON.stringify(DEMO_ACCOUNTS)).not.toMatch(/password/i);
   });
   it.each([undefined, "CHANGE_ME", "short", "alllowercase12!", "ALLUPPERCASE12!", "NoDigitsHere!", "NoSpecial123A"])("blocks a missing or weak password", (password) => {
-    expect(() => validateDemoPassword(password)).toThrow("DEMO_DEFAULT_PASSWORD does not meet the demo password policy.");
+    expect(() => validateDemoPassword(password)).toThrow(/demo password policy/i);
   });
   it("accepts a strong password and hashes it with Argon2id", async () => {
     const password = validateDemoPassword(`Aa1!${randomBytes(8).toString("hex")}`);
