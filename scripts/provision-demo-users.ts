@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { requireDemoPassword } from "./demo-config";
 import { DEMO_ACCOUNTS } from "../src/config/demo-accounts";
+import { seedDemoEmployees } from "./seed-demo-employees";
 
 export interface VerificationRecord {
   email: string;
@@ -120,7 +121,6 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
         let activeAssignment = exactAssignment;
 
         if (!exactAssignment) {
-          // If demo user has old/incorrect active assignment, deactivate it safely for demo user
           if (existingAssignments.length > 0) {
             await tx.userRoleAssignment.updateMany({
               where: { userId: user.id, status: "ACTIVE" },
@@ -171,6 +171,9 @@ export async function provisionDemoUsers(prisma: PrismaClient): Promise<Verifica
     },
     { maxWait: 10000, timeout: 30000 }
   );
+
+  // Link Demo Employees
+  await seedDemoEmployees(prisma);
 
   return verificationRecords;
 }
