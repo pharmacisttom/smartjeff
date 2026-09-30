@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
 import { requireDemoPassword } from "./demo-config";
-import { DEMO_ACCOUNTS, DemoAccountConfig } from "../src/config/demo-accounts";
+import { DEMO_ACCOUNTS } from "../src/config/demo-accounts";
 
 export interface VerificationRecord {
   email: string;
@@ -16,8 +16,9 @@ export interface VerificationRecord {
 }
 
 export async function provisionDemoUsers(prisma: PrismaClient): Promise<VerificationRecord[]> {
-  if (process.env.DEMO_MODE !== "true") {
-    throw new Error("DEMO_MODE must be set to 'true'");
+  const isDemoAllowed = process.env.DEMO_MODE === "true" || process.env.DEMO_SEED_ALLOWED === "true";
+  if (!isDemoAllowed) {
+    throw new Error("DEMO_MODE or DEMO_SEED_ALLOWED must be set to 'true'");
   }
 
   const password = requireDemoPassword();
