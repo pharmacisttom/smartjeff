@@ -124,32 +124,35 @@ model Employee {
 }
 
 model Site {
-  id               String               @id @default(cuid())
-  code             String               @unique
-  name             String
-  shortName        String?
-  clientId         String?
-  client           Client?              @relation(fields: [clientId], references: [id])
-  status           String               @default("ACTIVE")
-  location         String?
-  estateName       String?
-  contactName      String?
-  contactEmail     String?
-  contactPhone     String?
-  lat              Float?
-  lng              Float?
-  radius           Int                  @default(200)
-  workStart        Float                @default(7)
-  workEnd          Float                @default(16)
-  otStart          Float?               @default(16)
-  otEnd            Float?               @default(17)
-  employees        Employee[]
-  shiftAssignments ShiftAssignment[]
-  config           PayrollConfig?
-  shiftTemplates   ShiftTemplate[]
-  payrollPolicies  SitePayrollPolicy[]
-  deployments      EmployeeDeployment[]
-  createdAt        DateTime             @default(now())
+  id                   String                @id @default(cuid())
+  code                 String                @unique
+  name                 String
+  shortName            String?
+  clientId             String?
+  client               Client?               @relation(fields: [clientId], references: [id])
+  status               String                @default("ACTIVE")
+  location             String?
+  estateName           String?
+  contactName          String?
+  contactEmail         String?
+  contactPhone         String?
+  lat                  Float?
+  lng                  Float?
+  radius               Int                   @default(200)
+  workStart            Float                 @default(7)
+  workEnd              Float                 @default(16)
+  otStart              Float?                @default(16)
+  otEnd                Float?                @default(17)
+  employees            Employee[]
+  shiftAssignments     ShiftAssignment[]
+  config               PayrollConfig?
+  shiftTemplates       ShiftTemplate[]
+  payrollPolicies      SitePayrollPolicy[]
+  deployments          EmployeeDeployment[]
+  inventoryOperations  InventoryOperation[]
+  materialRequisitions MaterialRequisition[]
+  materialWarehouses   Warehouse[]
+  createdAt            DateTime              @default(now())
 
   @@index([clientId])
 }
@@ -278,48 +281,56 @@ model ChatMessage {
 }
 
 model User {
-  id                     String               @id @default(cuid())
-  email                  String               @unique
-  passwordHash           String?
-  role                   String               @default("EMPLOYEE")
-  permissions            String?              @db.Text
-  assignedSiteCode       String?
-  type                   String               @default("INTERNAL")
-  displayName            String?
-  phone                  String?
-  avatar                 String?
-  lineUserId             String?              @unique
-  image                  String?
-  locale                 String               @default("th")
-  isActive               Boolean              @default(true)
-  isLocked               Boolean              @default(false)
-  lockedAt               DateTime?
-  mfaEnabled             Boolean              @default(false)
-  mfaSecret              String?
-  activationPinHash      String?
-  activationPinExpiresAt DateTime?
-  activationPinUsedAt    DateTime?
-  activationPinAttempts  Int                  @default(0)
-  lastLoginAt            DateTime?
-  lastLoginIp            String?
-  mustChangePassword     Boolean              @default(false)
-  authMethod             String               @default("LOCAL")
-  passwordChangedAt      DateTime?
-  passwordExpiresAt      DateTime?
-  lastPasswordReminderAt DateTime?
-  employeeId             String?              @unique
-  employee               Employee?            @relation(fields: [employeeId], references: [id])
-  authzVersion           Int                  @default(1)
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
-  deletedAt              DateTime?
-  recoveryCodes          MfaRecoveryCode[]
-  roleAssignments        UserRoleAssignment[]
-  sessions               UserSession[]
-  accessRequests         AccessRequest[]
-  passwordHistory        PasswordHistory[]
-  demoAccounts           DemoAccount[]        @relation("DemoAccountUser")
-  updatedDemoAccounts    DemoAccount[]        @relation("DemoAccountUpdater")
+  id                           String                    @id @default(cuid())
+  email                        String                    @unique
+  passwordHash                 String?
+  role                         String                    @default("EMPLOYEE")
+  permissions                  String?                   @db.Text
+  assignedSiteCode             String?
+  type                         String                    @default("INTERNAL")
+  displayName                  String?
+  phone                        String?
+  avatar                       String?
+  lineUserId                   String?                   @unique
+  image                        String?
+  locale                       String                    @default("th")
+  isActive                     Boolean                   @default(true)
+  isLocked                     Boolean                   @default(false)
+  lockedAt                     DateTime?
+  mfaEnabled                   Boolean                   @default(false)
+  mfaSecret                    String?
+  activationPinHash            String?
+  activationPinExpiresAt       DateTime?
+  activationPinUsedAt          DateTime?
+  activationPinAttempts        Int                       @default(0)
+  lastLoginAt                  DateTime?
+  lastLoginIp                  String?
+  mustChangePassword           Boolean                   @default(false)
+  authMethod                   String                    @default("LOCAL")
+  passwordChangedAt            DateTime?
+  passwordExpiresAt            DateTime?
+  lastPasswordReminderAt       DateTime?
+  employeeId                   String?                   @unique
+  employee                     Employee?                 @relation(fields: [employeeId], references: [id])
+  authzVersion                 Int                       @default(1)
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @updatedAt
+  deletedAt                    DateTime?
+  recoveryCodes                MfaRecoveryCode[]
+  roleAssignments              UserRoleAssignment[]
+  sessions                     UserSession[]
+  accessRequests               AccessRequest[]
+  passwordHistory              PasswordHistory[]
+  demoAccounts                 DemoAccount[]             @relation("DemoAccountUser")
+  updatedDemoAccounts          DemoAccount[]             @relation("DemoAccountUpdater")
+  inventoryOperations          InventoryOperation[]
+  createdMaterialRequisitions  MaterialRequisition[]     @relation("MaterialRequester")
+  approvedMaterialRequisitions MaterialRequisition[]     @relation("MaterialApprover")
+  createdStockTransfers        StockTransfer[]           @relation("TransferCreator")
+  approvedStockTransfers       StockTransfer[]           @relation("TransferApprover")
+  createdStockAdjustments      StockAdjustment[]         @relation("AdjustmentCreator")
+  approvedStockAdjustments     StockAdjustment[]         @relation("AdjustmentApprover")
+  inventoryAcknowledgements    MaterialAcknowledgement[]
 
   @@index([email])
   @@index([isActive])
@@ -530,18 +541,26 @@ model ImportJob {
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  nameTh    String?
-  taxId     String?
-  address   String?
-  phone     String?
-  email     String?
-  logo      String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String                @id @default(cuid())
+  code                 String                @unique
+  name                 String
+  nameTh               String?
+  taxId                String?
+  address              String?
+  phone                String?
+  email                String?
+  logo                 String?
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  materialCategories   MaterialCategory[]
+  materials            Material[]
+  warehouses           Warehouse[]
+  inventoryOperations  InventoryOperation[]
+  materialRequisitions MaterialRequisition[]
+  stockTransfers       StockTransfer[]
+  stockAdjustments     StockAdjustment[]
+  materialReceipts     GoodsReceipt[]
 }
 
 model Department {
@@ -557,12 +576,13 @@ model Department {
 }
 
 model CostCenter {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  nameTh    String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id                 String               @id @default(cuid())
+  code               String               @unique
+  name               String
+  nameTh             String?
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  InventoryOperation InventoryOperation[]
 }
 
 model ShiftTemplate {
@@ -656,15 +676,16 @@ model Client {
 }
 
 model ClientContact {
-  id        String   @id @default(cuid())
-  clientId  String
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name      String
-  position  String?
-  email     String?
-  phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String               @id @default(cuid())
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name                String
+  position            String?
+  email               String?
+  phone               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  inventoryOperations InventoryOperation[]
 
   @@index([clientId])
 }
@@ -759,32 +780,34 @@ model Quotation {
 }
 
 model Project {
-  id            String             @id @default(cuid())
-  code          String             @unique
-  name          String
-  nameTh        String?
-  clientId      String?
-  client        Client?            @relation(fields: [clientId], references: [id])
-  status        String             @default("PLANNING")
-  managerId     String?
-  startDate     DateTime?
-  endDate       DateTime?
-  completedAt   DateTime?
-  description   String?
-  budgetAmount  Decimal            @default(0) @db.Decimal(18, 2)
-  actualCost    Decimal            @default(0) @db.Decimal(18, 2)
-  committedCost Decimal            @default(0) @db.Decimal(18, 2)
-  forecastCost  Decimal            @default(0) @db.Decimal(18, 2)
-  revenueAmount Decimal            @default(0) @db.Decimal(18, 2)
-  margin        Decimal            @default(0) @db.Decimal(18, 2)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  deletedAt     DateTime?
-  contract      Contract?
-  milestones    ProjectMilestone[]
-  workOrders    WorkOrder[]
-  costs         ProjectCost[]
-  invoices      Invoice[]
+  id                   String                @id @default(cuid())
+  code                 String                @unique
+  name                 String
+  nameTh               String?
+  clientId             String?
+  client               Client?               @relation(fields: [clientId], references: [id])
+  status               String                @default("PLANNING")
+  managerId            String?
+  startDate            DateTime?
+  endDate              DateTime?
+  completedAt          DateTime?
+  description          String?
+  budgetAmount         Decimal               @default(0) @db.Decimal(18, 2)
+  actualCost           Decimal               @default(0) @db.Decimal(18, 2)
+  committedCost        Decimal               @default(0) @db.Decimal(18, 2)
+  forecastCost         Decimal               @default(0) @db.Decimal(18, 2)
+  revenueAmount        Decimal               @default(0) @db.Decimal(18, 2)
+  margin               Decimal               @default(0) @db.Decimal(18, 2)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  deletedAt            DateTime?
+  contract             Contract?
+  milestones           ProjectMilestone[]
+  workOrders           WorkOrder[]
+  costs                ProjectCost[]
+  invoices             Invoice[]
+  inventoryOperations  InventoryOperation[]
+  materialRequisitions MaterialRequisition[]
 
   @@index([status])
   @@index([clientId])
@@ -957,8 +980,8 @@ model FuelRecord {
 }
 
 model Supplier {
-  id               String            @id @default(cuid())
-  code             String            @unique
+  id               String                 @id @default(cuid())
+  code             String                 @unique
   name             String
   nameTh           String?
   taxId            String?
@@ -966,13 +989,14 @@ model Supplier {
   contactName      String?
   contactPhone     String?
   contactEmail     String?
-  isActive         Boolean           @default(true)
-  isBlacklisted    Boolean           @default(false)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  isActive         Boolean                @default(true)
+  isBlacklisted    Boolean                @default(false)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
   purchaseOrders   PurchaseOrder[]
   supplierInvoices SupplierInvoice[]
   rfqItems         RFQItem[]
+  materialPrices   MaterialPriceHistory[]
 }
 
 model PurchaseRequisition {
@@ -1057,33 +1081,41 @@ model PurchaseOrder {
 }
 
 model POItem {
-  id          String         @id @default(cuid())
-  poId        String
-  po          PurchaseOrder  @relation(fields: [poId], references: [id], onDelete: Cascade)
-  itemId      String?
-  item        InventoryItem? @relation(fields: [itemId], references: [id])
-  description String
-  quantity    Float
-  unit        String
-  unitPrice   Decimal        @db.Decimal(18, 2)
-  totalPrice  Decimal        @db.Decimal(18, 2)
-  receivedQty Float          @default(0)
+  id                   String             @id @default(cuid())
+  poId                 String
+  po                   PurchaseOrder      @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemId               String?
+  item                 InventoryItem?     @relation(fields: [itemId], references: [id])
+  description          String
+  quantity             Float
+  unit                 String
+  unitPrice            Decimal            @db.Decimal(18, 2)
+  totalPrice           Decimal            @db.Decimal(18, 2)
+  receivedQty          Float              @default(0)
+  materialReceiptLines GoodsReceiptLine[]
 
   @@index([poId])
 }
 
 model GoodsReceipt {
-  id           String             @id @default(cuid())
-  poId         String
-  po           PurchaseOrder      @relation(fields: [poId], references: [id])
-  refNo        String             @unique
-  receivedAt   DateTime           @default(now())
-  receivedById String?
-  notes        String?
-  createdAt    DateTime           @default(now())
-  items        GoodsReceiptItem[]
+  id               String                  @id @default(cuid())
+  poId             String
+  po               PurchaseOrder           @relation(fields: [poId], references: [id])
+  refNo            String                  @unique
+  receivedAt       DateTime                @default(now())
+  receivedById     String?
+  notes            String?
+  createdAt        DateTime                @default(now())
+  items            GoodsReceiptItem[]
+  organizationId   String?
+  organization     Organization?           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inventoryStatus  InventoryDocumentStatus @default(DRAFT)
+  inventoryVersion Int                     @default(0)
+  materialLines    GoodsReceiptLine[]
 
+  @@unique([organizationId, id])
   @@index([poId])
+  @@index([organizationId, inventoryStatus])
 }
 
 model GoodsReceiptItem {
@@ -1102,25 +1134,26 @@ model GoodsReceiptItem {
 }
 
 model InventoryItem {
-  id            String             @id @default(cuid())
-  code          String             @unique
-  name          String
-  nameTh        String?
-  category      String?
-  unit          String
-  siteId        String?
-  reorderPoint  Float?
-  maxStock      Float?
-  unitCost      Decimal            @default(0) @db.Decimal(18, 2)
-  isActive      Boolean            @default(true)
-  allowNegative Boolean            @default(false)
-  stockBalance  Float              @default(0)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  movements     StockMovement[]
-  prItems       PRItem[]
-  poItems       POItem[]
-  receiptItems  GoodsReceiptItem[]
+  id               String                  @id @default(cuid())
+  code             String                  @unique
+  name             String
+  nameTh           String?
+  category         String?
+  unit             String
+  siteId           String?
+  reorderPoint     Float?
+  maxStock         Float?
+  unitCost         Decimal                 @default(0) @db.Decimal(18, 2)
+  isActive         Boolean                 @default(true)
+  allowNegative    Boolean                 @default(false)
+  stockBalance     Float                   @default(0)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  movements        StockMovement[]
+  prItems          PRItem[]
+  poItems          POItem[]
+  receiptItems     GoodsReceiptItem[]
+  materialMappings MaterialLegacyMapping[]
 
   @@index([category])
 }
@@ -1606,4 +1639,474 @@ model SystemAlert {
   createdAt    DateTime  @default(now())
 
   @@index([status, severity, createdAt])
+}
+
+// P3 additive storage foundation. Existing InventoryItem/StockMovement stay unchanged.
+// Posting services must write operation, movement, balance and audit atomically.
+enum InventoryMovementType {
+  PURCHASE_RECEIPT
+  ISSUE
+  RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  PROJECT_CONSUMPTION
+}
+
+enum MaterialRequisitionStatus {
+  DRAFT
+  SUBMITTED
+  REVIEW
+  APPROVED
+  PARTIALLY_ISSUED
+  ISSUED
+  RECEIVED
+  REJECTED
+  CANCELLED
+}
+
+enum InventoryDocumentStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  REJECTED
+  CANCELLED
+}
+
+model MaterialCategory {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  code           String
+  nameTh         String
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  materials      Material[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+}
+
+model UnitOfMeasure {
+  id               String                    @id @default(cuid())
+  code             String                    @unique
+  nameTh           String
+  decimalPlaces    Int                       @default(0)
+  isActive         Boolean                   @default(true)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  materials        Material[]
+  conversionsFrom  MaterialUnitConversion[]  @relation("MaterialUnitFrom")
+  conversionsTo    MaterialUnitConversion[]  @relation("MaterialUnitTo")
+  requisitionLines MaterialRequisitionLine[]
+}
+
+model Material {
+  id               String                    @id @default(cuid())
+  organizationId   String
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  code             String                    @unique
+  nameTh           String
+  categoryId       String
+  category         MaterialCategory          @relation(fields: [organizationId, categoryId], references: [organizationId, id], onDelete: Restrict)
+  baseUnitId       String
+  baseUnit         UnitOfMeasure             @relation(fields: [baseUnitId], references: [id], onDelete: Restrict)
+  reorderPoint     Decimal                   @default(0) @db.Decimal(18, 6)
+  isStockItem      Boolean                   @default(true)
+  isActive         Boolean                   @default(true)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  priceHistory     MaterialPriceHistory[]
+  conversions      MaterialUnitConversion[]
+  legacyMappings   MaterialLegacyMapping[]
+  balances         InventoryBalance[]
+  movements        InventoryMovement[]
+  requisitionLines MaterialRequisitionLine[]
+  receiptLines     GoodsReceiptLine[]
+  transferLines    StockTransferLine[]
+  adjustmentLines  StockAdjustmentLine[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, categoryId, isActive])
+}
+
+model MaterialLegacyMapping {
+  id           String        @id @default(cuid())
+  materialId   String
+  material     Material      @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  legacyItemId String
+  legacyItem   InventoryItem @relation(fields: [legacyItemId], references: [id], onDelete: Restrict)
+  variantKey   String
+  reason       String        @db.Text
+  createdAt    DateTime      @default(now())
+
+  @@unique([legacyItemId, variantKey])
+  @@index([materialId])
+}
+
+model MaterialUnitConversion {
+  id            String        @id @default(cuid())
+  materialId    String
+  material      Material      @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  fromUnitId    String
+  fromUnit      UnitOfMeasure @relation("MaterialUnitFrom", fields: [fromUnitId], references: [id], onDelete: Restrict)
+  toUnitId      String
+  toUnit        UnitOfMeasure @relation("MaterialUnitTo", fields: [toUnitId], references: [id], onDelete: Restrict)
+  factor        Decimal       @db.Decimal(18, 6)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+
+  @@unique([materialId, fromUnitId, toUnitId, effectiveFrom])
+}
+
+model MaterialPriceHistory {
+  id            String    @id @default(cuid())
+  materialId    String
+  material      Material  @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  supplierId    String?
+  supplier      Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  currency      String    @default("THB") @db.Char(3)
+  unitPrice     Decimal   @db.Decimal(18, 6)
+  taxRate       Decimal   @default(0) @db.Decimal(10, 6)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([materialId, effectiveFrom])
+  @@index([supplierId])
+}
+
+model Warehouse {
+  id                String              @id @default(cuid())
+  organizationId    String
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  code              String
+  nameTh            String
+  siteId            String?
+  site              Site?               @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  locations         WarehouseLocation[]
+  outboundTransfers StockTransfer[]     @relation("TransferFrom")
+  inboundTransfers  StockTransfer[]     @relation("TransferTo")
+  adjustments       StockAdjustment[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@index([siteId])
+}
+
+model WarehouseLocation {
+  id                String                @id @default(cuid())
+  organizationId    String
+  warehouseId       String
+  warehouse         Warehouse             @relation(fields: [organizationId, warehouseId], references: [organizationId, id], onDelete: Restrict)
+  code              String
+  nameTh            String
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  balances          InventoryBalance[]
+  movements         InventoryMovement[]
+  receiptLines      GoodsReceiptLine[]
+  transferFromLines StockTransferLine[]   @relation("TransferLocationFrom")
+  transferToLines   StockTransferLine[]   @relation("TransferLocationTo")
+  adjustmentLines   StockAdjustmentLine[]
+
+  @@unique([warehouseId, code])
+  @@unique([organizationId, id])
+  @@unique([organizationId, warehouseId, id])
+}
+
+model InventoryBalance {
+  id             String            @id @default(cuid())
+  organizationId String
+  materialId     String
+  material       Material          @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  locationId     String
+  location       WarehouseLocation @relation(fields: [organizationId, locationId], references: [organizationId, id], onDelete: Restrict)
+  quantity       Decimal           @default(0) @db.Decimal(18, 6)
+  carryingValue  Decimal           @default(0) @db.Decimal(24, 6)
+  version        Int               @default(0)
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([materialId, locationId])
+  @@index([organizationId, locationId])
+}
+
+// One committed operation owns all of its movements. No persisted half-posted state.
+model InventoryOperation {
+  id              String              @id @default(cuid())
+  organizationId  String
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requestKey      String
+  requestHash     String              @db.Char(64)
+  sourceType      String
+  sourceId        String
+  actorId         String
+  actor           User                @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  siteId          String?
+  site            Site?               @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  projectId       String?
+  project         Project?            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  costCenterId    String?
+  costCenter      CostCenter?         @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
+  reason          String              @db.Text
+  createdAt       DateTime            @default(now())
+  movements       InventoryMovement[]
+  ClientContact   ClientContact?      @relation(fields: [clientContactId], references: [id])
+  clientContactId String?
+
+  @@unique([organizationId, requestKey])
+  @@unique([organizationId, id])
+  @@index([sourceType, sourceId])
+  @@index([siteId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([actorId])
+  @@index([costCenterId])
+}
+
+model InventoryMovement {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  operationId       String
+  operation         InventoryOperation        @relation(fields: [organizationId, operationId], references: [organizationId, id], onDelete: Restrict)
+  lineKey           String
+  materialId        String
+  material          Material                  @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  locationId        String
+  location          WarehouseLocation         @relation(fields: [organizationId, locationId], references: [organizationId, id], onDelete: Restrict)
+  type              InventoryMovementType
+  quantityDelta     Decimal                   @db.Decimal(18, 6)
+  valueDelta        Decimal                   @db.Decimal(24, 6)
+  unitCostSnapshot  Decimal                   @db.Decimal(18, 6)
+  balanceAfter      Decimal                   @db.Decimal(18, 6)
+  valueAfter        Decimal                   @db.Decimal(24, 6)
+  balanceVersion    Int
+  requisitionLineId String?
+  requisitionLine   MaterialRequisitionLine?  @relation(fields: [organizationId, materialId, requisitionLineId], references: [organizationId, materialId, id], onDelete: Restrict)
+  receiptLineId     String?
+  receiptLine       GoodsReceiptLine?         @relation(fields: [organizationId, materialId, locationId, receiptLineId], references: [organizationId, materialId, locationId, id], onDelete: Restrict)
+  transferLineId    String?
+  transferLine      StockTransferLine?        @relation(fields: [organizationId, materialId, transferLineId], references: [organizationId, materialId, id], onDelete: Restrict)
+  adjustmentLineId  String?
+  adjustmentLine    StockAdjustmentLine?      @relation(fields: [organizationId, materialId, locationId, adjustmentLineId], references: [organizationId, materialId, locationId, id], onDelete: Restrict)
+  returnOfId        String?
+  returnOf          InventoryMovement?        @relation("MovementReturn", fields: [organizationId, materialId, returnOfId], references: [organizationId, materialId, id], onDelete: Restrict)
+  returns           InventoryMovement[]       @relation("MovementReturn")
+  createdAt         DateTime                  @default(now())
+  acknowledgements  MaterialAcknowledgement[]
+
+  @@unique([operationId, lineKey])
+  @@unique([materialId, locationId, balanceVersion])
+  @@unique([organizationId, materialId, id])
+  @@unique([organizationId, id])
+  @@index([organizationId, materialId, locationId, createdAt, id], map: "InventoryMovement_ledger_idx")
+  @@index([requisitionLineId])
+  @@index([receiptLineId])
+  @@index([transferLineId])
+  @@index([adjustmentLineId])
+  @@index([returnOfId])
+}
+
+model MaterialRequisition {
+  id                String                    @id @default(cuid())
+  organizationId    String
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  refNo             String
+  siteId            String
+  site              Site                      @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  projectId         String?
+  project           Project?                  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestedDate     DateTime                  @db.Date
+  periodStart       DateTime?                 @db.Date
+  periodEnd         DateTime?                 @db.Date
+  status            MaterialRequisitionStatus @default(DRAFT)
+  requestedById     String
+  requestedBy       User                      @relation("MaterialRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  finalApprovedById String?
+  finalApprovedBy   User?                     @relation("MaterialApprover", fields: [finalApprovedById], references: [id], onDelete: Restrict)
+  finalApprovedAt   DateTime?
+  notes             String?                   @db.Text
+  version           Int                       @default(0)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  lines             MaterialRequisitionLine[]
+
+  @@unique([organizationId, refNo])
+  @@unique([organizationId, id])
+  @@index([siteId, status, requestedDate])
+  @@index([requestedById])
+  @@index([finalApprovedById])
+  @@index([projectId])
+}
+
+model MaterialRequisitionLine {
+  id               String              @id @default(cuid())
+  organizationId   String
+  requisitionId    String
+  requisition      MaterialRequisition @relation(fields: [organizationId, requisitionId], references: [organizationId, id], onDelete: Restrict)
+  lineNo           Int
+  materialId       String
+  material         Material            @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  unitId           String
+  unit             UnitOfMeasure       @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  conversionFactor Decimal             @default(1) @db.Decimal(18, 6)
+  requestedQty     Decimal             @db.Decimal(18, 6)
+  approvedQty      Decimal             @default(0) @db.Decimal(18, 6)
+  issuedQty        Decimal             @default(0) @db.Decimal(18, 6)
+  receivedQty      Decimal             @default(0) @db.Decimal(18, 6)
+  notes            String?             @db.Text
+  movements        InventoryMovement[]
+
+  @@unique([requisitionId, lineNo])
+  @@unique([organizationId, materialId, id])
+  @@index([unitId])
+}
+
+// Acknowledgement does not change stock. Quantity is in the issue's base unit.
+model MaterialAcknowledgement {
+  id             String            @id @default(cuid())
+  organizationId String
+  movementId     String
+  movement       InventoryMovement @relation(fields: [organizationId, movementId], references: [organizationId, id], onDelete: Restrict)
+  requestKey     String
+  quantity       Decimal           @db.Decimal(18, 6)
+  receivedById   String
+  receivedBy     User              @relation(fields: [receivedById], references: [id], onDelete: Restrict)
+  receivedAt     DateTime          @default(now())
+  notes          String?           @db.Text
+
+  @@unique([organizationId, requestKey])
+  @@index([movementId])
+  @@index([receivedById])
+}
+
+// New normalized receipt lines coexist with legacy GoodsReceiptItem.
+model GoodsReceiptLine {
+  id               String              @id @default(cuid())
+  organizationId   String
+  receiptId        String
+  receipt          GoodsReceipt        @relation(fields: [organizationId, receiptId], references: [organizationId, id], onDelete: Restrict)
+  lineNo           Int
+  poLineId         String
+  poLine           POItem              @relation(fields: [poLineId], references: [id], onDelete: Restrict)
+  materialId       String
+  material         Material            @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  locationId       String
+  location         WarehouseLocation   @relation(fields: [organizationId, locationId], references: [organizationId, id], onDelete: Restrict)
+  acceptedQty      Decimal             @db.Decimal(18, 6)
+  rejectedQty      Decimal             @default(0) @db.Decimal(18, 6)
+  unitCostSnapshot Decimal             @db.Decimal(18, 6)
+  currency         String              @default("THB") @db.Char(3)
+  movements        InventoryMovement[]
+
+  @@unique([receiptId, lineNo])
+  @@unique([organizationId, materialId, locationId, id], map: "GoodsReceiptLine_scope_key")
+  @@index([poLineId])
+}
+
+model StockTransfer {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  refNo           String
+  fromWarehouseId String
+  fromWarehouse   Warehouse               @relation("TransferFrom", fields: [organizationId, fromWarehouseId], references: [organizationId, id], onDelete: Restrict)
+  toWarehouseId   String
+  toWarehouse     Warehouse               @relation("TransferTo", fields: [organizationId, toWarehouseId], references: [organizationId, id], onDelete: Restrict)
+  status          InventoryDocumentStatus @default(DRAFT)
+  createdById     String
+  createdBy       User                    @relation("TransferCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById    String?
+  approvedBy      User?                   @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  approvedAt      DateTime?
+  postedAt        DateTime?
+  reason          String                  @db.Text
+  version         Int                     @default(0)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  lines           StockTransferLine[]
+
+  @@unique([organizationId, refNo])
+  @@unique([organizationId, fromWarehouseId, toWarehouseId, id], map: "StockTransfer_scope_key")
+  @@index([createdById])
+  @@index([approvedById])
+  @@index([organizationId, status, createdAt])
+}
+
+model StockTransferLine {
+  id               String              @id @default(cuid())
+  organizationId   String
+  transferId       String
+  fromWarehouseId  String
+  toWarehouseId    String
+  transfer         StockTransfer       @relation(fields: [organizationId, fromWarehouseId, toWarehouseId, transferId], references: [organizationId, fromWarehouseId, toWarehouseId, id], onDelete: Restrict)
+  lineNo           Int
+  materialId       String
+  material         Material            @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  fromLocationId   String
+  fromLocation     WarehouseLocation   @relation("TransferLocationFrom", fields: [organizationId, fromWarehouseId, fromLocationId], references: [organizationId, warehouseId, id], onDelete: Restrict)
+  toLocationId     String
+  toLocation       WarehouseLocation   @relation("TransferLocationTo", fields: [organizationId, toWarehouseId, toLocationId], references: [organizationId, warehouseId, id], onDelete: Restrict)
+  quantity         Decimal             @db.Decimal(18, 6)
+  unitCostSnapshot Decimal?            @db.Decimal(18, 6)
+  movements        InventoryMovement[]
+
+  @@unique([transferId, lineNo])
+  @@unique([organizationId, materialId, id])
+}
+
+model StockAdjustment {
+  id             String                  @id @default(cuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  refNo          String
+  warehouseId    String
+  warehouse      Warehouse               @relation(fields: [organizationId, warehouseId], references: [organizationId, id], onDelete: Restrict)
+  status         InventoryDocumentStatus @default(DRAFT)
+  reason         String                  @db.Text
+  isOpening      Boolean                 @default(false)
+  createdById    String
+  createdBy      User                    @relation("AdjustmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedById   String?
+  approvedBy     User?                   @relation("AdjustmentApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  approvedAt     DateTime?
+  postedAt       DateTime?
+  version        Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  lines          StockAdjustmentLine[]
+
+  @@unique([organizationId, refNo])
+  @@unique([organizationId, warehouseId, id])
+  @@index([createdById])
+  @@index([approvedById])
+  @@index([organizationId, status, createdAt])
+}
+
+model StockAdjustmentLine {
+  id                     String              @id @default(cuid())
+  organizationId         String
+  adjustmentId           String
+  warehouseId            String
+  adjustment             StockAdjustment     @relation(fields: [organizationId, warehouseId, adjustmentId], references: [organizationId, warehouseId, id], onDelete: Restrict)
+  lineNo                 Int
+  materialId             String
+  material               Material            @relation(fields: [organizationId, materialId], references: [organizationId, id], onDelete: Restrict)
+  locationId             String
+  location               WarehouseLocation   @relation(fields: [organizationId, warehouseId, locationId], references: [organizationId, warehouseId, id], onDelete: Restrict)
+  countedQty             Decimal             @db.Decimal(18, 6)
+  expectedQtySnapshot    Decimal             @db.Decimal(18, 6)
+  expectedBalanceVersion Int
+  quantityDelta          Decimal             @db.Decimal(18, 6)
+  valueDelta             Decimal             @db.Decimal(24, 6)
+  movements              InventoryMovement[]
+
+  @@unique([adjustmentId, lineNo])
+  @@unique([adjustmentId, materialId, locationId], map: "StockAdjustmentLine_item_key")
+  @@unique([organizationId, materialId, locationId, id], map: "StockAdjustmentLine_scope_key")
 }
