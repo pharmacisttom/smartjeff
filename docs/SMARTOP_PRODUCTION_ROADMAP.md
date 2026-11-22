@@ -13,7 +13,7 @@
 5. gate ผ่านด้วยหลักฐาน commit, command, environment และผลจริง; NOT_RUN/BLOCKED ไม่เท่ากับ PASS
 6. deployment เป็นงานแยกหลัง review/UAT และ explicit release authorization; ไม่ merge/deploy อัตโนมัติจากแผนนี้
 
-งาน implementation ที่ผู้ใช้ระบุล่าสุดยังเป็น P3; แผนทั้งระบบนี้ไม่เปิด scope ให้เขียนทุกโมดูลพร้อมกัน P0 gaps ที่กระทบสิทธิ์ P3 ให้ทำเป็น dependency ที่เล็กและทดสอบ regression ส่วน P0 อื่นจัด backlog แยก
+อัปเดต 22 พ.ย.2026: หลัง P3 database/posting slices ผู้ใช้ขยายคำขอให้ออกแบบระบบบัญชี ภาษีนำส่ง จัดซื้อจัดจ้าง คลัง คำสั่งซื้อ วางบิล และการเงินครบวงจร พร้อมสแกนระบบที่บริษัทยังขาด ดู `SMARTOP_INTEGRATED_ERP_BLUEPRINT.md` และ `SMARTOP_ERP_DELIVERY_BACKLOG.md` สำหรับ scope/dependency ล่าสุด Phase naming เดิมยังใช้ trace ได้ แต่ไม่ถือว่า P3 เป็นขอบเขตเดียวของแผนออกแบบอีกต่อไป ไม่มีคำสั่ง auto deploy/ยื่นภาษี/ปล่อยจ่ายจากแผนนี้
 
 ## 2. Phase และเกณฑ์ผ่าน
 

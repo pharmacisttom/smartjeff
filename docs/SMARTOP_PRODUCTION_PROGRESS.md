@@ -5,10 +5,21 @@ Updated: 2026-11-22 (Asia/Bangkok)
 ## Branch / baseline
 
 - Branch: `feature/production-erp-foundation`
-- Latest existing commit inspected: `436e909bc9e3dfadc28dfca549346d701766a0d2`
-- This update adds internal P3 posting services to the database foundation; it does not complete P0 or the P3 application UI/workflow. New commit SHA is reported in the task response after commit.
+- Latest existing commit inspected: `2d19540878ed6ff947ae87ac97e24c481c078467`
+- Latest requested scope: integrated ERP/accounting/tax-remittance design plus company-wide gap scan. Current changes are design/audit documents and a read-only workbook scanner; no new accounting/tax application implementation or database changes. New commit SHA is reported in the task response after commit.
 
-## Completed
+## Latest design / company scan (2026-11-22)
+
+- Created integrated ERP blueprint, tax filing design, integration data model, 44-ticket/epic delivery backlog, official tax source register and 48-area company system gap audit with complete gap-to-ticket mapping.
+- Incorporated configurable VAT registration/effective dates in company master, with branches tied to legal-entity registration and immutable historical document snapshots.
+- Covered goods/service procurement, customer orders, PO/work contracts, inspections/acceptance, stock, vendor/customer billing, AP/AR, payments/bank, GL, tax forms/evidence and adjacent payroll/SSO/DBD workflows.
+- Structurally scanned all 50 sheets in the two supplied workbooks: employee workbook 12 sheets / 1,082 formulas / external-link parts; materials workbook 38 sheets / 9,511 formulas. No cached error tokens found; no recalculation or raw business rows exported.
+- Price-master scan flagged 12 priced descriptions lacking codes as review candidates, not confirmed new SKUs. Source ranges differ from older report versions.
+- Confirmed a production payroll blocker: attendance query not date-bounded to period, hard-coded OT 20 hours and tax 1%. These were documented, not silently connected to statutory filing.
+- Rechecked backup script presence vs hard-coded verified UI; restored operational backup evidence remains unverified.
+- Current task verification: workbook read-only/privacy checks, source references, document links/fences, 44-ticket/48-gap traceability and git diff. Application tests/build/migrations were NOT_RUN for these documentation/scanner changes; results in the next section belong to the prior implementation slice.
+
+## Previously completed implementation (evidence at prior commit)
 
 - Inspected current module/schema/API/auth/session/authorization/audit and deployment configuration.
 - Compared remote HEAD with local baseline during the preceding review.

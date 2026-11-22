@@ -2,6 +2,8 @@
 
 วันที่ 21 พฤศจิกายน 2026 · สถานะ: logical design proposal ไม่ใช่ migration ที่พร้อม deploy
 
+ขอบเขตใหม่ 22 พ.ย.2026 มี [ERP integration data model](SMARTOP_ERP_INTEGRATION_DATA_MODEL.md) เพิ่มรายละเอียดบริษัท/สาขา ภาษีนำส่ง จัดซื้อ/จ้าง คำสั่งซื้อ ตรวจรับ วางบิล และธนาคาร เอกสารนี้เป็น target baseline เดิม; physical schema ปัจจุบันยังตรวจจาก Prisma/data dictionary เท่านั้น
+
 โครงสร้างเดิมครบทุก field อยู่ใน [Data dictionary](SMARTOP_DATABASE_CURRENT.md) เอกสารนี้แสดงเฉพาะส่วนเพิ่ม/ส่วนที่ต้องขยายเพื่อไม่สับสนว่ามีอยู่แล้ว ต้องยืนยัน business rules และมาตรฐานเดิมก่อน implement schema ใช้ Client เป็น Customer ของระบบ และ GoodsReceipt เดิมต่อไป ไม่สร้างข้อมูลหลักซ้ำ
 
 อัปเดตงาน database-first: เพิ่ม P3 storage foundation 19 models และ 3 enums ใน schema/migration แล้ว แต่ยังไม่ได้ apply กับฐานข้อมูลเดิม ตารางในเอกสารนี้ที่ไม่ตรง schema ล่าสุดยังเป็นเป้าหมายระยะถัดไป เช่น workflow services, RequisitionIssue และ budget; implementation ใช้ InventoryOperation/InventoryMovement ร่วมกับ MaterialAcknowledgement เพื่อเก็บ partial issue/receive ดู [runbook P3](SMARTOP_P3_DATABASE_RUNBOOK.md) สำหรับขอบเขตและผลทดสอบจริง
