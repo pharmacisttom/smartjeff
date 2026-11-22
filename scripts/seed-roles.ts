@@ -69,6 +69,12 @@ export const PERMISSIONS: PermDef[] = [
   // Inventory & Warehouse
   { code: "inventory.read", module: "Inventory", action: "VIEW", description: "ดูยอดสต็อกและอุปกรณ์ทำความสะอาด" },
   { code: "inventory.manage", module: "Inventory", action: "EDIT", description: "เบิกจ่าย-รับเข้า และตรวจนับสินค้าคงคลัง" },
+  // New posting services require explicit scoped grants; inventory.manage is not a bypass.
+  { code: "inventory.receive", module: "Inventory", action: "POST", description: "บันทึกรับวัสดุเข้าคลัง" },
+  { code: "inventory.issue", module: "Inventory", action: "POST", description: "จ่ายวัสดุตามใบเบิกที่อนุมัติ" },
+  { code: "inventory.adjust", module: "Inventory", action: "POST", description: "บันทึกปรับสต็อกที่อนุมัติ" },
+  { code: "inventory.transfer", module: "Inventory", action: "POST", description: "โอนวัสดุระหว่างคลัง" },
+  { code: "inventory.return", module: "Inventory", action: "POST", description: "รับคืนวัสดุอ้างอิงการจ่ายเดิม" },
 
   // Procurement
   { code: "procurement.read", module: "Procurement", action: "VIEW", description: "ดูใบขอซื้อและใบสั่งซื้อ (PR/PO)" },

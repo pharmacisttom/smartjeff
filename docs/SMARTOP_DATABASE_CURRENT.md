@@ -1,8 +1,8 @@
 # SmartOP — โครงสร้างฐานข้อมูลเดิมทั้งหมด
 
-วันที่ 21 พฤศจิกายน 2026 · สร้างจาก `prisma/schema.prisma` ใน working tree
+วันที่ 22 พฤศจิกายน 2026 · สร้างจาก `prisma/schema.prisma` ใน working tree
 
-ฐานเดิม: `07a6dff2ec021ea1c98da9819c88b6394b6f9f13`; รวมการเพิ่ม P3 ใน working tree ตาม migration `20261121000000_p3_inventory_foundation`
+ฐานเดิม: `07a6dff2ec021ea1c98da9819c88b6394b6f9f13`; รวม P3 foundation `20261121000000_p3_inventory_foundation` และ payload widening `20261122000000_inventory_posting_payloads`
 
 พบ **102 models** และ **133 explicit foreign-key relations** ใน source schema
 
@@ -2398,7 +2398,7 @@
 | `action` | `String` | Column | — |
 | `entity` | `String` | Column | — |
 | `entityId` | `String?` | Column | — |
-| `metadata` | `String?` | Column | — |
+| `metadata` | `String?` | Column | `@db.Text` |
 | `ipAddress` | `String?` | Column | — |
 | `createdAt` | `DateTime` | Column | `@default(now())` |
 
@@ -2482,7 +2482,7 @@
 | `eventType` | `String` | Column | — |
 | `version` | `String` | Column | `@default("1.0")` |
 | `correlationId` | `String?` | Column | — |
-| `payload` | `String` | Column | — |
+| `payload` | `String` | Column | `@db.Text` |
 | `status` | `String` | Column | `@default("PENDING")` |
 | `attempts` | `Int` | Column | `@default(0)` |
 | `lastError` | `String?` | Column | — |

@@ -67,10 +67,12 @@ async function main() {
     INSERT INTO StockMovement (id, itemId, type, quantity, balanceAfter) VALUES ('p3-legacy-movement', 'p3-legacy-item', 'IN', 5, 5);
   `);
   const fixturePassed = baselinePassed && run(['db', 'execute', '--file', fixture, '--schema', 'prisma/schema.prisma'], urls.upgrade, 'legacy-fixture.log');
-  const upgradePassed = fixturePassed && run(['db', 'execute', '--file', 'prisma/migrations/20261121000000_p3_inventory_foundation/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-upgrade.log');
+  const upgradePassed = fixturePassed &&
+    run(['db', 'execute', '--file', 'prisma/migrations/20261121000000_p3_inventory_foundation/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-upgrade.log') &&
+    run(['db', 'execute', '--file', 'prisma/migrations/20261122000000_inventory_posting_payloads/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-payload-upgrade.log');
   let integrationPassed = false;
   if (upgradePassed) {
-    const tests = spawnSync(process.execPath, [path.resolve('node_modules/vitest/vitest.mjs'), 'run', 'tests/integration/p3-database.test.ts'], {
+    const tests = spawnSync(process.execPath, [path.resolve('node_modules/vitest/vitest.mjs'), 'run', 'tests/integration/p3-database.test.ts', 'tests/integration/inventory-posting.test.ts'], {
       env: { ...process.env, P3_TEST_DATABASE_URL: urls.upgrade }, encoding: 'utf8', timeout: 120_000,
     });
     writeFileSync(path.join(output, 'integration.log'), `${tests.stdout || ''}\n${tests.stderr || ''}`.replaceAll(urls.upgrade, '[DATABASE_URL]'));

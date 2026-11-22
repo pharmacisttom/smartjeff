@@ -508,7 +508,7 @@ model AuditLog {
   action    String
   entity    String
   entityId  String?
-  metadata  String?
+  metadata  String? @db.Text
   ipAddress String?
   createdAt DateTime @default(now())
 
@@ -1510,7 +1510,7 @@ model EventOutbox {
   eventType     String
   version       String    @default("1.0")
   correlationId String?
-  payload       String
+  payload       String @db.Text
   status        String    @default("PENDING")
   attempts      Int       @default(0)
   lastError     String?

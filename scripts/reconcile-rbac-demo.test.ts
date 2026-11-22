@@ -35,11 +35,19 @@ describe("DEMO RBAC recovery safety", () => {
   });
 
   it("uses the shared Permission and Role master", () => {
-    expect(PERMISSIONS).toHaveLength(66);
+    expect(PERMISSIONS).toHaveLength(71);
     expect(new Set(PERMISSIONS.map(({ code }) => code)).size).toBe(PERMISSIONS.length);
     expect(new Set(ROLES.map(({ code }) => code)).size).toBe(ROLES.length);
     const permissionCodes = new Set(PERMISSIONS.map(({ code }) => code));
     expect(ROLES.flatMap(({ permissions }) => permissions).every((code) => permissionCodes.has(code))).toBe(true);
+  });
+
+  it("keeps new inventory posting grants out of ordinary legacy role templates", () => {
+    const postingCodes = ["inventory.receive", "inventory.issue", "inventory.adjust", "inventory.transfer", "inventory.return"];
+    expect(postingCodes.every(code => PERMISSIONS.some(permission => permission.code === code))).toBe(true);
+    expect(ROLES.filter(role => role.permissions.some(code => postingCodes.includes(code))).map(role => role.code)).toEqual([
+      "SUPER_ADMIN", "BREAK_GLASS_ADMIN",
+    ]);
   });
 
   it("defaults to dry-run and requires an explicit apply mode", () => {
@@ -63,16 +71,16 @@ describe("DEMO RBAC recovery safety", () => {
 
   it("treats empty database permissions as planned inserts, not missing master codes", () => {
     const plan = calculatePlannedState(ROLES.map(({ code }) => code), []);
-    expect(plan.permissionMasterCount).toBe(66);
-    expect(plan.permissionsToCreate).toBe(66);
-    expect(plan.desiredRawRolePermissionCount).toBe(250);
-    expect(plan.desiredUniqueRolePermissionCount).toBe(250);
+    expect(plan.permissionMasterCount).toBe(71);
+    expect(plan.permissionsToCreate).toBe(71);
+    expect(plan.desiredRawRolePermissionCount).toBe(260);
+    expect(plan.desiredUniqueRolePermissionCount).toBe(260);
     expect(plan.plannedMissingRolesCount).toBe(0);
     expect(plan.plannedMissingPermissionsCount).toBe(0);
     expect(plan.expectedPostApplyOrphanPermissionCount).toBe(0);
   });
 
-  it("replaces a resumed 246-row orphan set with 249 verified mappings", async () => {
+  it("replaces a resumed 246-row orphan set with verified catalog mappings", async () => {
     const roles = ROLES.map(({ code }, index) => ({ code, id: `role-${index}` }));
     const permissions = PERMISSIONS.map(({ code }, index) => ({ code, id: `permission-${index}` }));
     const desired = uniqueMappings(buildDesiredMappings(roles, permissions));
@@ -112,9 +120,9 @@ describe("DEMO RBAC recovery safety", () => {
       },
     } as never;
 
-    expect(desired).toHaveLength(250);
+    expect(desired).toHaveLength(260);
     await replaceRolePermissionMappings(tx, desired);
-    expect(mappings).toHaveLength(250);
+    expect(mappings).toHaveLength(260);
     expect(mappings.filter(({ permissionId }) => !permissionIds.has(permissionId))).toHaveLength(0);
   });
 
@@ -139,10 +147,10 @@ describe("DEMO RBAC recovery safety", () => {
     expect(report.currentPermissionCount).toBe(0);
     expect(report.currentRolePermissionCount).toBe(246);
     expect(report.currentOrphanPermissionCount).toBe(246);
-    expect(report.permissionsToCreate).toBe(66);
+    expect(report.permissionsToCreate).toBe(71);
     expect(report.plannedMissingPermissionsCount).toBe(0);
-    expect(report.desiredRawRolePermissionCount).toBe(250);
-    expect(report.desiredUniqueRolePermissionCount).toBe(250);
+    expect(report.desiredRawRolePermissionCount).toBe(260);
+    expect(report.desiredUniqueRolePermissionCount).toBe(260);
   });
 
   it("builds mappings from Role.code and Permission.code", () => {

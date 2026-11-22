@@ -51,8 +51,8 @@ def code(value):
 
 lines = [
     '# SmartOP — โครงสร้างฐานข้อมูลเดิมทั้งหมด', '',
-    'วันที่ 21 พฤศจิกายน 2026 · สร้างจาก `prisma/schema.prisma` ใน working tree', '',
-    'ฐานเดิม: `07a6dff2ec021ea1c98da9819c88b6394b6f9f13`; รวมการเพิ่ม P3 ใน working tree ตาม migration `20261121000000_p3_inventory_foundation`', '',
+    'วันที่ 22 พฤศจิกายน 2026 · สร้างจาก `prisma/schema.prisma` ใน working tree', '',
+    'ฐานเดิม: `07a6dff2ec021ea1c98da9819c88b6394b6f9f13`; รวม P3 foundation `20261121000000_p3_inventory_foundation` และ payload widening `20261122000000_inventory_posting_payloads`', '',
     f'พบ **{len(models)} models** และ **{len(relations)} explicit foreign-key relations** ใน source schema', '',
     'เอกสารนี้เป็น data dictionary ของ schema ใน repository ไม่ใช่ผล introspect ฐานข้อมูล production จึงยังไม่ยืนยันว่า migration ทุกชุดถูก deploy หรือ schema จริงตรงกัน ไม่มีการอ่านข้อมูลพนักงาน/ธุรกรรมหรือ connection string', '',
     '## วิธีอ่าน', '',
