@@ -73,6 +73,12 @@ No migration applied to the existing .env database or production. No source work
 
 ## Remaining / next steps
 
+### Company approval package 2026-11-23
+
+Prepared `SMARTOP_COMPANY_APPROVAL_PLAN.md` and the reproducible `scripts/build-approval-document.py` for the Thai company approval proposal. The package includes scope, current implementation limits, architecture, migration controls, delivery stages, responsibilities, UAT, cutover, all 44 delivery tickets, all 48 audit areas, and approval signatures. Word/PDF deliverables are generated under ignored `output/` and rendered through Microsoft Word for layout review.
+
+This is a proposal for company review, not company approval or production certification. Pricing, staffing, calendar dates, actual tax/bank provider access and data-owner sign-off remain to be established. No application code, production data, migrations or deployment were changed for this document package. Previous test results remain historical evidence at the recorded code baseline.
+
 1. Reconcile the original standard if supplied later; the new architecture/design is not the missing original. Current database-first work follows the user's authorization to proceed with the proposed plan.
 2. Restore an authorized legacy backup to a separate clone, inspect complete drift, reconcile and verify baseline; do not blindly apply old migrations or mark them all applied.
 3. Confirm SKU/UOM, aliases, currency/valuation/tax, opening stock and approval authority with business owners.
