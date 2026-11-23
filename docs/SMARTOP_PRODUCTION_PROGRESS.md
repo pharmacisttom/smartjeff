@@ -75,6 +75,8 @@ No migration applied to the existing .env database or production. No source work
 
 ### Company approval package 2026-11-23
 
+Thai edition: `SMARTOP_COMPANY_APPROVAL_PLAN_TH.md`, generated with `python scripts/build-approval-document.py --thai`, translates the business narrative, diagram, 44 ticket titles and acceptance criteria, 48 audit areas, responsibilities and approval form. The Thai Word/PDF were rendered with Microsoft Word and visually reviewed across all 24 pages. Coverage checks confirmed 44 ticket IDs, 48 gap IDs and 11 unchanged source links. Product names and reference IDs remain traceable. This update changes documents only.
+
 Prepared `SMARTOP_COMPANY_APPROVAL_PLAN.md` and the reproducible `scripts/build-approval-document.py` for the Thai company approval proposal. The package includes scope, current implementation limits, architecture, migration controls, delivery stages, responsibilities, UAT, cutover, all 44 delivery tickets, all 48 audit areas, and approval signatures. Word/PDF deliverables are generated under ignored `output/` and rendered through Microsoft Word for layout review.
 
 This is a proposal for company review, not company approval or production certification. Pricing, staffing, calendar dates, actual tax/bank provider access and data-owner sign-off remain to be established. No application code, production data, migrations or deployment were changed for this document package. Previous test results remain historical evidence at the recorded code baseline.

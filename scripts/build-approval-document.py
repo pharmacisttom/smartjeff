@@ -6,6 +6,8 @@ Outputs editable DOCX plus a repository Markdown source. Does not touch the data
 from pathlib import Path
 import re
 import json
+import sys
+from approval_thai import thai, translate_tickets
 from datetime import datetime, timezone
 from docx import Document
 from docx.shared import Cm, Pt, RGBColor
@@ -27,6 +29,13 @@ BASELINE = '5dd38b5d7ba8a266f06b83da8c2f07aec4050bbd'
 DATE = '23 พฤศจิกายน 2569'
 DOCX = OUT / 'SmartOP_Project_Approval_2026-11-23.docx'
 MD = ROOT / 'docs/SMARTOP_COMPANY_APPROVAL_PLAN.md'
+THAI = '--thai' in sys.argv
+if THAI:
+    DOCX = OUT / 'SmartOP_Complete_System_Thai_2026-11-23.docx'
+    MD = ROOT / 'docs/SMARTOP_COMPANY_APPROVAL_PLAN_TH.md'
+
+def localize(text):
+    return thai(text) if THAI else str(text)
 
 
 def parse_rows(name, prefix):
@@ -41,6 +50,8 @@ gap_text = (ROOT / 'docs/SMARTOP_COMPANY_SYSTEM_GAP_AUDIT.md').read_text(encodin
 trace_text = gap_text.split('## 5. Gap-to-delivery traceability', 1)[1].split('## 6.', 1)[0]
 trace = {g: refs.strip() for g, refs in re.findall(r'^\| (G\d{2}) \| ([^|]+) \|', trace_text, re.M)}
 assert len(tickets) == 44 and len(gaps) == 48 and len(trace) == 48
+if THAI:
+    tickets = translate_tickets(tickets)
 
 doc = Document()
 sec = doc.sections[0]
@@ -77,6 +88,8 @@ for pstyle in ['Title', 'Subtitle']:
         borders.getparent().remove(borders)
 
 def format_run(run, size=None, bold=None, color=None):
+    if THAI and run.text:
+        run.text = localize(run.text)
     run.font.name = FONT
     rf = run._element.get_or_add_rPr().get_or_add_rFonts()
     for attr in ['ascii', 'hAnsi', 'eastAsia', 'cs']:
@@ -119,16 +132,19 @@ headings = []
 page_no = 0
 
 def para(text, bold=False, size=None):
+    text = localize(text)
     p = doc.add_paragraph()
     format_run(p.add_run(text), size, bold)
     md.extend([text, ''])
     return p
 
 def sub(text):
+    text = localize(text)
     doc.add_paragraph(text, 'Heading 2')
     md.extend(['### ' + text, ''])
 
 def bullet(text):
+    text = localize(text)
     p = doc.add_paragraph()
     p.paragraph_format.left_indent, p.paragraph_format.first_line_indent = Cm(.35), Cm(-.25)
     format_run(p.add_run('•  ' + text))
@@ -136,6 +152,7 @@ def bullet(text):
 
 def start(title, note=None):
     global page_no
+    title = localize(title)
     if page_no:
         doc.add_page_break()
     page_no += 1
@@ -150,6 +167,8 @@ def start(title, note=None):
         para(note, size=10)
 
 def table(headers, rows, widths, size=10):
+    headers = [localize(h) for h in headers]
+    rows = [[localize(v) for v in row] for row in rows]
     t = doc.add_table(rows=1, cols=len(headers))
     t.alignment, t.autofit = WD_TABLE_ALIGNMENT.CENTER, False
     pr = t._tbl.tblPr
@@ -183,6 +202,7 @@ def table(headers, rows, widths, size=10):
     return t
 
 def link(p, label, url):
+    label = localize(label)
     from docx.opc.constants import RELATIONSHIP_TYPE
     rid = p.part.relate_to(url, RELATIONSHIP_TYPE.HYPERLINK, is_external=True)
     hl = OxmlElement('w:hyperlink'); hl.set(qn('r:id'), rid)
@@ -201,6 +221,8 @@ def diagram():
     left = ['Demand and purchase request', 'RFQ and supplier quotation', 'Approved PO or work contract', 'Goods inspection or service acceptance', 'Stock receipt and supplier invoice', 'Vendor billing and payment approval', 'Bank payment and withholding tax']
     right = ['Customer contract and order', 'Workforce and service schedule', 'Approved attendance and work evidence', 'Billing calculation and approval', 'Invoice and tax document', 'Customer billing and collection', 'Receipt allocation and WHT credit']
     for x, title, labels in [(35, 'PROCURE TO PAY', left), (785, 'ORDER TO CASH', right)]:
+        title = localize(title)
+        labels = [localize(label) for label in labels]
         d.text((x + 300, 28), title, font=bold, fill='black', anchor='mt')
         for idx, label in enumerate(labels):
             y = 100 + idx * 156
@@ -221,8 +243,8 @@ def diagram():
                 d.line((x + 340, cy, x + 340, cy + 44), fill='#203C56', width=4)
                 d.polygon([(x + 330, cy + 34), (x + 350, cy + 34), (x + 340, cy + 47)], fill='#203C56')
     d.rounded_rectangle((35, 1255, 1465, 1400), radius=10, fill='#203C56')
-    d.text((750, 1303), 'GENERAL LEDGER  |  TAX REGISTERS  |  REPORTING', font=bold, fill='white', anchor='mm')
-    d.text((750, 1360), 'Approved source  +  immutable records  +  reconciliation', font=font, fill='white', anchor='mm')
+    d.text((750, 1303), localize('GENERAL LEDGER  |  TAX REGISTERS  |  REPORTING'), font=bold, fill='white', anchor='mm')
+    d.text((750, 1360), localize('Approved source  +  immutable records  +  reconciliation'), font=font, fill='white', anchor='mm')
     dest = TMP / 'erp_flow.png'; im.save(dest, dpi=(220, 220))
     return dest
 
@@ -231,6 +253,8 @@ page_no = 1
 p = doc.add_paragraph(TITLE, 'Title')
 for r in p.runs: format_run(r, 27, True, '000000')
 doc.add_paragraph('แผนพัฒนาระบบบริหารงานบริษัทครบวงจร', 'Subtitle')
+if THAI:
+    para('ฉบับภาษาไทย ครอบคลุมเนื้อหา แผนภาพ ตารางงาน และภาคผนวกทุกส่วน โดยคงชื่อผลิตภัณฑ์เทคโนโลยี รหัสเอกสาร รหัสงาน และแหล่งอ้างอิงเพื่อใช้ตรวจสอบกับต้นฉบับ', size=10)
 para('เสนอเพื่ออนุมัติขอบเขตโครงการ โครงสร้างระบบ วิธีดำเนินงาน และเกณฑ์ตรวจรับก่อนขึ้นใช้งานจริง')
 table(['ข้อมูลเอกสาร', 'รายละเอียด'], [
     ['รหัสเอกสาร', CODE], ['ฉบับและวันที่', 'ฉบับ 1.0  |  ' + DATE],
@@ -506,6 +530,6 @@ for title, bookmark, number in headings[1:]:
 settings = doc.settings.element
 update = OxmlElement('w:updateFields'); update.set(qn('w:val'), 'true'); settings.append(update)
 doc.save(DOCX)
-MD.write_text('\n'.join(md).rstrip() + '\n', encoding='utf-8')
+MD.write_text(localize('\n'.join(md)).rstrip() + '\n', encoding='utf-8')
 (TMP / 'page-manifest.json').write_text(json.dumps({'expectedPages': page_no, 'headings': headings, 'docx': str(DOCX)}, ensure_ascii=False, indent=2), encoding='utf-8')
 print(json.dumps({'docx': str(DOCX), 'source': str(MD), 'plannedPages': page_no, 'tickets': len(tickets), 'gaps': len(gaps)}, ensure_ascii=True))

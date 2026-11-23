@@ -78,6 +78,7 @@ tsconfig.tsbuildinfo
 coverage/
 .nyc_output/
 /output/
+__pycache__/
 
 # Certificates
 *.pem
