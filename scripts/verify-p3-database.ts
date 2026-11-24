@@ -24,7 +24,8 @@ function run(args: string[], databaseUrl: string, logName: string) {
     const safe = value.replaceAll(databaseUrl, '[DATABASE_URL]');
     return baseUrl.password ? safe.replaceAll(baseUrl.password, '[REDACTED]') : safe;
   };
-  writeFileSync(path.join(output, logName), sanitize(`${result.stdout || ''}\n${result.stderr || ''}`));
+  writeFileSync(path.join(output, logName), sanitize(`${result.stdout || ''}\n${result.stderr || ''}\n` +
+    JSON.stringify({ exitCode: result.status, signal: result.signal, errorCode: result.error && 'code' in result.error ? result.error.code : undefined })));
   return result.status === 0 && !result.error;
 }
 
@@ -69,11 +70,12 @@ async function main() {
   const fixturePassed = baselinePassed && run(['db', 'execute', '--file', fixture, '--schema', 'prisma/schema.prisma'], urls.upgrade, 'legacy-fixture.log');
   const upgradePassed = fixturePassed &&
     run(['db', 'execute', '--file', 'prisma/migrations/20261121000000_p3_inventory_foundation/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-upgrade.log') &&
-    run(['db', 'execute', '--file', 'prisma/migrations/20261122000000_inventory_posting_payloads/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-payload-upgrade.log');
+    run(['db', 'execute', '--file', 'prisma/migrations/20261122000000_inventory_posting_payloads/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'p3-payload-upgrade.log') &&
+    run(['db', 'execute', '--file', 'prisma/migrations/20261124000000_release_schema_alignment/migration.sql', '--schema', 'prisma/schema.prisma'], urls.upgrade, 'a0-alignment-upgrade.log');
   let integrationPassed = false;
   if (upgradePassed) {
-    const tests = spawnSync(process.execPath, [path.resolve('node_modules/vitest/vitest.mjs'), 'run', 'tests/integration/p3-database.test.ts', 'tests/integration/inventory-posting.test.ts'], {
-      env: { ...process.env, P3_TEST_DATABASE_URL: urls.upgrade }, encoding: 'utf8', timeout: 120_000,
+    const tests = spawnSync(process.execPath, [path.resolve('node_modules/vitest/vitest.mjs'), 'run', 'tests/integration/p3-database.test.ts', 'tests/integration/inventory-posting.test.ts', 'tests/integration/database-preflight.test.ts'], {
+      env: { ...process.env, P3_TEST_DATABASE_URL: urls.upgrade, A0_TEST_DATABASE_URL: urls.chain }, encoding: 'utf8', timeout: 240_000,
     });
     writeFileSync(path.join(output, 'integration.log'), `${tests.stdout || ''}\n${tests.stderr || ''}`.replaceAll(urls.upgrade, '[DATABASE_URL]'));
     integrationPassed = tests.status === 0 && !tests.error;

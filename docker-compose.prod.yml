@@ -58,8 +58,10 @@ services:
   migrate:
     build:
       context: .
-      target: deps
-    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+      target: migrate
+    depends_on:
+      mysql:
+        condition: service_healthy
     environment:
       DATABASE_URL: mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
     networks:
@@ -76,12 +78,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=mysql://${MYSQL_USER:-smartjeff}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-smartjeff}
       - REDIS_URL=redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379/0
-      - AUTH_SECRET=${AUTH_SECRET:-SmartJeffProductionSecretRandomGeneratedKeyMustBeChanged64HexCharacters}
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET to a unique secret of at least 32 characters}
       - NEXTAUTH_URL=${APP_URL:-http://localhost}
       - APP_URL=${APP_URL:-http://localhost}
     expose:

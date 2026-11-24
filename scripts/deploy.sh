@@ -11,8 +11,11 @@ case "$mode" in
     npm run lint
     npm run typecheck
     npm test
+    npm run check:routes
     npm run build
+    npm run db:preflight -- --history-only
     npx prisma migrate deploy
+    npm run db:preflight
     mkdir -p logs
     pm2 startOrReload ecosystem.config.js --env production --update-env
     pm2 save
@@ -21,7 +24,7 @@ case "$mode" in
   docker)
     docker compose -f docker-compose.prod.yml build app migrate
     docker compose -f docker-compose.prod.yml up -d --wait mysql redis
-    docker compose -f docker-compose.prod.yml run --rm migrate
+    docker compose -f docker-compose.prod.yml up --no-deps --force-recreate --exit-code-from migrate migrate
     docker compose -f docker-compose.prod.yml up -d --wait app nginx
     ;;
   *) echo 'Usage: scripts/deploy.sh [pm2|docker]'; exit 1 ;;

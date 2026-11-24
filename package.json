@@ -20,6 +20,7 @@
     "demo:reset-passwords": "node --env-file=.env --import tsx scripts/reset-demo-passwords.ts",
     "check:routes": "tsx scripts/check-navigation-routes.ts",
     "db:inspect": "node --env-file=.env --import tsx scripts/inspect-database.ts",
+    "db:preflight": "node --env-file=.env --import tsx scripts/check-database-readiness.ts",
     "test:db:p3": "node --env-file=.env --import tsx scripts/verify-p3-database.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

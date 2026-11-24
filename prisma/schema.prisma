@@ -284,6 +284,8 @@ model User {
   id                           String                    @id @default(cuid())
   email                        String                    @unique
   passwordHash                 String?
+  // Retain the deprecated nullable storage column; never expose it in Prisma Client.
+  deprecatedPassword           String?                   @map("password") @ignore
   role                         String                    @default("EMPLOYEE")
   permissions                  String?                   @db.Text
   assignedSiteCode             String?
@@ -376,7 +378,7 @@ model PasswordHistory {
 
 model Role {
   id              String               @id @default(cuid())
-  code            String               @unique
+  code            String               @unique(map: "Role_code_key")
   nameTh          String
   nameEn          String
   description     String?              @db.Text
@@ -390,8 +392,8 @@ model Role {
   userAssignments UserRoleAssignment[]
   authorities     ApprovalAuthority[]
 
-  @@index([code])
-  @@index([isActive])
+  @@index([code], map: "Role_code_idx")
+  @@index([isActive], map: "Role_isActive_idx")
   @@map("role")
 }
 
@@ -413,14 +415,14 @@ model Permission {
 model RolePermission {
   id           String     @id @default(cuid())
   roleId       String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade, map: "RolePermission_roleId_fkey")
   permissionId String
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, map: "RolePermission_permissionId_fkey")
   createdAt    DateTime   @default(now())
 
-  @@unique([roleId, permissionId])
-  @@index([roleId])
-  @@index([permissionId])
+  @@unique([roleId, permissionId], map: "RolePermission_roleId_permissionId_key")
+  @@index([roleId], map: "RolePermission_roleId_idx")
+  @@index([permissionId], map: "RolePermission_permissionId_idx")
   @@map("rolepermission")
 }
 
@@ -448,7 +450,7 @@ model UserRoleAssignment {
 model ApprovalAuthority {
   id        String   @id @default(cuid())
   roleId    String
-  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade, map: "ApprovalAuthority_roleId_fkey")
   module    String
   action    String
   level     String
@@ -457,7 +459,7 @@ model ApprovalAuthority {
   isEnabled Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  @@index([roleId, module])
+  @@index([roleId, module], map: "ApprovalAuthority_roleId_module_idx")
   @@map("approvalauthority")
 }
 
@@ -484,7 +486,7 @@ model UserSession {
 model AccessRequest {
   id             String    @id @default(cuid())
   userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "AccessRequest_userId_fkey")
   targetRoleId   String?
   permissionCode String?
   scopeType      String?
@@ -498,7 +500,7 @@ model AccessRequest {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  @@index([userId, status])
+  @@index([userId, status], map: "AccessRequest_userId_status_idx")
   @@map("accessrequest")
 }
 

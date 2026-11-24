@@ -73,6 +73,16 @@ No migration applied to the existing .env database or production. No source work
 
 ## Remaining / next steps
 
+### A0 release integrity 2026-11-24
+
+Implemented a read-only database release gate (`npm run db:preflight`, with optional `--history-only`), migration-history/checksum/prefix checks, and a post-migration Prisma schema comparison that fails closed. PM2 and Docker release paths now gate startup on these checks. Docker requires an explicit AUTH_SECRET and waits for the migration job to succeed. Authentication logic is unchanged.
+
+The first real schema comparison exposed historical migration-chain drift: PasswordHistory was missing, mapped RBAC constraint names differed, and a deprecated password storage column was not represented. Added `20261124000000_release_schema_alignment`, preserved original constraint names in the schema, and retained the deprecated column as an ignored Prisma field. No DROP/data reset was added. Case-sensitive Linux table renaming remains to be validated on Linux/MySQL 8.
+
+Fresh evidence: Prisma validate/generate, typecheck, lint (3 pre-existing map-hook warnings), 149 ordinary tests, 41 isolated MariaDB tests, full migration chain/status, baseline upgrade with synthetic data including the new migration, navigation 115/115, production build against an isolated DB, and Bash deployment syntax passed. Docker execution is NOT_VERIFIED (CLI unavailable). The configured local DB was offline; a separate workspace MariaDB instance on loopback port 3308 was used. Existing .env database and production were not modified. The runner retains its uniquely named databases and deliberately added schema-drift probe.
+
+See `SMARTOP_A0_DATABASE_RELEASE_GATE.md`. This completes the release-gate implementation slice, not ERP-001 business-data reconciliation, restore certification, all A0 tasks, or overall production readiness. No go-live/deployment occurred.
+
 ### Company approval package 2026-11-23
 
 Thai edition: `SMARTOP_COMPANY_APPROVAL_PLAN_TH.md`, generated with `python scripts/build-approval-document.py --thai`, translates the business narrative, diagram, 44 ticket titles and acceptance criteria, 48 audit areas, responsibilities and approval form. The Thai Word/PDF were rendered with Microsoft Word and visually reviewed across all 24 pages. Coverage checks confirmed 44 ticket IDs, 48 gap IDs and 11 unchanged source links. Product names and reference IDs remain traceable. This update changes documents only.

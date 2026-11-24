@@ -15,6 +15,12 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci
 
+# Database release job includes the read-only history and schema gates.
+FROM deps AS migrate
+COPY scripts/check-database-readiness.ts ./scripts/check-database-readiness.ts
+COPY src/server/domain/deployment/database-preflight.ts ./src/server/domain/deployment/database-preflight.ts
+CMD ["sh", "-c", "node --import tsx scripts/check-database-readiness.ts --history-only && node node_modules/prisma/build/index.js migrate deploy && node --import tsx scripts/check-database-readiness.ts"]
+
 # 3. Builder stage
 FROM base AS builder
 WORKDIR /app
