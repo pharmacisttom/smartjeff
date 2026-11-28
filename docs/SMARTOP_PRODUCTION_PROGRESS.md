@@ -65,13 +65,19 @@ No migration applied to the existing .env database or production. No source work
 - AuthorizationService has legacy role fallback and broad organization/superadmin behavior requiring controlled migration and negative tests.
 - API session helper checks DB state, but edge middleware alone does not validate revoked DB sessions for server page queries.
 - Audit chaining needs canonical persisted-field and concurrent-order verification before integrity assurance.
-- Compose has an AUTH_SECRET fallback; application startup is not gated on migration-job success.
+- Resolved in A0 on 2026-11-24: Compose now requires AUTH_SECRET and gates application startup on migration-job success and schema validation.
 - Redis configuration and EventOutbox tables do not prove a functioning worker; searched code primarily reads outbox status.
 - Existing Invoice/Receipt schema ties a receipt to one invoice; multi-invoice allocation needs additive migration.
 - Accounting Journal/GL models not present in the inspected schema.
 - Configured local DB has 73 tables, lacks 10 baseline tables and 20 columns relative to the original schema, and has no migration history; reviewed legacy reconciliation/baseline is required before deploy.
 
 ## Remaining / next steps
+
+### Deployment destination and Linux validation 2026-11-28
+
+User confirmed `https://smartop.tomvisolution.tech/` as the deployment destination; existing Nginx configuration already names this host. Server access details are still required. The public fetch tool could not access the URL; this does not establish whether the site is down. No deployment or production database changes performed.
+
+Added `.github/workflows/release-validation.yml` to run quality gates, fresh migration chain, populated upgrade, integration tests and build on Linux/MySQL 8 using disposable CI databases. This workflow has not yet been verified by a completed GitHub Actions run; its presence is not a passing Linux certification. It contains only synthetic CI credentials and cannot deploy production.
 
 ### A0 release integrity 2026-11-24
 
